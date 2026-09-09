@@ -39,3 +39,20 @@ test("elem frames id + size + payload", () => {
 test("UNKNOWN_SIZE is the eight-byte all-ones pattern", () => {
   assert.deepEqual([...UNKNOWN_SIZE], [0x01, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff]);
 });
+
+test("vintSize throws for a value too large for an 8-byte vint", () => {
+  assert.throws(
+    () => vintSize(2 ** 56),
+    (err: unknown) => {
+      assert(err instanceof Error);
+      assert(err.message.includes("value too large for an EBML vint"));
+      return true;
+    }
+  );
+});
+
+test("vintSize rolls over to three bytes at 16383", () => {
+  // 16383 is the 2-byte reserved 'all-ones' pattern, so it must widen.
+  assert.equal(vintSize(16383).length, 3);
+  assert.deepEqual([...vintSize(16383)], [0x20, 0x3f, 0xff]);
+});
