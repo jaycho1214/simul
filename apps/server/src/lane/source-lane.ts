@@ -5,6 +5,7 @@ import { FrameBus } from "../frame-bus.ts";
 import { TranscriptBus } from "../transcript-bus.ts";
 import type { Clock } from "../clock.ts";
 import type { Lane } from "./lane.ts";
+import { pumpPackets } from "./pump-packets.ts";
 
 /**
  * Passthrough of the speaker's own language. No Gemini session, no API cost.
@@ -44,10 +45,7 @@ export class SourceLane implements Lane {
 
   pushPcm(frame: Buffer): void {
     if (this.closed) return;
-    for (const packet of this.encoder.encode(frame)) {
-      this.frames.publish(packet, this.elapsedMs);
-      this.elapsedMs += 20;
-    }
+    this.elapsedMs = pumpPackets(this.encoder, this.frames, frame, this.elapsedMs);
   }
 
   close(): void {

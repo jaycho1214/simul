@@ -7,6 +7,7 @@ import type { Clock } from "../clock.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
 import { SessionRotator } from "../gemini/session-rotator.ts";
 import type { Lane } from "./lane.ts";
+import { pumpPackets } from "./pump-packets.ts";
 
 export interface TranslatedLaneOptions {
   lang: LangCode;
@@ -39,18 +40,19 @@ export class TranslatedLane implements Lane {
     this.frames.subscribe((frame) => this.sink.writeOpus(frame));
 
     session.on("audio", (pcm24k) => {
-      for (const packet of this.encoder.encode(pcm24k)) {
-        this.frames.publish(packet, this.elapsedMs);
-        this.elapsedMs += 20;
-      }
+      this.elapsedMs = pumpPackets(this.encoder, this.frames, pcm24k, this.elapsedMs);
     });
     session.on("transcript", (text, isFinal) => {
       this.transcripts.publish(text, isFinal);
     });
     session.on("state", (s) => { this.laneState = s; });
-    session.on("closed", () => {
-      if (!this.closed) this.laneState = "reconnecting";
-    });
+    // No "closed" handler: under R5, `session` here is always a
+    // SessionRotator, which only emits "closed" from its own close() — and
+    // that is only ever reached via this class's close(), which has already
+    // set laneState to "error" by the time the event would arrive.
+    // Unsolicited reconnection is absorbed entirely inside the rotator and
+    // surfaced to us only through "state" (e.g. "reconnecting"), so there is
+    // nothing left for a "closed" handler to do.
   }
 
   /**
@@ -66,6 +68,15 @@ export class TranslatedLane implements Lane {
     return new TranslatedLane(opts.lang, rotator, opts);
   }
 
+  /**
+   * Frames pushed while `session.canAccept()` was false. `SessionRotator`
+   * only reports that once it has been closed, so in practice this counts
+   * PCM pushed after this lane's own close() has torn down the session —
+   * not backpressure or an audio-quality problem. On the operator dashboard,
+   * a rising count means "still receiving ingest audio after teardown," not
+   * "audio is degrading" — nothing upstream of close() currently makes
+   * canAccept() return false.
+   */
   get laneDrops(): number {
     return this.drops;
   }
