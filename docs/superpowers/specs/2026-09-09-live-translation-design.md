@@ -206,9 +206,9 @@ Forge's `rebuildConfig` and marked external in `vite.main.config.mts`. A
 string. A reconnecting operator app takes over; the stale socket is closed.
 Validates frame size.
 
-**AudioHub** — pure fan-out to open lanes. Each lane has a bounded queue; a
-stalled lane drops its oldest frames and increments a counter. One sick lane
-can never stall ingest or another lane. No replay buffer — a cold lane starts
+**AudioHub** — pure fan-out to open lanes. A lane that throws is isolated: the
+exception is caught and logged, and every sibling still receives the frame.
+No replay buffer — a cold lane starts
 from now.
 
 **Lane** — one per active language:
@@ -432,6 +432,18 @@ Each has a seam. None gets built now.
   Verify rather than assume.
 - Venue wifi with client isolation would break everything. Check before the
   event.
+- **There is no real backpressure toward Gemini.** An earlier draft of this spec
+  claimed each lane holds a bounded queue that drops oldest under stall. That is
+  not implementable as described: `ws.send()` never blocks, so a stalled Gemini
+  connection grows an invisible buffer inside the SDK rather than stalling our
+  fan-out loop, and `@google/genai` does not expose the underlying socket's
+  buffered byte count. A queue drained synchronously in the same call can never
+  fill, so it would isolate nothing. What the server actually guarantees is
+  **throw isolation** — one lane's exception cannot stop the others — plus real
+  backpressure on the *listener* side, where the HTTP response stream's
+  `writableLength` is visible and enforced. If a stalled session ever proves to
+  cause unbounded memory growth in practice, this needs revisiting with an
+  explicit send queue and an async drain.
 - **Windows Firewall will silently block the attendee port.** The server listens
   on all interfaces, but Windows blocks inbound connections by default, and if
   the venue wifi is classified as a **Public** network it blocks them even when a
