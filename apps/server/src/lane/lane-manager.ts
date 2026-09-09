@@ -42,6 +42,19 @@ interface Entry {
 export class LaneManager {
   private readonly entries = new Map<LangCode, Entry>();
   private readonly opening = new Map<LangCode, Promise<Lane>>();
+  /**
+   * Subscribers who called release() for a language while it was still
+   * opening — i.e. before an Entry existed for `release` to act on. Gemini
+   * session setup is real network I/O, so this is not a theoretical window:
+   * an attendee can tap a language and back out again before the session
+   * finishes opening. Without this, that release is silently dropped and
+   * the acquire continuation re-adds the subscriber unconditionally once
+   * the open resolves, leaving a subscriber that can never release again —
+   * a lane that bills for the rest of the event with nobody listening.
+   */
+  private readonly pendingReleases = new Map<LangCode, Set<object>>();
+  /** Set once by closeAll(). Permanent: this instance is done after that. */
+  private closed = false;
 
   constructor(private readonly opts: LaneManagerOptions) {}
 
@@ -68,7 +81,7 @@ export class LaneManager {
     const inFlight = this.opening.get(lang);
     if (inFlight) {
       const lane = await inFlight;
-      this.entries.get(lang)?.subscribers.add(subscriber);
+      this.registerSubscriberAfterOpen(lang, subscriber);
       return lane;
     }
 
@@ -81,15 +94,48 @@ export class LaneManager {
 
     try {
       const lane = await promise;
+
+      // closeAll() ran while this open was in flight. It couldn't touch
+      // this lane — it wasn't in `entries` yet — so this is the only place
+      // left to stop it from becoming a live, billing session that nothing
+      // will ever release.
+      if (this.closed) {
+        lane.close();
+        return lane;
+      }
+
       this.entries.set(lang, {
         lane,
-        subscribers: new Set([subscriber]),
+        subscribers: new Set(),
         openedAt: this.opts.clock.now(),
       });
       this.opts.hub.addLane(lane);
+      this.registerSubscriberAfterOpen(lang, subscriber);
       return lane;
     } finally {
       this.opening.delete(lang);
+    }
+  }
+
+  /**
+   * Adds `subscriber` to a lane whose open just resolved — whether this
+   * call is the one that opened it, or a concurrent acquire that joined an
+   * already-in-flight open. Reconciles against a release() that arrived
+   * for this subscriber while the open was still pending: if one did,
+   * undoes the add immediately via the normal release() path (which starts
+   * the grace timer if that leaves the lane with no subscribers at all)
+   * instead of leaving a subscriber that will never release again.
+   */
+  private registerSubscriberAfterOpen(lang: LangCode, subscriber: object): void {
+    const entry = this.entries.get(lang);
+    if (!entry) return; // closeAll() ran; nothing to join.
+
+    entry.subscribers.add(subscriber);
+
+    const pending = this.pendingReleases.get(lang);
+    if (pending?.delete(subscriber)) {
+      if (pending.size === 0) this.pendingReleases.delete(lang);
+      this.release(lang, subscriber);
     }
   }
 
@@ -108,7 +154,21 @@ export class LaneManager {
 
   release(lang: LangCode, subscriber: object): void {
     const entry = this.entries.get(lang);
-    if (!entry) return;
+    if (!entry) {
+      // No entry yet doesn't mean nothing to do: the lane may still be
+      // opening. Record the release so acquire()'s continuation can
+      // reconcile it instead of silently re-adding this subscriber once
+      // the open resolves.
+      if (this.opening.has(lang)) {
+        let pending = this.pendingReleases.get(lang);
+        if (!pending) {
+          pending = new Set();
+          this.pendingReleases.set(lang, pending);
+        }
+        pending.add(subscriber);
+      }
+      return;
+    }
 
     entry.subscribers.delete(subscriber);
     if (entry.subscribers.size > 0 || entry.closeTimer) return;
@@ -135,6 +195,7 @@ export class LaneManager {
   }
 
   closeAll(): void {
+    this.closed = true;
     for (const [lang, entry] of this.entries) {
       if (entry.closeTimer) this.opts.clock.clearTimeout(entry.closeTimer);
       this.opts.hub.removeLane(lang);

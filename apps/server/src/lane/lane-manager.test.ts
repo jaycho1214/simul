@@ -2,8 +2,25 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
-import { createFakeTranslateSessionFactory } from "../gemini/fake-translate-session.ts";
+import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
+import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
 import { LaneManager, LaneCapError, UnknownLanguageError } from "./lane-manager.ts";
+
+/**
+ * A session factory the test controls by hand: the returned promise only
+ * resolves when `resolve` is called. This is how the "closeAll / release
+ * arrives while a Gemini session is still opening" tests hold the manager
+ * open mid-acquire — real session setup is network I/O with exactly this
+ * shape, just on a real clock instead of a manually-pulled lever.
+ */
+function deferredSessionFactory(): {
+  factory: TranslateSessionFactory;
+  resolve: (session: TranslateSession) => void;
+} {
+  let resolve!: (session: TranslateSession) => void;
+  const factory: TranslateSessionFactory = () => new Promise((res) => { resolve = res; });
+  return { factory, resolve: (session) => resolve(session) };
+}
 
 function makeManager(overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number }> = {}) {
   const clock = new FakeClock();
@@ -136,35 +153,104 @@ test("closeAll closes every open lane and clears the hub", async () => {
   assert.equal(manager.get("es"), undefined);
 });
 
-test("closeAll cancels a pending grace timer so it cannot tear down a lane reopened later", async () => {
-  // A grace timer left running past closeAll() is a live handle pointing at
-  // a language, not at a specific lane instance. If closeAll() closes the
-  // lane and clears its own bookkeeping but forgets to cancel the timer,
-  // the timer is still armed. Should that language be reopened afterward
-  // (e.g. the manager is reused, or this models "the old scheduled callback
-  // is still queued"), the stale timer fires at its *original* due time and
-  // tears down the new lane before that new lane's own grace period is up
-  // — a listener silently cut off, not a leak, but exactly the "timer that
-  // outlives a teardown" failure class called out as worth guarding.
+test("closeAll cancels pending grace timers, not just closes lanes", async (t) => {
   const { clock, hub, manager } = makeManager({ laneGraceMs: 60000 });
-  const subA = {};
-  await manager.acquire("en", subA);
-  manager.release("en", subA); // schedules a grace timer due at t=60000
+  const sub = {};
+  await manager.acquire("en", sub);
+  manager.release("en", sub); // schedules a grace timer due at t=60000
 
-  manager.closeAll(); // must cancel that timer, not just close the lane
+  const clearTimeoutSpy = t.mock.method(clock, "clearTimeout");
+  manager.closeAll();
 
-  clock.advance(40000); // t=40000, still well before the stale timer's due time
-  const subB = {};
-  await manager.acquire("en", subB); // reopens a fresh lane at t=40000
-  manager.release("en", subB); // schedules its OWN grace timer, due at t=100000
+  assert.equal(
+    clearTimeoutSpy.mock.callCount(),
+    1,
+    "the pending grace timer must be cancelled, not left dangling once its lane is gone",
+  );
+  assert.equal(hub.laneCount, 0);
 
-  clock.advance(20000); // t=60000 — exactly when the stale timer would have fired
+  // Advancing time afterward must be a pure no-op: the timer is gone, not
+  // merely harmless because its target was already torn down.
+  assert.doesNotThrow(() => clock.advance(60000));
+});
+
+// The following two tests came out of code review, not the brief. Both are
+// the same shape: `acquire()`'s in-flight open is invisible to the rest of
+// the class — `entries` doesn't know about a language until the Gemini
+// session finishes opening — so anything that happens during that window
+// (a shutdown, a subscriber backing out) was being silently lost and
+// re-applied incorrectly once the open resolved.
+
+test("closeAll while an open is in flight closes the lane and never registers it", async () => {
+  const clock = new FakeClock();
+  const hub = new AudioHub();
+  const { factory, resolve } = deferredSessionFactory();
+  const manager = new LaneManager({
+    clock,
+    hub,
+    sessionFactory: factory,
+    sourceLanguage: "ko",
+    offeredLanguages: ["ko", "en"],
+    maxConcurrentLanes: 6,
+    laneGraceMs: 60000,
+    transcriptHistoryLines: 200,
+    opusBitrate: 24000,
+  });
+
+  const acquiring = manager.acquire("en", {});
+  // The Gemini session is still opening — "en" is in `opening`, not yet in
+  // `entries` — when the server starts shutting down.
+  manager.closeAll();
+
+  resolve(new FakeTranslateSession("en"));
+  const lane = await acquiring;
+
   assert.equal(
     hub.laneCount,
-    1,
-    "a cancelled stale timer must not tear down the lane reopened after closeAll",
+    0,
+    "a lane whose open outlived closeAll() must never be registered with the hub",
   );
+  assert.equal(lane.state, "error", "the session created after closeAll() must be closed, not left live");
+});
 
-  clock.advance(40000); // t=100000 — the reopened lane's own grace timer fires
-  assert.equal(hub.laneCount, 0);
+test("release() before the open resolves does not create a phantom subscriber", async () => {
+  const clock = new FakeClock();
+  const hub = new AudioHub();
+  const { factory, resolve } = deferredSessionFactory();
+  const manager = new LaneManager({
+    clock,
+    hub,
+    sessionFactory: factory,
+    sourceLanguage: "ko",
+    offeredLanguages: ["ko", "en"],
+    maxConcurrentLanes: 6,
+    laneGraceMs: 60000,
+    transcriptHistoryLines: 200,
+    opusBitrate: 24000,
+  });
+
+  const sub = {};
+  const acquiring = manager.acquire("en", sub);
+  // The attendee backs out while the Gemini session is still opening — the
+  // realistic case, since session setup is real network I/O. `release()`
+  // has nothing to act on yet: there is no Entry for "en".
+  manager.release("en", sub);
+
+  resolve(new FakeTranslateSession("en"));
+  const lane = await acquiring;
+
+  // The session was already being created when the attendee backed out, so
+  // that lane still opens — that cost is sunk. What must not happen is
+  // `sub` becoming a permanent phantom subscriber: since `sub` is
+  // per-connection and will never call release() again, only an
+  // immediately-armed grace timer on the empty lane stands between this
+  // and it billing for the rest of the event.
+  clock.advance(60000);
+
+  assert.equal(
+    hub.laneCount,
+    0,
+    "the lane must be torn down once its grace period passes, not left open by a phantom subscriber",
+  );
+  assert.equal(lane.state, "error", "the actual Gemini session must be closed, not just deregistered");
 });
