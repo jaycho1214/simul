@@ -1,0 +1,55 @@
+:root {
+  --bg: #0b0d10;
+  --fg: #f5f7fa;
+  --dim: #9aa4b2;
+  --row: #171b21;
+  --row-press: #232932;
+  --line: #2a313b;
+  --ok: #3ddc84;
+  --warn: #ffb020;
+  --error: #ff5d5d;
+  --notice-bg: #ffd400;
+  --notice-fg: #111111;
+  --tap: 4.25rem;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
+    "Segoe UI", Roboto, sans-serif;
+  font-size: 18px;
+  line-height: 1.4;
+  -webkit-text-size-adjust: 100%;
+  -webkit-tap-highlight-color: transparent;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+/* The element is real and always mounted so its ref exists before the tap that
+   must call play(); it is never seen. */
+.audio-sink {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}

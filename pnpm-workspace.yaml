@@ -4,4 +4,5 @@ packages:
 allowBuilds:
   '@discordjs/opus': true
   '@google/genai': true
+  esbuild: true
   protobufjs: true
