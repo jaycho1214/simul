@@ -1,5 +1,4 @@
 import { GoogleGenAI, Modality } from "@google/genai";
-import type { LiveConnectConfig } from "@google/genai";
 import type { LangCode } from "@tongyeok/protocol";
 import type {
   TranslateSession,
@@ -49,26 +48,19 @@ export class GeminiTranslateSession implements TranslateSession {
   }): Promise<void> {
     this.emit("state", "starting");
 
-    // `translationConfig` configures the gemini-3.5-live-translate-preview
-    // model's native translation output; it is not yet present in the
-    // installed @google/genai type definitions (the preview API is ahead of
-    // its published SDK types), so the object is cast past the excess-
-    // property check. Every other field here is fully typed.
-    const config = {
-      responseModalities: [Modality.AUDIO],
-      inputAudioTranscription: {},
-      outputAudioTranscription: {},
-      translationConfig: {
-        targetLanguageCode: this.targetLanguage,
-        echoTargetLanguage: false,
-      },
-      contextWindowCompression: { slidingWindow: {} },
-      sessionResumption: opts.resumeHandle ? { handle: opts.resumeHandle } : {},
-    } as LiveConnectConfig;
-
     this.live = await opts.ai.live.connect({
       model: opts.model,
-      config,
+      config: {
+        responseModalities: [Modality.AUDIO],
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+        translationConfig: {
+          targetLanguageCode: this.targetLanguage,
+          echoTargetLanguage: false,
+        },
+        contextWindowCompression: { slidingWindow: {} },
+        sessionResumption: opts.resumeHandle ? { handle: opts.resumeHandle } : {},
+      },
       callbacks: {
         onopen: () => this.emit("state", "live"),
         onmessage: (message) => this.handleMessage(message),
