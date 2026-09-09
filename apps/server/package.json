@@ -3,14 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --disable-warning=DEP0169 --disable-warning=ExperimentalWarning --experimental-transform-types --test",
+    "test": "node --disable-warning=ExperimentalWarning --experimental-transform-types --test",
     "typecheck": "tsc -p .",
-    "dev": "node --disable-warning=DEP0169 --disable-warning=ExperimentalWarning --experimental-transform-types src/index.ts"
+    "dev": "node --disable-warning=ExperimentalWarning --experimental-transform-types src/index.ts"
   },
   "dependencies": {
-    "@discordjs/opus": "^0.10.0",
     "@google/genai": "^1.0.0",
     "@tongyeok/protocol": "workspace:*",
+    "opusscript": "^0.1.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {

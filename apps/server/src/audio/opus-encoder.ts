@@ -1,12 +1,6 @@
-import pkg from "@discordjs/opus";
-import type { OpusEncoder as OpusEncoderType } from "@discordjs/opus";
+import OpusScript from "opusscript";
 
-// `@discordjs/opus` is CommonJS with a dynamically resolved `module.exports`
-// (it re-exports a native-binding path picked at install time), so Node's
-// ESM/CJS interop cannot statically detect `OpusEncoder` as a named export —
-// `import { OpusEncoder } from "@discordjs/opus"` fails at runtime despite
-// type-checking. Importing the default and destructuring sidesteps that gap.
-const { OpusEncoder } = pkg;
+const OPUS_SET_BITRATE = 4002;
 
 /** 20 ms of mono 16-bit PCM at the given rate. */
 export function frameBytesFor(sampleRate: number): number {
@@ -14,17 +8,19 @@ export function frameBytesFor(sampleRate: number): number {
 }
 
 export class LaneOpusEncoder {
-  private readonly encoder: OpusEncoderType;
+  private readonly encoder: OpusScript;
   private readonly frameBytes: number;
+  private readonly frameSamples: number;
   private pending: Buffer = Buffer.alloc(0);
 
   constructor(
     readonly sampleRate: 16000 | 24000,
     bitrate: number,
   ) {
-    this.encoder = new OpusEncoder(sampleRate, 1);
-    this.encoder.setBitrate(bitrate);
+    this.encoder = new OpusScript(sampleRate, 1, OpusScript.Application.VOIP);
+    this.encoder.encoderCTL(OPUS_SET_BITRATE, bitrate);
     this.frameBytes = frameBytesFor(sampleRate);
+    this.frameSamples = sampleRate / 50;
   }
 
   get pendingBytes(): number {
@@ -37,7 +33,7 @@ export class LaneOpusEncoder {
     let offset = 0;
 
     while (offset + this.frameBytes <= buf.length) {
-      packets.push(this.encoder.encode(buf.subarray(offset, offset + this.frameBytes)));
+      packets.push(this.encoder.encode(buf.subarray(offset, offset + this.frameBytes), this.frameSamples));
       offset += this.frameBytes;
     }
 

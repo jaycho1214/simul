@@ -28,3 +28,16 @@ test("handles input spanning many frames plus a remainder", () => {
   assert.equal(packets.length, 4);
   assert.equal(enc.pendingBytes, 100);
 });
+
+test("encodes non-silent audio to a non-empty packet", () => {
+  // Buffer.alloc's all-zero silence takes a different code path in libopus
+  // than real signal does — silence alone cannot prove the encoder works.
+  const enc = new LaneOpusEncoder(24000, 24000);
+  const pcm = Buffer.alloc(960);
+  for (let s = 0; s < 480; s++) {
+    pcm.writeInt16LE(Math.round(8000 * Math.sin(s / 6)), s * 2);
+  }
+  const packets = enc.encode(pcm);
+  assert.equal(packets.length, 1);
+  assert.ok(packets[0]!.length > 0);
+});
