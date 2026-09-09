@@ -92,15 +92,61 @@ export function createServer(deps: ServerDeps) {
 
   return {
     async listen(port: number): Promise<number> {
-      await new Promise<void>((resolve) => http.listen(port, resolve));
+      // `http.listen()`'s callback only ever fires on success; a bind
+      // failure (EADDRINUSE from a stale port on a quick restart, or two
+      // instances racing for the same port) is reported solely via the
+      // "error" event. With no listener attached, Node's EventEmitter
+      // throws that error as an uncaught exception instead of rejecting
+      // this promise, which kills the whole process with a raw stack
+      // trace before anything gets a chance to report it — worse than a
+      // clean rejection in the Electron `utilityProcess` embedding, where
+      // nothing else is watching stderr. Race the two events explicitly
+      // and remove whichever listener didn't fire so neither leaks past
+      // this call.
+      await new Promise<void>((resolve, reject) => {
+        function onError(err: Error): void {
+          http.removeListener("listening", onListening);
+          reject(err);
+        }
+        function onListening(): void {
+          http.removeListener("error", onError);
+          resolve();
+        }
+        http.once("error", onError);
+        http.listen(port, onListening);
+      });
       const address = http.address();
       return typeof address === "object" && address ? address.port : port;
     },
     async close(): Promise<void> {
       adminSocket.stop();
       manager.closeAll();
+
+      // Best-effort courtesy: give every connected WebSocket (ingest,
+      // listen, admin) a real close frame before anything is forced off
+      // the wire, so a well-behaved client sees a clean shutdown rather
+      // than a severed connection. Not awaited — a client that never acks
+      // it must not be able to reintroduce the hang this whole method
+      // exists to avoid.
+      for (const client of wss.clients) {
+        client.close(1001, "server shutting down");
+      }
       wss.close();
-      await new Promise<void>((resolve) => http.close(() => resolve()));
+
+      // `http.close()`'s callback does not fire until every socket ends —
+      // including upgraded WebSockets and long-lived chunked `/stream`
+      // responses, which is the server's normal, expected state while an
+      // event is running. Without forcing them closed, an attendee's phone
+      // left open on a stream, or an operator's dashboard, hangs this
+      // forever: `index.ts`'s `close().then(() => process.exit(0))` never
+      // runs, and the process needs a hard kill. `closeAllConnections()`
+      // (Node >=18.2, guaranteed by this package's engines floor) forces
+      // every remaining connection closed immediately after `close()` has
+      // stopped accepting new ones, so this always resolves in bounded
+      // time regardless of who is still connected.
+      const closed = new Promise<void>((resolve) => http.close(() => resolve()));
+      http.closeAllConnections();
+      await closed;
     },
   };
 }

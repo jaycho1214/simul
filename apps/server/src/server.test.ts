@@ -70,3 +70,52 @@ test("transcripts arrive on the listen socket", async () => {
   ingest.close();
   await server.close();
 });
+
+test("close() resolves promptly even with a client still connected", async () => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+
+  // Neither of these is ever closed from the client side below — a live
+  // chunked stream response and a live upgraded WebSocket are exactly the
+  // shape of connection that used to make close() hang forever, since
+  // http.close()'s callback does not fire until every socket ends.
+  const res = await fetch(`http://127.0.0.1:${port}/stream/ko.webm`);
+  assert.equal(res.status, 200);
+  const reader = res.body!.getReader();
+  await reader.read(); // consume the init segment so the connection is fully live
+
+  const listen = new WebSocket(`ws://127.0.0.1:${port}/listen?lang=en`);
+  listen.on("error", () => {}); // the server forcibly drops this socket below
+  await new Promise((r) => listen.once("open", r));
+
+  const timedOut = Symbol("timed out");
+  const timeout = new Promise((resolve) => setTimeout(() => resolve(timedOut), 2000));
+
+  const result = await Promise.race([server.close().then(() => "closed"), timeout]);
+  assert.notEqual(result, timedOut, "server.close() did not resolve within 2s");
+
+  await reader.cancel().catch(() => {});
+});
+
+test("listen() rejects instead of crashing when the port is already in use", async () => {
+  const serverA = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await serverA.listen(0);
+
+  const serverB = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+
+  await assert.rejects(() => serverB.listen(port));
+
+  await serverA.close();
+});
