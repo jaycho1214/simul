@@ -1,13 +1,12 @@
-import { createRequire } from "node:module";
+import pkg from "@discordjs/opus";
 import type { OpusEncoder as OpusEncoderType } from "@discordjs/opus";
 
 // `@discordjs/opus` is CommonJS with a dynamically resolved `module.exports`
 // (it re-exports a native-binding path picked at install time), so Node's
 // ESM/CJS interop cannot statically detect `OpusEncoder` as a named export —
 // `import { OpusEncoder } from "@discordjs/opus"` fails at runtime despite
-// type-checking. Requiring it directly sidesteps that interop gap.
-const require = createRequire(import.meta.url);
-const { OpusEncoder } = require("@discordjs/opus") as typeof import("@discordjs/opus");
+// type-checking. Importing the default and destructuring sidesteps that gap.
+const { OpusEncoder } = pkg;
 
 /** 20 ms of mono 16-bit PCM at the given rate. */
 export function frameBytesFor(sampleRate: number): number {
@@ -15,13 +14,14 @@ export function frameBytesFor(sampleRate: number): number {
 }
 
 export class LaneOpusEncoder {
-  readonly sampleRate: 16000 | 24000;
   private readonly encoder: OpusEncoderType;
   private readonly frameBytes: number;
   private pending: Buffer = Buffer.alloc(0);
 
-  constructor(sampleRate: 16000 | 24000, bitrate: number) {
-    this.sampleRate = sampleRate;
+  constructor(
+    readonly sampleRate: 16000 | 24000,
+    bitrate: number,
+  ) {
     this.encoder = new OpusEncoder(sampleRate, 1);
     this.encoder.setBitrate(bitrate);
     this.frameBytes = frameBytesFor(sampleRate);
