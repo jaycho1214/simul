@@ -3,10 +3,10 @@ export type LangCode = string;
 export type LaneState = "starting" | "live" | "reconnecting" | "error";
 
 export interface TranscriptLine {
-  seq: number;
-  text: string;
-  isFinal: boolean;
-  ts: number;
+  readonly seq: number;
+  readonly text: string;
+  readonly isFinal: boolean;
+  readonly ts: number;
 }
 
 export type ServerMessage =

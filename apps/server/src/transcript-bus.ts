@@ -25,13 +25,18 @@ export class TranscriptBus {
     return [...this.lines];
   }
 
+  /**
+   * Publishes a transcript line. Sequence numbers are assigned unconditionally,
+   * so interim lines (isFinal: false) consume sequence numbers even though they
+   * are not stored in history.
+   */
   publish(text: string, isFinal: boolean): TranscriptLine {
-    const line: TranscriptLine = {
+    const line = Object.freeze({
       seq: ++this.seq,
       text,
       isFinal,
       ts: this.clock.now(),
-    };
+    }) as TranscriptLine;
 
     if (isFinal) {
       this.lines.push(line);

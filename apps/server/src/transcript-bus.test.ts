@@ -47,3 +47,53 @@ test("unsubscribe stops delivery", () => {
   bus.publish("two", true);
   assert.equal(count, 1);
 });
+
+test("published lines are frozen and cannot be mutated", () => {
+  const bus = new TranscriptBus(new FakeClock(), 10);
+  const line = bus.publish("test", true);
+
+  assert.throws(
+    () => {
+      // @ts-expect-error - testing runtime mutation
+      line.text = "mutated";
+    },
+    TypeError,
+  );
+
+  // Verify history is unaffected
+  const history = bus.history();
+  assert(history[0] !== undefined);
+  assert.equal(history[0].text, "test");
+});
+
+test("interim lines consume sequence numbers", () => {
+  const bus = new TranscriptBus(new FakeClock(), 10);
+  const interim = bus.publish("partial", false);
+  const final = bus.publish("complete", true);
+
+  assert.equal(interim.seq, 1);
+  assert.equal(final.seq, 2);
+});
+
+test("subscriber throws are caught and logged", (t) => {
+  const bus = new TranscriptBus(new FakeClock(), 10);
+  const errorMock = t.mock.method(console, "error", () => {});
+
+  let count = 0;
+  bus.subscribe(() => { count++; });
+  bus.subscribe(() => {
+    throw new Error("boom");
+  });
+  bus.subscribe(() => { count++; });
+
+  bus.publish("test", true);
+
+  assert.equal(count, 2);
+  assert.equal(errorMock.mock.callCount(), 1);
+  const call = errorMock.mock.calls[0];
+  assert(call !== undefined);
+  const [msg, err] = call.arguments;
+  assert.equal(msg, "transcript subscriber threw");
+  assert(err instanceof Error);
+  assert.equal(err.message, "boom");
+});
