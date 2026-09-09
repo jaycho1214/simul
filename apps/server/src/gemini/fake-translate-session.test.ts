@@ -59,3 +59,16 @@ test("close emits closed and stops output", async () => {
   assert.equal(chunks.length, 0);
   assert.equal(session.canAccept(), false);
 });
+
+test("close is safe to call twice", async () => {
+  const session = await createFakeTranslateSessionFactory()({ targetLanguage: "en" });
+  let closedCount = 0;
+  let closedReason = "";
+  session.on("closed", (r) => { closedCount++; closedReason = r; });
+
+  session.close();
+  session.close();
+
+  assert.equal(closedCount, 1);
+  assert.equal(closedReason, "closed by caller");
+});

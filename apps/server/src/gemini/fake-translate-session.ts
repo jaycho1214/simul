@@ -48,7 +48,11 @@ export class FakeTranslateSession implements TranslateSession {
     this.frames = 0;
     this.utterances++;
 
-    const pcm = Buffer.alloc(OUT_BYTES_PER_UTTERANCE);
+    // Deterministic non-zero fill: every downstream consumer (lanes, the Opus
+    // encoder, FrameBus, the e2e smoke test) processes this buffer, so it must
+    // not be all-zero silence — that's the exact failure class that let a
+    // segfaulting encoder go undetected for four tasks.
+    const pcm = Buffer.alloc(OUT_BYTES_PER_UTTERANCE, this.utterances % 256);
     for (const fn of this.handlers.audio) fn(pcm);
 
     const text = `${this.targetLanguage} utterance ${this.utterances}`;
