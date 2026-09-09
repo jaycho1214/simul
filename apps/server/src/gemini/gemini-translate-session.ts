@@ -1,4 +1,5 @@
 import { GoogleGenAI, Modality } from "@google/genai";
+import type { LiveServerMessage } from "@google/genai";
 import type { LangCode } from "@tongyeok/protocol";
 import type {
   TranslateSession,
@@ -17,6 +18,7 @@ export class GeminiTranslateSession implements TranslateSession {
   } = { audio: [], transcript: [], state: [], closed: [] };
 
   private live: Awaited<ReturnType<GoogleGenAI["live"]["connect"]>> | undefined;
+  private opened = false;
   private closed = false;
 
   constructor(readonly targetLanguage: LangCode) {}
@@ -46,8 +48,6 @@ export class GeminiTranslateSession implements TranslateSession {
     model: string;
     resumeHandle?: string;
   }): Promise<void> {
-    this.emit("state", "starting");
-
     this.live = await opts.ai.live.connect({
       model: opts.model,
       config: {
@@ -62,13 +62,13 @@ export class GeminiTranslateSession implements TranslateSession {
         sessionResumption: opts.resumeHandle ? { handle: opts.resumeHandle } : {},
       },
       callbacks: {
-        onopen: () => this.emit("state", "live"),
         onmessage: (message) => this.handleMessage(message),
         onerror: (e) => {
           this.emit("state", "error");
           console.error(`[lane ${this.targetLanguage}] live error`, e?.message);
         },
         onclose: (e) => {
+          if (this.closed) return;
           this.closed = true;
           this.emit("closed", e?.reason ?? "connection closed");
         },
@@ -76,7 +76,7 @@ export class GeminiTranslateSession implements TranslateSession {
     });
   }
 
-  private handleMessage(message: Record<string, any>): void {
+  private handleMessage(message: LiveServerMessage): void {
     const update = message.sessionResumptionUpdate;
     if (update?.resumable && update.newHandle) {
       this.resumptionHandle = update.newHandle;
@@ -103,6 +103,10 @@ export class GeminiTranslateSession implements TranslateSession {
 
   sendPcm16k(frame: Buffer): void {
     if (!this.live || this.closed) return;
+    if (!this.opened) {
+      this.opened = true;
+      this.emit("state", "live");
+    }
     this.live.sendRealtimeInput({
       audio: { data: frame.toString("base64"), mimeType: "audio/pcm;rate=16000" },
     });

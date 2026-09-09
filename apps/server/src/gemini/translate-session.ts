@@ -10,6 +10,8 @@ export interface TranslateSessionEvents {
 
 export interface TranslateSession {
   readonly targetLanguage: LangCode;
+  /** Latest session-resumption handle, when the implementation supports one. */
+  readonly resumptionHandle?: string;
   /** False when the session is closed or its send buffer is saturated. */
   canAccept(): boolean;
   /** One 640-byte frame of 16 kHz mono s16le. */
