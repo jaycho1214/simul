@@ -145,25 +145,38 @@ lower than the device advertises, it warns in Korean that the channel should be
 routed on the mixer instead. Silently capturing the wrong channel is the failure
 this prevents.
 
-**Required rig setup on Windows.** Route a dedicated **aux bus** — not a raw
-channel — to USB 1-2 in the XR18's USB Output menu. On the Windows venue laptop
-this is not a preference, it is the only arrangement that works, for two
-independent reasons:
+**Required rig setup on Windows.** OBS and the operator app want *different*
+audio, not a shared feed, so give each its own USB pair. The X-AIR WDM driver
+exposes USB 1-2, 3-4, 5-6 and 7-8 as separate Windows devices:
 
-1. Channels 9–18 are unreachable over WDM, so software selection cannot get
-   there at all.
-2. **OBS runs on the same laptop and also needs the XR18.** WASAPI shared mode
-   lets both apps capture it. `obs-asio` does not — ASIO is typically exclusive,
-   so whichever app opens the device first locks the other out. That is a hard
-   failure at the venue, not a degradation.
+| XR18 USB send | Fed by | Consumer |
+|---|---|---|
+| USB 1-2 | Aux 1 — instrumental / band | OBS source "Instrumental" |
+| USB 3-4 | Aux 2 — vocals | OBS source "Vocals" |
+| USB 5-6 | Aux 3 — **only the speech mics** | Operator app |
 
-The aux bus removes both problems at once, and it is better practice anyway: it
-carries a gated, EQ'd, compressed speech-only mix with no music or audience
-bleed, which materially improves what Gemini hears, and it survives the speaker
-moving to a different mic without touching the app.
+OBS adds one Audio Input Capture source per device, giving independent faders
+and filters for instrumental and vocal in the stream. The operator app points at
+USB 5-6 and takes the left channel.
 
-**OBS must therefore be configured to use WASAPI, not `obs-asio`.** This belongs
-on the pre-event checklist.
+This arrangement is required rather than preferred, for three reasons:
+
+1. Channels 9–18 are unreachable over WDM, so software selection cannot reach
+   them at all.
+2. Separate devices mean **no contention** — OBS and the operator app never open
+   the same endpoint, so WASAPI sharing behaviour and `obs-asio` exclusivity both
+   stop mattering. `obs-asio` is also no longer needed, since OBS gets what it
+   needs over WDM.
+3. The translation bus can carry a speech-only mix — no music, no audience mics,
+   no reverb return. The stream's vocal stem is mixed for human listening; this
+   bus is mixed for a machine, and the difference shows up directly in
+   translation quality.
+
+**Set the translation aux pre-fader.** If it is post-fader, an engineer riding
+the vocal fader down for the broadcast mix also drops the translation feed, and
+listeners simply lose the speaker. Confirm during setup how the bus handles
+**mute**: pre-fader sends often pass muted channels through, which is usually not
+what you want for a mic muted deliberately.
 
 Escape hatch if Chromium downmixes on macOS: spawn ffmpeg with `avfoundation`
 to capture all 18 channels and `pan` to one. This does not help on Windows,
@@ -348,9 +361,10 @@ If spike 1 shows a naive reconnect produces a sub-second seam, delete
 - Renderer: push a known sine sweep through the capture chain and assert the 16 kHz
   output is clean and every emitted frame is exactly 640 bytes.
 - Manual rehearsal checklist, run on the actual venue laptop with OBS running:
-  1. OBS audio input is WASAPI, not `obs-asio`.
-  2. OBS and the operator app capture the XR18 simultaneously without either
-     losing the device.
+  1. Each consumer is on its own USB pair: OBS on USB 1-2 and 3-4, the operator
+     app on USB 5-6.
+  2. OBS and the operator app run together with all meters moving, and riding the
+     OBS vocal fader does not change the operator app's level meter.
   3. Windows Firewall allows inbound 8080, and the venue wifi is classified
      **Private** rather than Public.
   4. A phone on venue wifi actually loads the join URL.
@@ -377,6 +391,12 @@ Each answers a question that changes what gets built.
 
 Each has a seam. None gets built now.
 
+- **Alternative audio routings** — if the XR18's aux buses are all committed,
+  OBS can own the interface and feed the operator app through VB-CABLE plus the
+  Audio Monitor filter, or VoiceMeeter can act as a hub taking ASIO in and
+  serving virtual outputs to both. Neither needs code changes; both are just a
+  different entry in the device dropdown. The VB-CABLE route couples the two
+  systems, so translation stops if OBS stops.
 - **OBS output** — deferred, but the **route is reserved**. OBS runs on the same
   laptop, so a Browser Source can point at `ws://localhost:8080/listen?lang=xx`,
   which already carries `history` and `transcript` messages — everything an
@@ -418,9 +438,11 @@ Each has a seam. None gets built now.
   Private-profile rule exists. Phones then fail to load the page with no error on
   the laptop. The operator app should surface reachability rather than assume it,
   and this belongs on the pre-event checklist.
-- XR18 channels 9–18 are unreachable on Windows without ASIO. If the interpretation
-  feed must come from one of those, either move it to an aux bus routed to USB 1-2,
-  or run the operator app on macOS.
+- XR18 channels 9–18 are unreachable on Windows without ASIO. Route the feed to
+  one of the USB 1-8 pairs instead, or run the operator app on macOS.
+- If a rehearsal ever forces OBS and the operator app onto the *same* USB pair,
+  OBS must use WASAPI rather than `obs-asio`, which takes the device exclusively.
+  The separate-pair routing above avoids this entirely.
 
 ## Configuration
 
