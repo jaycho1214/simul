@@ -64,6 +64,29 @@ export class FakeTranslateSession implements TranslateSession {
     this.closed = true;
     for (const fn of this.handlers.closed) fn("closed by caller");
   }
+
+  /**
+   * Test hook: simulate the server announcing an imminent disconnect. No
+   * production path may reach this — it exists so SessionRotator's
+   * make-before-break behaviour can be exercised without a live Gemini
+   * connection.
+   */
+  simulateGoAway(): void {
+    if (this.closed) return;
+    for (const fn of this.handlers.state) fn("reconnecting");
+  }
+
+  /**
+   * Test hook: simulate the connection dying without a close() call. No
+   * production path may reach this — it exists so SessionRotator's
+   * unsolicited-disconnect handling can be exercised without a live Gemini
+   * connection.
+   */
+  simulateDeath(reason: string): void {
+    if (this.closed) return;
+    this.closed = true;
+    for (const fn of this.handlers.closed) fn(reason);
+  }
 }
 
 export function createFakeTranslateSessionFactory(): TranslateSessionFactory {
