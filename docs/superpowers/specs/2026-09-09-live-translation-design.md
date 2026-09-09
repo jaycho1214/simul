@@ -145,17 +145,29 @@ lower than the device advertises, it warns in Korean that the channel should be
 routed on the mixer instead. Silently capturing the wrong channel is the failure
 this prevents.
 
-**Recommended rig setup, and what the event should actually be built on:** route
-a dedicated **aux bus** — not a raw channel — to USB 1-2 in the XR18's USB
-Output menu. An aux bus carries a gated, EQ'd, compressed speech-only mix with
-no music or audience bleed, which materially improves what Gemini hears; it
-behaves identically on both operating systems; and it survives the speaker being
-moved to a different mic without touching the app.
+**Required rig setup on Windows.** Route a dedicated **aux bus** — not a raw
+channel — to USB 1-2 in the XR18's USB Output menu. On the Windows venue laptop
+this is not a preference, it is the only arrangement that works, for two
+independent reasons:
+
+1. Channels 9–18 are unreachable over WDM, so software selection cannot get
+   there at all.
+2. **OBS runs on the same laptop and also needs the XR18.** WASAPI shared mode
+   lets both apps capture it. `obs-asio` does not — ASIO is typically exclusive,
+   so whichever app opens the device first locks the other out. That is a hard
+   failure at the venue, not a degradation.
+
+The aux bus removes both problems at once, and it is better practice anyway: it
+carries a gated, EQ'd, compressed speech-only mix with no music or audience
+bleed, which materially improves what Gemini hears, and it survives the speaker
+moving to a different mic without touching the app.
+
+**OBS must therefore be configured to use WASAPI, not `obs-asio`.** This belongs
+on the pre-event checklist.
 
 Escape hatch if Chromium downmixes on macOS: spawn ffmpeg with `avfoundation`
 to capture all 18 channels and `pan` to one. This does not help on Windows,
-where ASIO is the blocker, which is why mixer-side routing is the recommendation
-rather than a fallback. Not built in v1.
+where ASIO is the blocker. Not built in v1.
 
 Single window, all labels Korean:
 
@@ -335,8 +347,15 @@ If spike 1 shows a naive reconnect produces a sub-second seam, delete
 - Golden test: WAV in → WebM out, remux and compare RMS.
 - Renderer: push a known sine sweep through the capture chain and assert the 16 kHz
   output is clean and every emitted frame is exactly 640 bytes.
-- Manual rehearsal checklist: real interface, real phones on both platforms, one
-  full 60-minute run crossing at least five connection boundaries.
+- Manual rehearsal checklist, run on the actual venue laptop with OBS running:
+  1. OBS audio input is WASAPI, not `obs-asio`.
+  2. OBS and the operator app capture the XR18 simultaneously without either
+     losing the device.
+  3. Windows Firewall allows inbound 8080, and the venue wifi is classified
+     **Private** rather than Public.
+  4. A phone on venue wifi actually loads the join URL.
+  5. One full 60-minute run crossing at least five connection boundaries, with
+     OBS encoding the whole time.
 
 ## Spikes — run before writing production code
 
@@ -358,7 +377,13 @@ Each answers a question that changes what gets built.
 
 Each has a seam. None gets built now.
 
-- **OBS output** — deferred by the user. Attaches at `TranscriptBus`.
+- **OBS output** — deferred, but the **route is reserved**. OBS runs on the same
+  laptop, so a Browser Source can point at `ws://localhost:8080/listen?lang=xx`,
+  which already carries `history` and `transcript` messages — everything an
+  overlay needs. No server work is required to enable this; only the styled HTML
+  page is unbuilt. Note the consequence: an OBS overlay counts as a subscriber,
+  so it pins that language's lane open for the whole event and incurs its API
+  cost even with no phones listening.
 - **HTTPS / WebRTC** — would restore Wake Lock, WebCodecs and better jitter
   handling, and would make iOS ignore the silent switch. Requires a real domain
   whose A record points at the venue LAN IP, certified via DNS-01. Attaches at
@@ -387,6 +412,12 @@ Each has a seam. None gets built now.
   Verify rather than assume.
 - Venue wifi with client isolation would break everything. Check before the
   event.
+- **Windows Firewall will silently block the attendee port.** The server listens
+  on all interfaces, but Windows blocks inbound connections by default, and if
+  the venue wifi is classified as a **Public** network it blocks them even when a
+  Private-profile rule exists. Phones then fail to load the page with no error on
+  the laptop. The operator app should surface reachability rather than assume it,
+  and this belongs on the pre-event checklist.
 - XR18 channels 9–18 are unreachable on Windows without ASIO. If the interpretation
   feed must come from one of those, either move it to an aux bus routed to USB 1-2,
   or run the operator app on macOS.
