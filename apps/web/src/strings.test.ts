@@ -5,22 +5,24 @@ const HANGUL = /[가-힣]/;
 const LATIN = /[A-Za-z]/;
 
 describe("the bilingual string table", () => {
-  test("every chrome string is Korean then English, separated by ' / '", () => {
+  test("every chrome string is Korean then English, separated by ' / ', with no script leaking across the divide", () => {
     for (const [key, value] of Object.entries(S)) {
       const parts = value.split(" / ");
       expect(parts.length, `${key} must contain exactly one ' / '`).toBe(2);
 
       const [korean, english] = parts as [string, string];
       expect(HANGUL.test(korean), `${key} Korean half: ${korean}`).toBe(true);
+      expect(
+        LATIN.test(korean),
+        `${key} Korean half leaks Latin: ${korean}`,
+      ).toBe(false);
       expect(LATIN.test(english), `${key} English half: ${english}`).toBe(true);
+      expect(
+        HANGUL.test(english),
+        `${key} English half leaks Hangul: ${english}`,
+      ).toBe(false);
       expect(korean.trim(), `${key} Korean half is padded`).toBe(korean);
       expect(english.trim(), `${key} English half is padded`).toBe(english);
-    }
-  });
-
-  test("no entry is empty", () => {
-    for (const [key, value] of Object.entries(S)) {
-      expect(value.length, key).toBeGreaterThan(3);
     }
   });
 
