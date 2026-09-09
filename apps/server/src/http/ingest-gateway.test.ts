@@ -6,10 +6,23 @@ import type { PcmConsumer } from "../lane/lane.ts";
 
 class FakeSocket implements WebSocketLike {
   closedWith: number | undefined;
-  private handlers = new Map<string, (arg: any) => void>();
+  protected handlers = new Map<string, (arg: any) => void>();
   on(event: string, fn: (arg: any) => void): void { this.handlers.set(event, fn); }
   close(code?: number): void { this.closedWith = code; }
   emit(event: string, arg?: unknown): void { this.handlers.get(event)?.(arg); }
+}
+
+/**
+ * A real socket may invoke its own "close" handler synchronously, inline
+ * within the `close()` call, rather than on a later tick. The
+ * supersede-then-reassign ordering in `handleConnection` must survive this
+ * too, not just the late/async close a plain `FakeSocket` exercises.
+ */
+class SyncCloseFakeSocket extends FakeSocket {
+  override close(code?: number): void {
+    this.closedWith = code;
+    this.handlers.get("close")?.(undefined);
+  }
 }
 
 class SpyLane implements PcmConsumer {
@@ -55,6 +68,38 @@ test("ignores a frame of the wrong size", () => {
 
   assert.equal(lane.received.length, 0);
   assert.equal(gw.framesReceived, 0);
+  assert.equal(gw.framesDropped, 1);
+});
+
+test("forwards a frame delivered as an ArrayBuffer (non-default binaryType)", () => {
+  const hub = new AudioHub();
+  const lane = new SpyLane();
+  hub.addLane(lane);
+  const gw = new IngestGateway({ hub, token: "secret" });
+  const ws = new FakeSocket();
+
+  gw.handleConnection(ws, url("secret"));
+  const arrayBuffer = new ArrayBuffer(640);
+  ws.emit("message", arrayBuffer);
+
+  assert.equal(lane.received.length, 1);
+  assert.equal(gw.framesReceived, 1);
+  assert.equal(gw.framesDropped, 0);
+});
+
+test("forwards a frame delivered as fragments (Buffer[])", () => {
+  const hub = new AudioHub();
+  const lane = new SpyLane();
+  hub.addLane(lane);
+  const gw = new IngestGateway({ hub, token: "secret" });
+  const ws = new FakeSocket();
+
+  gw.handleConnection(ws, url("secret"));
+  ws.emit("message", [Buffer.alloc(320), Buffer.alloc(320)]);
+
+  assert.equal(lane.received.length, 1);
+  assert.equal(gw.framesReceived, 1);
+  assert.equal(gw.framesDropped, 0);
 });
 
 test("a reconnecting operator takes over and the stale socket is closed", () => {
@@ -110,6 +155,28 @@ test("a frame that arrives on a superseded socket after takeover is not forwarde
   assert.equal(gw.framesReceived, 0);
 
   // The new connection is unaffected and still forwards normally.
+  second.emit("message", Buffer.alloc(640));
+  assert.equal(lane.received.length, 1);
+  assert.equal(gw.framesReceived, 1);
+});
+
+test("a synchronous close on the stale socket during takeover still leaves the new connection active", () => {
+  const hub = new AudioHub();
+  const lane = new SpyLane();
+  hub.addLane(lane);
+  const gw = new IngestGateway({ hub, token: "secret" });
+  const first = new SyncCloseFakeSocket();
+  const second = new FakeSocket();
+
+  gw.handleConnection(first, url("secret"));
+  // `handleConnection` calls `first.close(4409, ...)`, and this fake socket
+  // invokes its own "close" handler inline, before `handleConnection` has
+  // reassigned `active` to `second`. The takeover must still win.
+  gw.handleConnection(second, url("secret"));
+
+  assert.equal(first.closedWith, 4409);
+  assert.equal(gw.connected, true);
+
   second.emit("message", Buffer.alloc(640));
   assert.equal(lane.received.length, 1);
   assert.equal(gw.framesReceived, 1);
