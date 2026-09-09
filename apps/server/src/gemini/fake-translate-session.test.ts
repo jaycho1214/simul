@@ -73,6 +73,39 @@ test("close is safe to call twice", async () => {
   assert.equal(closedReason, "closed by caller");
 });
 
+// The contract in translate-session.ts: a closed session is inert. The fake
+// must hold to it as strictly as the real session does, or every downstream
+// test (SessionRotator's above all) would be verifying no-duplicate behaviour
+// against an invariant only the fake enforces.
+for (const end of ["close()", "simulateDeath()"] as const) {
+  test(`a session ended by ${end} emits nothing further on any path`, async () => {
+    const session = new FakeTranslateSession("en");
+    const events: string[] = [];
+    session.on("audio", (pcm) => events.push(`audio:${pcm.length}`));
+    session.on("transcript", (text, isFinal) => events.push(`transcript:${text}:${isFinal}`));
+    session.on("state", (s) => events.push(`state:${s}`));
+    session.on("closed", (reason) => events.push(`closed:${reason}`));
+
+    // Mid-utterance when the session ends, so a leaked frame counter would
+    // show up as a completed utterance below.
+    for (let i = 0; i < 20; i++) session.sendPcm16k(frame());
+    assert.deepEqual(events, ["state:live"], "still live up to this point");
+    events.length = 0;
+
+    if (end === "close()") session.close();
+    else session.simulateDeath("connection reset");
+    assert.equal(events.length, 1, "exactly one closed event");
+    events.length = 0;
+
+    for (let i = 0; i < 50; i++) session.sendPcm16k(frame());
+    session.simulateGoAway();
+    session.simulateDeath("dead twice over");
+    session.close();
+    assert.deepEqual(events, [], "no audio, transcript, state or second closed");
+    assert.equal(session.canAccept(), false);
+  });
+}
+
 test("simulateGoAway is a test hook that emits a reconnecting state", async () => {
   const session = new FakeTranslateSession("en");
   const states: string[] = [];

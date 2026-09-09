@@ -64,6 +64,12 @@ export class GeminiTranslateSession implements TranslateSession {
       callbacks: {
         onmessage: (message) => this.handleMessage(message),
         onerror: (e) => {
+          // An error arriving after the session is closed is teardown noise
+          // (or a post-mortem for a connection nobody is listening to any
+          // more). Emitting `state("error")` for it would break the contract
+          // in translate-session.ts, and logging it would fire on every
+          // ordinary rotation.
+          if (this.closed) return;
           this.emit("state", "error");
           console.error(`[lane ${this.targetLanguage}] live error`, e?.message);
         },
@@ -77,6 +83,14 @@ export class GeminiTranslateSession implements TranslateSession {
   }
 
   private handleMessage(message: LiveServerMessage): void {
+    // Messages already in flight when the connection dies are still delivered
+    // after `onclose`. A closed session must be inert — see the contract in
+    // translate-session.ts. SessionRotator keeps a dead `current` in place
+    // until the cutover lands on the next frame, so anything emitted here
+    // would be forwarded alongside the replacement's output: a duplicate in
+    // exactly the window make-before-break exists to keep seamless.
+    if (this.closed) return;
+
     const update = message.sessionResumptionUpdate;
     if (update?.resumable && update.newHandle) {
       this.resumptionHandle = update.newHandle;
