@@ -39,20 +39,22 @@ interface Entry {
   closeTimer?: TimerHandle;
 }
 
+/**
+ * One in-flight open for a language. `pendingReleases` is scoped to this
+ * specific open attempt, not to the language: it is created fresh with the
+ * open and discarded with it (success, failure, or closeAll()), so a
+ * release recorded here can only ever be reconciled against the open it
+ * was recorded during — never against a later, unrelated open for the same
+ * language.
+ */
+interface Opening {
+  promise: Promise<Lane>;
+  pendingReleases: Set<object>;
+}
+
 export class LaneManager {
   private readonly entries = new Map<LangCode, Entry>();
-  private readonly opening = new Map<LangCode, Promise<Lane>>();
-  /**
-   * Subscribers who called release() for a language while it was still
-   * opening — i.e. before an Entry existed for `release` to act on. Gemini
-   * session setup is real network I/O, so this is not a theoretical window:
-   * an attendee can tap a language and back out again before the session
-   * finishes opening. Without this, that release is silently dropped and
-   * the acquire continuation re-adds the subscriber unconditionally once
-   * the open resolves, leaving a subscriber that can never release again —
-   * a lane that bills for the rest of the event with nobody listening.
-   */
-  private readonly pendingReleases = new Map<LangCode, Set<object>>();
+  private readonly opening = new Map<LangCode, Opening>();
   /** Set once by closeAll(). Permanent: this instance is done after that. */
   private closed = false;
 
@@ -63,6 +65,9 @@ export class LaneManager {
   }
 
   async acquire(lang: LangCode, subscriber: object): Promise<Lane> {
+    if (this.closed) {
+      throw new Error("LaneManager is closed");
+    }
     if (!this.opts.offeredLanguages.includes(lang)) {
       throw new UnknownLanguageError(lang);
     }
@@ -80,8 +85,8 @@ export class LaneManager {
     // Collapse concurrent first-subscriber races onto one open.
     const inFlight = this.opening.get(lang);
     if (inFlight) {
-      const lane = await inFlight;
-      this.registerSubscriberAfterOpen(lang, subscriber);
+      const lane = await inFlight.promise;
+      this.registerSubscriberAfterOpen(lang, subscriber, inFlight);
       return lane;
     }
 
@@ -89,11 +94,11 @@ export class LaneManager {
       throw new LaneCapError(this.opts.maxConcurrentLanes);
     }
 
-    const promise = this.openLane(lang);
-    this.opening.set(lang, promise);
+    const opening: Opening = { promise: this.openLane(lang), pendingReleases: new Set() };
+    this.opening.set(lang, opening);
 
     try {
-      const lane = await promise;
+      const lane = await opening.promise;
 
       // closeAll() ran while this open was in flight. It couldn't touch
       // this lane — it wasn't in `entries` yet — so this is the only place
@@ -110,7 +115,7 @@ export class LaneManager {
         openedAt: this.opts.clock.now(),
       });
       this.opts.hub.addLane(lane);
-      this.registerSubscriberAfterOpen(lang, subscriber);
+      this.registerSubscriberAfterOpen(lang, subscriber, opening);
       return lane;
     } finally {
       this.opening.delete(lang);
@@ -120,21 +125,35 @@ export class LaneManager {
   /**
    * Adds `subscriber` to a lane whose open just resolved — whether this
    * call is the one that opened it, or a concurrent acquire that joined an
-   * already-in-flight open. Reconciles against a release() that arrived
-   * for this subscriber while the open was still pending: if one did,
-   * undoes the add immediately via the normal release() path (which starts
-   * the grace timer if that leaves the lane with no subscribers at all)
-   * instead of leaving a subscriber that will never release again.
+   * already-in-flight open.
+   *
+   * Two things must happen together here, in order:
+   *
+   * 1. Clear any grace timer already sitting on the entry. A joiner who
+   *    arrives after some other subscriber's early release already emptied
+   *    the set (see release()) is exactly the case that arms one; leaving
+   *    it running for `release()`'s "a timer is already pending" guard to
+   *    trip on later — once this subscriber is the only one left and
+   *    actually leaves — is the zombie-timer bug this method exists to
+   *    prevent.
+   * 2. Reconcile against a release() that arrived for this subscriber
+   *    while this exact open was still pending (`opening.pendingReleases`,
+   *    scoped to this open attempt, not the language). If one did, undo
+   *    the add immediately via the normal release() path, which starts a
+   *    fresh grace timer if that leaves the lane with no subscribers —
+   *    instead of leaving a subscriber that will never release again.
    */
-  private registerSubscriberAfterOpen(lang: LangCode, subscriber: object): void {
+  private registerSubscriberAfterOpen(lang: LangCode, subscriber: object, opening: Opening): void {
     const entry = this.entries.get(lang);
     if (!entry) return; // closeAll() ran; nothing to join.
 
+    if (entry.closeTimer) {
+      this.opts.clock.clearTimeout(entry.closeTimer);
+      entry.closeTimer = undefined;
+    }
     entry.subscribers.add(subscriber);
 
-    const pending = this.pendingReleases.get(lang);
-    if (pending?.delete(subscriber)) {
-      if (pending.size === 0) this.pendingReleases.delete(lang);
+    if (opening.pendingReleases.delete(subscriber)) {
       this.release(lang, subscriber);
     }
   }
@@ -156,17 +175,15 @@ export class LaneManager {
     const entry = this.entries.get(lang);
     if (!entry) {
       // No entry yet doesn't mean nothing to do: the lane may still be
-      // opening. Record the release so acquire()'s continuation can
-      // reconcile it instead of silently re-adding this subscriber once
-      // the open resolves.
-      if (this.opening.has(lang)) {
-        let pending = this.pendingReleases.get(lang);
-        if (!pending) {
-          pending = new Set();
-          this.pendingReleases.set(lang, pending);
-        }
-        pending.add(subscriber);
-      }
+      // opening. Record the release against that specific open (not just
+      // the language) so acquire()'s continuation can reconcile it once
+      // that open resolves, instead of silently re-adding this subscriber.
+      // Scoping to the open itself, rather than a map keyed only by
+      // language, means a stray release — one with no matching acquire in
+      // this open, or one left over after a cap rejection — can never be
+      // mistaken for part of some later, unrelated open of the same
+      // language.
+      this.opening.get(lang)?.pendingReleases.add(subscriber);
       return;
     }
 
@@ -175,6 +192,11 @@ export class LaneManager {
 
     entry.closeTimer = this.opts.clock.setTimeout(() => {
       const current = this.entries.get(lang);
+      // This handle just fired, so it is spent either way: clear it before
+      // the early return below, or a genuinely new subscriber who joined
+      // and left after this fired (but while it was still armed) would find
+      // `closeTimer` truthy and never get a real grace timer of their own.
+      if (current) current.closeTimer = undefined;
       if (!current || current.subscribers.size > 0) return;
       this.opts.hub.removeLane(lang);
       current.lane.close();
@@ -202,5 +224,10 @@ export class LaneManager {
       entry.lane.close();
     }
     this.entries.clear();
+    // Any opens still in flight finish on their own (see the `this.closed`
+    // check in acquire()) and are inert once they do; this just drops our
+    // own references to their now-moot pendingReleases sets right away
+    // rather than waiting on that.
+    this.opening.clear();
   }
 }

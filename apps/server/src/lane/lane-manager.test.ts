@@ -23,12 +23,24 @@ function deferredSessionFactory(): {
 }
 
 function makeManager(overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number }> = {}) {
+  return makeManagerWithFactory(createFakeTranslateSessionFactory(), overrides);
+}
+
+/**
+ * Builds a manager against a caller-supplied session factory, so tests that
+ * need to control exactly when a Gemini session "finishes opening" (via
+ * `deferredSessionFactory` below) can hold a `LaneManager` mid-acquire.
+ */
+function makeManagerWithFactory(
+  sessionFactory: TranslateSessionFactory,
+  overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number }> = {},
+) {
   const clock = new FakeClock();
   const hub = new AudioHub();
   const manager = new LaneManager({
     clock,
     hub,
-    sessionFactory: createFakeTranslateSessionFactory(),
+    sessionFactory,
     sourceLanguage: "ko",
     offeredLanguages: ["ko", "en", "es", "ja", "fr", "de", "zh"],
     maxConcurrentLanes: overrides.maxConcurrentLanes ?? 6,
@@ -182,20 +194,8 @@ test("closeAll cancels pending grace timers, not just closes lanes", async (t) =
 // re-applied incorrectly once the open resolved.
 
 test("closeAll while an open is in flight closes the lane and never registers it", async () => {
-  const clock = new FakeClock();
-  const hub = new AudioHub();
   const { factory, resolve } = deferredSessionFactory();
-  const manager = new LaneManager({
-    clock,
-    hub,
-    sessionFactory: factory,
-    sourceLanguage: "ko",
-    offeredLanguages: ["ko", "en"],
-    maxConcurrentLanes: 6,
-    laneGraceMs: 60000,
-    transcriptHistoryLines: 200,
-    opusBitrate: 24000,
-  });
+  const { hub, manager } = makeManagerWithFactory(factory);
 
   const acquiring = manager.acquire("en", {});
   // The Gemini session is still opening — "en" is in `opening`, not yet in
@@ -214,20 +214,8 @@ test("closeAll while an open is in flight closes the lane and never registers it
 });
 
 test("release() before the open resolves does not create a phantom subscriber", async () => {
-  const clock = new FakeClock();
-  const hub = new AudioHub();
   const { factory, resolve } = deferredSessionFactory();
-  const manager = new LaneManager({
-    clock,
-    hub,
-    sessionFactory: factory,
-    sourceLanguage: "ko",
-    offeredLanguages: ["ko", "en"],
-    maxConcurrentLanes: 6,
-    laneGraceMs: 60000,
-    transcriptHistoryLines: 200,
-    opusBitrate: 24000,
-  });
+  const { clock, hub, manager } = makeManagerWithFactory(factory);
 
   const sub = {};
   const acquiring = manager.acquire("en", sub);
@@ -253,4 +241,104 @@ test("release() before the open resolves does not create a phantom subscriber", 
     "the lane must be torn down once its grace period passes, not left open by a phantom subscriber",
   );
   assert.equal(lane.state, "error", "the actual Gemini session must be closed, not just deregistered");
+});
+
+// The following two tests came out of a second review round on the fix
+// above. Reconciling a subscriber whose release arrived mid-open needs to
+// both add them to `entry.subscribers` *and* clear whatever grace timer an
+// earlier subscriber's own reconciliation may have already armed on the
+// same entry — otherwise a joiner who legitimately stays behind is added
+// next to a live timer handle nobody ever cancels, and once they are the
+// last one out, release()'s "a timer is already pending" guard reads that
+// dead handle as real and never arms a working one in its place.
+
+test("a joiner who stays after the owner releases mid-open is not blocked by a zombie grace timer", async () => {
+  const { factory, resolve } = deferredSessionFactory();
+  const { clock, hub, manager } = makeManagerWithFactory(factory);
+
+  const owner = {};
+  const joiner = {};
+
+  // Owner opens "en"; joiner arrives while it is still opening and joins
+  // the same in-flight open (the "Collapse concurrent ... races" path).
+  const ownerAcquiring = manager.acquire("en", owner);
+  const joinerAcquiring = manager.acquire("en", joiner);
+
+  // Owner backs out before the session finishes opening.
+  manager.release("en", owner);
+
+  resolve(new FakeTranslateSession("en"));
+  const [ownerLane, joinerLane] = await Promise.all([ownerAcquiring, joinerAcquiring]);
+  assert.equal(ownerLane, joinerLane);
+
+  // At this point the owner's reconciliation has already armed a grace
+  // timer (subscribers momentarily hit zero) and the joiner's own
+  // reconciliation must have cancelled it on arrival. Advancing past the
+  // original grace period proves that: the joiner is still subscribed, so
+  // the lane must still be open.
+  clock.advance(60000);
+  assert.equal(hub.laneCount, 1, "the joiner is still listening; a stale timer must not have torn the lane down");
+
+  // Now the joiner leaves for real — the only real release this lane has
+  // ever had with nobody left subscribed.
+  manager.release("en", joiner);
+  clock.advance(60000);
+
+  assert.equal(
+    hub.laneCount,
+    0,
+    "the lane must actually close once its only remaining subscriber releases, not stay open forever behind a dead timer handle",
+  );
+  assert.equal(joinerLane.state, "error", "the Gemini session itself must be closed, not just deregistered");
+});
+
+test("a joiner's own release starts a fresh grace period, not a stale one inherited from the owner", async () => {
+  // A narrower check than the zombie-timer test above: even once the
+  // zombie handle is fixed by clearing it *when it eventually fires*, a
+  // joiner whose own subscription is never used to clear the timer on
+  // arrival can still have their real departure silently governed by the
+  // owner's leftover deadline instead of their own — closing the lane
+  // sooner (never later) than laneGraceMs after the joiner's own release.
+  // That is not a spend leak, but it is exactly the kind of "grace period
+  // isn't actually laneGraceMs" bug this invariant exists to rule out.
+  const { factory, resolve } = deferredSessionFactory();
+  const { clock, hub, manager } = makeManagerWithFactory(factory, { laneGraceMs: 60000 });
+
+  const owner = {};
+  const joiner = {};
+
+  const ownerAcquiring = manager.acquire("en", owner);
+  const joinerAcquiring = manager.acquire("en", joiner);
+  manager.release("en", owner); // arms a timer, due at t=60000, once the open resolves
+
+  resolve(new FakeTranslateSession("en"));
+  await Promise.all([ownerAcquiring, joinerAcquiring]);
+
+  clock.advance(30000); // t=30000, well before the owner's stale deadline
+  manager.release("en", joiner); // the joiner's own, real departure
+
+  clock.advance(40000); // t=70000: past the stale t=60000 mark, short of a fresh t=90000 mark
+  assert.equal(
+    hub.laneCount,
+    1,
+    "a full laneGraceMs from the joiner's own release must not be cut short by a timer armed for someone else's earlier departure",
+  );
+
+  clock.advance(20000); // t=90000: a full laneGraceMs after the joiner's own release
+  assert.equal(hub.laneCount, 0);
+});
+
+test("acquire() after closeAll() rejects without opening a new session", async () => {
+  let factoryCalls = 0;
+  const sessionFactory: TranslateSessionFactory = async (opts) => {
+    factoryCalls++;
+    return new FakeTranslateSession(opts.targetLanguage);
+  };
+  const { hub, manager } = makeManagerWithFactory(sessionFactory);
+
+  manager.closeAll();
+
+  await assert.rejects(() => manager.acquire("en", {}));
+  assert.equal(factoryCalls, 0, "a closed manager must not open a new Gemini session at all, not open-then-close it");
+  assert.equal(hub.laneCount, 0);
 });
