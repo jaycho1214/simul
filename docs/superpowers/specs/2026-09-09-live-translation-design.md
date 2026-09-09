@@ -33,6 +33,17 @@ Output is 16-bit PCM @ 24 kHz.
 
 **Scale target:** 20–60 concurrent phones, 2–5 concurrent languages.
 
+**The venue rig is a Behringer XR18** — an 18-in/18-out USB interface, not a
+stereo one. This is platform-asymmetric and constrains capture:
+
+- macOS: class-compliant, all 18 channels visible to Core Audio, no driver.
+- Windows: the WDM driver exposes only **USB 1-2, 3-4, 5-6, 7-8 and 1-8** as
+  separate devices. All 18 channels need **ASIO**, which Chromium does not
+  support and stock ffmpeg is not built against.
+
+Neither `getUserMedia` nor ffmpeg can therefore reach channels 9–18 on Windows.
+See "Operator app" for how channel selection is handled within that limit.
+
 ## Architecture
 
 ```
@@ -104,21 +115,53 @@ apply here.
 UI. A silently re-enabled AGC is otherwise invisible until it has already ruined
 an event.
 
-Capture chain: `getUserMedia` → `AudioContext({ sampleRate: 16000 })` →
-`AudioWorklet` → Float32 to i16 → 640-byte frames → WebSocket to the server.
-Stereo sources are downmixed, or one channel is selected with a
-`ChannelSplitterNode`.
+Capture chain:
 
-Known limit: Chromium's `getUserMedia` is dependable for mono and stereo but not
-for more than two channels. If a venue's rig requires a specific channel of a
-larger interface, the fallback is spawning ffmpeg (`avfoundation` on macOS,
-`dshow` on Windows) emitting raw s16le on stdout. Not built in v1.
+```
+getUserMedia (channelCount: device max)
+  → MediaStreamAudioSourceNode
+  → ChannelSplitterNode        ← operator picks the channel index here
+  → AudioWorklet (mono)
+  → Float32 to i16 → 640-byte frames
+  → WebSocket to the server
+```
+
+`AudioContext({ sampleRate: 16000 })` does the resampling. The splitter runs
+`channelInterpretation: "discrete"` so channels are never downmixed before
+selection.
+
+**Channel selection with the XR18.** The two platforms expose it differently and
+the app adapts rather than pretending they are the same:
+
+- macOS: one 18-channel device; the splitter selects any of the 18.
+- Windows: the WDM driver presents USB 1-2, 3-4, 5-6, 7-8 and 1-8 as separate
+  devices, so the device dropdown selects the pair and the splitter selects
+  within it. Channels 9–18 are unreachable without ASIO.
+
+**Report the achieved channel count, do not assume it.** Chromium may deliver
+fewer channels than requested. The app reads
+`track.getSettings().channelCount` and shows it beside the picker; if it is
+lower than the device advertises, it warns in Korean that the channel should be
+routed on the mixer instead. Silently capturing the wrong channel is the failure
+this prevents.
+
+**Recommended rig setup, and what the event should actually be built on:** route
+a dedicated **aux bus** — not a raw channel — to USB 1-2 in the XR18's USB
+Output menu. An aux bus carries a gated, EQ'd, compressed speech-only mix with
+no music or audience bleed, which materially improves what Gemini hears; it
+behaves identically on both operating systems; and it survives the speaker being
+moved to a different mic without touching the app.
+
+Escape hatch if Chromium downmixes on macOS: spawn ffmpeg with `avfoundation`
+to capture all 18 channels and `pan` to one. This does not help on Windows,
+where ASIO is the blocker, which is why mixer-side routing is the recommendation
+rather than a fallback. Not built in v1.
 
 Single window, all labels Korean:
 
 | Panel | Contents |
 |---|---|
-| 입력 장치 | Device dropdown from `enumerateDevices()`, channel picker, detected sample rate, DSP-off confirmation |
+| 입력 장치 | Device dropdown from `enumerateDevices()`, channel picker (splitter index), requested vs **achieved** channel count, detected sample rate, DSP-off confirmation |
 | 레벨 미터 | RMS + peak from an `AnalyserNode`, clipping indicator |
 | 접속 정보 | Large QR of `http://<lan-ip>:8080` + the URL in large type; auto-detected IP, dropdown if several interfaces |
 | 레인 현황 | Per lane: 언어 · 청취자 수 · 상태 · 레인 드롭 · 청취자 드롭 · 세션 상태 |
@@ -344,6 +387,9 @@ Each has a seam. None gets built now.
   Verify rather than assume.
 - Venue wifi with client isolation would break everything. Check before the
   event.
+- XR18 channels 9–18 are unreachable on Windows without ASIO. If the interpretation
+  feed must come from one of those, either move it to an aux bus routed to USB 1-2,
+  or run the operator app on macOS.
 
 ## Configuration
 
