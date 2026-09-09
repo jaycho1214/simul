@@ -102,6 +102,7 @@ export class TranslatedLane implements Lane {
   }
 
   close(): void {
+    if (this.closed) return;
     this.closed = true;
     this.laneState = "error";
     this.session.close();

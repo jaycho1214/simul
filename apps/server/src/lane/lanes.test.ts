@@ -141,3 +141,24 @@ test("TranslatedLane.close() disposes its Opus encoder", async (t) => {
 
   assert.equal(closeSpy.mock.callCount(), 1);
 });
+
+test("TranslatedLane.close() is idempotent", async (t) => {
+  // A doesNotThrow-only assertion would pass even without the lane's own
+  // `if (this.closed) return;` guard, since both SessionRotator.close() and
+  // LaneOpusEncoder.close() are independently idempotent. Spying on the
+  // encoder's close() proves the *lane* short-circuits the second call
+  // itself, rather than merely relying on its collaborators never breaking.
+  const closeSpy = t.mock.method(LaneOpusEncoder.prototype, "close");
+  const lane = await TranslatedLane.create({
+    lang: "en",
+    clock: new FakeClock(),
+    opusBitrate: 24000,
+    historyLines: 200,
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+
+  lane.close();
+  assert.doesNotThrow(() => lane.close());
+
+  assert.equal(closeSpy.mock.callCount(), 1);
+});
