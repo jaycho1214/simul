@@ -2,6 +2,9 @@
   "name": "tongyeok",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=23.6"
+  },
   "scripts": {
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck"
