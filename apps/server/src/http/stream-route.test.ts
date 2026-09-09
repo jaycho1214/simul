@@ -2,7 +2,8 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
-import { createFakeTranslateSessionFactory } from "../gemini/fake-translate-session.ts";
+import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
+import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
 import { LaneManager } from "../lane/lane-manager.ts";
 import { StreamRoute } from "./stream-route.ts";
 
@@ -71,12 +72,29 @@ class ThrowsOnFirstWriteHeadResponse extends FakeResponse {
   }
 }
 
-function setup() {
+/**
+ * A session factory the test controls by hand: the returned promise only
+ * resolves when `resolve` is called. Mirrors `deferredSessionFactory` in
+ * `lane-manager.test.ts` and `listen-socket.test.ts` — this is how the
+ * "client disconnects while the Gemini session is still opening" test below
+ * holds `acquire()` in flight.
+ */
+function deferredSessionFactory(): {
+  factory: TranslateSessionFactory;
+  resolve: (session: TranslateSession) => void;
+} {
+  let resolve!: (session: TranslateSession) => void;
+  const factory: TranslateSessionFactory = () => new Promise((res) => { resolve = res; });
+  return { factory, resolve: (session) => resolve(session) };
+}
+
+function setup(sessionFactory: TranslateSessionFactory = createFakeTranslateSessionFactory()) {
+  const clock = new FakeClock();
   const hub = new AudioHub();
   const manager = new LaneManager({
-    clock: new FakeClock(),
+    clock,
     hub,
-    sessionFactory: createFakeTranslateSessionFactory(),
+    sessionFactory,
     sourceLanguage: "ko",
     offeredLanguages: ["ko", "en"],
     maxConcurrentLanes: 6,
@@ -84,7 +102,7 @@ function setup() {
     transcriptHistoryLines: 200,
     opusBitrate: 24000,
   });
-  return { hub, manager, route: new StreamRoute({ manager }) };
+  return { clock, hub, manager, route: new StreamRoute({ manager }) };
 }
 
 test("sends the init segment first with audio/webm headers", async () => {
@@ -155,12 +173,13 @@ test("releases the lane and ends the response when write() fails after headers a
   const { manager, route } = setup();
   t.mock.method(console, "error", () => {});
 
-  // If anything throws between acquire() succeeding and the "close" handler
-  // being registered, that handler never gets attached — so it can never
-  // fire to release the lane. Without a safety net here, this leaks a live
-  // (and, for a translated lane, billing) Gemini session subscription for
-  // the rest of the event: nothing else is ever going to call release() for
-  // this subscriber again.
+  // The "close" handler is registered before acquire() is even awaited (see
+  // the leak-during-acquire tests below), so in practice it would eventually
+  // release this lane on its own once res.end() below finishes tearing down
+  // the connection. The explicit release() call in this catch is a second,
+  // redundant-by-design line of defense — release() is idempotent, so
+  // calling it here too costs nothing and covers a response object left in
+  // some state where "close" isn't guaranteed to fire at all.
   //
   // This is also the branch that actually runs in production: headers are
   // already sent by the time write() throws (see ThrowsOnWriteResponse), so
@@ -194,4 +213,40 @@ test("releases the lane and answers with 500 when setup fails before headers are
   assert.equal(status?.listeners, 0, "the lane subscription was released");
   assert.equal(res.statusCode, 500);
   assert.ok(res.ended);
+});
+
+test("a client that disconnects while the lane is still opening does not leak the subscription", async () => {
+  const { factory, resolve } = deferredSessionFactory();
+  const { clock, hub, manager, route } = setup(factory);
+  const res = new FakeResponse();
+
+  // "en" is a translated lane, so acquiring it is real network I/O (opening
+  // a Gemini session) and genuinely takes time to settle — unlike "ko" (the
+  // source language), which resolves synchronously with no session at all.
+  // Registering the "close" handler must happen before awaiting acquire(),
+  // not after it resolves: otherwise a disconnect that arrives during that
+  // window — a phone locked, a tab closed, a language switched — fires no
+  // handler at all, and nothing ever calls release() for this subscriber.
+  // That is the exact bug two earlier tasks in this plan shipped, and the
+  // one Task 15 caught for ListenSocket before it shipped a third time here.
+  const handling = route.handle(res as any, "en");
+  res.emit("close");
+
+  resolve(new FakeTranslateSession("en"));
+  await handling;
+
+  const afterAcquire = manager.statuses().find((s) => s.lang === "en");
+  assert.equal(
+    afterAcquire?.listeners,
+    0,
+    "the lane must not be left with a phantom subscriber that will never release again",
+  );
+
+  // A dropped refcount alone isn't proof of anything if the lane were, say,
+  // never actually opened, or the grace timer never got armed. Advance past
+  // the grace period and confirm the lane is fully torn down — removed from
+  // both the manager and the hub — the same as any other listener leaving.
+  clock.advance(60_000);
+  assert.equal(manager.statuses().find((s) => s.lang === "en"), undefined, "the lane was torn down");
+  assert.equal(hub.laneCount, 0, "the hub no longer holds the torn-down lane");
 });

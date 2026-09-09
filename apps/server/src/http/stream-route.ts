@@ -27,6 +27,26 @@ export class StreamRoute {
     // The response object itself is the subscription identity, so refcounting
     // matches exactly one open HTTP stream.
     const subscriber = res;
+    let unsubscribe: (() => void) | undefined;
+
+    // Registered before acquire() is even awaited, not after it resolves.
+    // Opening a translated lane is real network I/O (spinning up a Gemini
+    // session), so a client can abort — lock their phone, navigate away,
+    // switch languages — while that is still in flight. LaneManager.release()
+    // is built to accept a release for a subscriber whose acquire() hasn't
+    // resolved yet: it records the release against that specific in-flight
+    // open (and is a documented no-op if there's neither an open nor an
+    // entry to record it against, e.g. acquire() is about to reject) and
+    // reconciles it once the open settles. Calling it unconditionally here,
+    // even before `lane` exists, is therefore always safe. Registering this
+    // handler only after acquire() resolved would miss a close that happened
+    // during the wait entirely — an EventEmitter does not replay past events
+    // to a listener added late — leaking a live, billing Gemini session for
+    // the rest of the event.
+    res.on("close", () => {
+      unsubscribe?.();
+      this.opts.manager.release(lang, subscriber);
+    });
 
     let lane;
     try {
@@ -51,12 +71,13 @@ export class StreamRoute {
     }
 
     // From here on the lane is acquired and MUST eventually be released
-    // exactly once. `release` is idempotent on the manager's side (it's a
-    // Set.delete guarded by a "grace timer already pending" check), so the
-    // only real risk is never calling it at all — e.g. if something throws
-    // between acquiring and registering the "close" handler that would
-    // normally do it, which would otherwise leak a live (and, for a
-    // translated lane, billing) Gemini session for the rest of the event.
+    // exactly once. The "close" handler registered above already covers the
+    // normal case — it fires once this response finishes, however that
+    // happens — but `release` is idempotent on the manager's side (a
+    // Set.delete guarded by a "grace timer already pending" check), so
+    // releasing again right here too, if setup itself fails, costs nothing
+    // and closes the gap for a response object left in some state where
+    // "close" is not reliably guaranteed to fire at all.
     try {
       res.writeHead(200, {
         "content-type": "audio/webm",
@@ -65,17 +86,12 @@ export class StreamRoute {
       });
       res.write(lane.initSegment);
 
-      const unsubscribe = lane.subscribeClusters((cluster) => {
+      unsubscribe = lane.subscribeClusters((cluster) => {
         if (res.writableLength > this.maxBuffered) {
           this.drops.set(lang, this.listenerDrops(lang) + 1);
           return;
         }
         res.write(cluster);
-      });
-
-      res.on("close", () => {
-        unsubscribe();
-        this.opts.manager.release(lang, subscriber);
       });
     } catch (err) {
       this.opts.manager.release(lang, subscriber);
