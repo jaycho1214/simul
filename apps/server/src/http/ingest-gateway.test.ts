@@ -102,6 +102,26 @@ test("forwards a frame delivered as fragments (Buffer[])", () => {
   assert.equal(gw.framesDropped, 0);
 });
 
+test("a payload that fails conversion is counted as dropped, not thrown", () => {
+  const hub = new AudioHub();
+  const lane = new SpyLane();
+  hub.addLane(lane);
+  const gw = new IngestGateway({ hub, token: "secret" });
+  const ws = new FakeSocket();
+
+  gw.handleConnection(ws, url("secret"));
+
+  // A "fragments" array containing a non-Buffer element is something
+  // Buffer.concat cannot handle and throws on. Conversion must fail closed
+  // (dropped) rather than let the exception escape the message handler and
+  // tear down the ingest connection.
+  assert.doesNotThrow(() => ws.emit("message", ["not a buffer"]));
+
+  assert.equal(lane.received.length, 0);
+  assert.equal(gw.framesReceived, 0);
+  assert.equal(gw.framesDropped, 1);
+});
+
 test("a reconnecting operator takes over and the stale socket is closed", () => {
   const gw = new IngestGateway({ hub: new AudioHub(), token: "secret" });
   const first = new FakeSocket();

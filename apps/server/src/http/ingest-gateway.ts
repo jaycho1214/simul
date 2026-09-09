@@ -29,13 +29,15 @@ function tokensMatch(provided: string, expected: string): boolean {
  * instead of every legitimate 640-byte frame silently failing a
  * `Buffer.isBuffer` check and being dropped as if no operator were
  * connected at all. Falls back to an empty buffer (never throws) so an
- * unexpected payload shape is just another frame that fails the length
- * check, not an exception that tears down the connection.
+ * unexpected payload shape — including a fragments array containing a
+ * non-Buffer element `Buffer.concat` can't handle — is just another frame
+ * that fails the length check, not an exception that tears down the
+ * connection.
  */
 function toBuffer(data: unknown): Buffer {
-  if (Buffer.isBuffer(data)) return data;
-  if (Array.isArray(data)) return Buffer.concat(data);
   try {
+    if (Buffer.isBuffer(data)) return data;
+    if (Array.isArray(data)) return Buffer.concat(data);
     return Buffer.from(data as ArrayBuffer);
   } catch {
     return Buffer.alloc(0);
