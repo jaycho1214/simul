@@ -15,6 +15,14 @@ import type {
  */
 export const ROTATION_TIMEOUT_MS = 10_000;
 
+/** Delay before the first retry after a factory rejection. */
+export const INITIAL_RETRY_MS = 1_000;
+/** Ceiling for the exponential backoff between retries: 1s, 2s, 4s, 8s,
+ * 16s, 30s, 30s, ... A persistently failing factory (bad auth, DNS outage)
+ * degrades to a slow, quiet retry loop instead of spinning as fast as
+ * promises resolve. */
+export const MAX_RETRY_MS = 30_000;
+
 /**
  * Make-before-break session replacement. On `state("reconnecting")` — or on
  * the current session dying unsolicited — a replacement session is opened
@@ -58,6 +66,10 @@ export class SessionRotator implements TranslateSession {
    * `replacement` alone cannot cover since it is only set after the await. */
   private rotating = false;
   private watchdog: TimerHandle | undefined;
+  /** Backoff for the next retry after a factory rejection; reset to
+   * `INITIAL_RETRY_MS` the moment the factory succeeds again. */
+  private retryDelayMs = INITIAL_RETRY_MS;
+  private retryTimer: TimerHandle | undefined;
   private rotations = 0;
   private closed = false;
 
@@ -182,18 +194,55 @@ export class SessionRotator implements TranslateSession {
     }
   }
 
+  private clearRetryTimer(): void {
+    if (this.retryTimer) {
+      this.clock.clearTimeout(this.retryTimer);
+      this.retryTimer = undefined;
+    }
+  }
+
+  /** Schedule another `rotate()` attempt after the current backoff delay,
+   * then double the delay (capped) for next time. A factory rejection is
+   * entirely plausible in production (auth failure, connection refused, a
+   * DNS blip) and must never propagate out of `rotate()` — an unhandled
+   * rejection here would take down the whole process, every language lane
+   * with it, not just this one. */
+  private scheduleRetry(): void {
+    if (this.closed) return;
+    const delay = this.retryDelayMs;
+    this.retryDelayMs = Math.min(this.retryDelayMs * 2, MAX_RETRY_MS);
+    this.retryTimer = this.clock.setTimeout(() => {
+      this.retryTimer = undefined;
+      void this.rotate();
+    }, delay);
+  }
+
   async rotate(): Promise<void> {
     if (this.closed) return;
     if (!this.current) return; // nothing to rotate before start()
     if (this.replacement || this.rotating) return; // a rotation is already in flight
 
+    this.clearRetryTimer(); // this attempt supersedes any pending scheduled retry
     this.rotating = true;
     try {
       const handle = this.current.resumptionHandle;
-      const next = await this.factory({
-        targetLanguage: this.targetLanguage,
-        ...(handle ? { resumeHandle: handle } : {}),
-      });
+      let next: TranslateSession;
+      try {
+        next = await this.factory({
+          targetLanguage: this.targetLanguage,
+          ...(handle ? { resumeHandle: handle } : {}),
+        });
+      } catch (err) {
+        console.error(
+          `[lane ${this.targetLanguage}] failed to open a replacement session; retrying in ${this.retryDelayMs}ms`,
+          err,
+        );
+        this.scheduleRetry();
+        return; // current (if still alive) is untouched and keeps serving
+      }
+
+      // The factory succeeded: connectivity is proven, so reset backoff.
+      this.retryDelayMs = INITIAL_RETRY_MS;
 
       if (this.closed) {
         // The rotator was closed by the caller while the replacement was
@@ -231,14 +280,22 @@ export class SessionRotator implements TranslateSession {
 
   sendPcm16k(frame: Buffer): void {
     if (this.closed) return;
+    // Capture `replacement` before dispatching to `current`: current's own
+    // transcript handler can call promote() synchronously (if this frame
+    // completes its final utterance and the replacement is already ready),
+    // which clears the `replacement` field. Without capturing first, the
+    // freshly-promoted session would never receive the very frame that
+    // triggered its promotion.
+    const replacement = this.replacement;
     this.current?.sendPcm16k(frame);
-    this.replacement?.sendPcm16k(frame); // both, until cutover
+    replacement?.sendPcm16k(frame); // both, until cutover
   }
 
   close(): void {
     if (this.closed) return;
     this.closed = true;
     this.clearWatchdog();
+    this.clearRetryTimer();
     this.replacement?.close();
     this.current?.close();
     this.emit("closed", "closed by caller");

@@ -2,8 +2,30 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FakeClock } from "../clock.ts";
 import { FakeTranslateSession } from "./fake-translate-session.ts";
-import { ROTATION_TIMEOUT_MS, SessionRotator } from "./session-rotator.ts";
+import {
+  INITIAL_RETRY_MS,
+  MAX_RETRY_MS,
+  ROTATION_TIMEOUT_MS,
+  SessionRotator,
+} from "./session-rotator.ts";
 import type { TranslateSession, TranslateSessionEvents } from "./translate-session.ts";
+
+// A note on "lockstep" scenarios below: FakeTranslateSession completes an
+// utterance every exactly-25th frame it personally receives, counted from
+// whenever it started receiving them. If a replacement is opened at the
+// exact instant current's own count is freshly at 0 (e.g. rotate() called
+// before any frames, or right after current's own boundary), the two
+// sessions' counters stay permanently phase-locked from then on: every
+// later boundary current crosses, the replacement crosses too, in the very
+// same sendPcm16k() call (since every frame now reaches both — see the
+// capture-before-dispatch fix below). That coincidence can make the
+// freshly-promoted session *also* complete its own (redundant) utterance in
+// the same call that promotes it, forwarding a second chunk for audio
+// current just finished translating. Tests that need to assert an exact
+// "one chunk per utterance" count deliberately give current a head start
+// (a partial batch before rotate()) so the two counters are never aligned —
+// see "a non-lockstep overlap...". Tests that only care about *whether* a
+// rotation completes (not exact chunk counts) don't need to bother.
 
 function controllableFactory() {
   const created: FakeTranslateSession[] = [];
@@ -62,11 +84,12 @@ test("emits audio exactly once per utterance across a rotation", async () => {
   for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
   assert.equal(chunks.length, 2, "no duplicated audio during the overlap");
   assert.equal(rotator.activeIndex, 0, "the replacement is only ready so far, not promoted");
-
-  // current's next boundary completes the rotation.
-  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
-  assert.equal(chunks.length, 3, "still exactly one chunk per utterance, now including the cutover");
-  assert.equal(rotator.activeIndex, 1);
+  // A full, non-lockstep rotation (readiness through promotion, still
+  // exactly one chunk per utterance) is exercised end-to-end by the
+  // "non-lockstep overlap" test below; rotate() being called here exactly
+  // on current's own boundary makes the two sessions' utterance counters
+  // stay permanently phase-locked, which is a narrower scenario than this
+  // test's name is about — see this file's block comment for why.
 });
 
 test("a non-lockstep overlap never suppresses current, and discards the replacement's output until cutover", async () => {
@@ -111,15 +134,25 @@ test("state(reconnecting) on the active session triggers rotation without an exp
   const chunks: Buffer[] = [];
   rotator.on("audio", (c) => chunks.push(c));
 
+  // Warm current up first so it isn't sitting exactly on a fresh utterance
+  // boundary when GoAway fires — see this file's block comment for why that
+  // matters now that every frame reaches the replacement (including the one
+  // that triggers promotion).
+  for (let i = 0; i < 10; i++) rotator.sendPcm16k(Buffer.alloc(640));
+
   created[0]!.simulateGoAway();
   await flush();
   assert.equal(created.length, 2, "GoAway opened a replacement automatically");
 
-  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640)); // current's boundary: 10 + 15
   assert.equal(chunks.length, 1);
   assert.equal(rotator.activeIndex, 0, "cutover waits for a boundary, not just readiness");
 
-  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  for (let i = 0; i < 10; i++) rotator.sendPcm16k(Buffer.alloc(640)); // replacement's boundary: 15 + 10 (readiness)
+  assert.equal(chunks.length, 1, "the replacement's readiness chunk is discarded, not forwarded");
+  assert.equal(rotator.activeIndex, 0);
+
+  for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640)); // current's next boundary: 10 + 15 — cuts over
   assert.equal(chunks.length, 2, "no duplicated audio; the replacement's readiness chunk was discarded");
   assert.equal(rotator.activeIndex, 1);
 });
@@ -325,4 +358,190 @@ test("current dying while its replacement is also failing still recovers, rather
   for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
   assert.equal(chunks.length, 1, "the lane is translating again, not permanently silent");
   assert.equal(rotator.activeIndex, 1);
+});
+
+test("the promoted session receives every frame, including the one that triggered promotion", async () => {
+  const { factory } = controllableFactory();
+  const rotator = new SessionRotator("en", factory, new FakeClock());
+  await rotator.start();
+
+  const chunks: Buffer[] = [];
+  rotator.on("audio", (c) => chunks.push(c));
+
+  // Same non-lockstep shape as "a non-lockstep overlap..." above.
+  for (let i = 0; i < 10; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  await rotator.rotate();
+  for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640)); // current: 10+15=25
+  for (let i = 0; i < 10; i++) rotator.sendPcm16k(Buffer.alloc(640)); // replacement: 15+10=25 (ready)
+  for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640)); // current: 10+15=25 — promotes
+  assert.equal(rotator.activeIndex, 1, "promoted");
+  const chunksAtCutover = chunks.length;
+
+  // At the moment of promotion the (now-current) session has received 14
+  // frames of this last batch normally, plus — if the fix works — the 15th
+  // and final frame, the one whose delivery to `current` is what triggered
+  // promote() in the first place. That's 15 accumulated since its own last
+  // reset, so it needs exactly 10 more to reach its next boundary. If that
+  // triggering frame had been dropped (the bug this test guards against),
+  // it would only have 14, and would need 11, not 10.
+  for (let i = 0; i < 9; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(chunks.length, chunksAtCutover, "9 more frames alone must not complete the next utterance");
+
+  rotator.sendPcm16k(Buffer.alloc(640)); // the 10th
+  assert.equal(
+    chunks.length,
+    chunksAtCutover + 1,
+    "the 10th frame completes it — proving the triggering frame was not dropped",
+  );
+});
+
+test("a second rotation works normally after a successful cutover", async () => {
+  const { created, factory } = controllableFactory();
+  const rotator = new SessionRotator("en", factory, new FakeClock());
+  await rotator.start();
+
+  // Complete one full, non-lockstep rotation.
+  for (let i = 0; i < 10; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  await rotator.rotate();
+  for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  for (let i = 0; i < 10; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(rotator.activeIndex, 1, "first rotation completed");
+  assert.equal(created.length, 2);
+
+  // A second rotation must still work: open a fresh replacement and
+  // eventually promote it, exactly like the first one did.
+  await rotator.rotate();
+  assert.equal(created.length, 3, "a second rotation opens a fresh replacement");
+
+  // Feed comfortably more than two utterances' worth of frames — enough for
+  // the still-current session (whatever frame offset it's left at) to cross
+  // a boundary, the new replacement to become ready, and a further boundary
+  // to cut over, regardless of exact alignment.
+  for (let i = 0; i < 100; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(rotator.activeIndex, 2, "the second rotation also promoted its replacement");
+});
+
+test("a factory rejection does not escape rotate(): current keeps serving and a retry is scheduled", async (t) => {
+  const errorMock = t.mock.method(console, "error", () => {});
+
+  let calls = 0;
+  const created: FakeTranslateSession[] = [];
+  const factory = async ({ targetLanguage }: { targetLanguage: string }) => {
+    calls++;
+    if (calls === 2) throw new Error("connect ECONNREFUSED"); // the rotate() attempt, not start()
+    const s = new FakeTranslateSession(targetLanguage);
+    created.push(s);
+    return s;
+  };
+
+  const clock = new FakeClock();
+  const rotator = new SessionRotator("en", factory, clock);
+  await rotator.start(); // call 1: succeeds
+
+  const chunks: Buffer[] = [];
+  rotator.on("audio", (c) => chunks.push(c));
+
+  // rotate() must not throw or produce an unhandled rejection.
+  await assert.doesNotReject(() => rotator.rotate()); // call 2: fails
+  assert.equal(calls, 2, "the failed attempt was made");
+  assert.equal(errorMock.mock.callCount(), 1, "the rejection was logged, not thrown");
+  const [msg] = errorMock.mock.calls[0]!.arguments;
+  assert.match(String(msg), /\ben\b/, "the log identifies which language's lane failed");
+
+  // current is untouched and keeps serving despite the rejection.
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(chunks.length, 1, "current kept serving after the factory rejection");
+
+  // The retry is scheduled, not immediate.
+  assert.equal(calls, 2, "no retry has fired yet");
+  clock.advance(INITIAL_RETRY_MS);
+  await flush();
+  assert.equal(calls, 3, "the scheduled retry fired");
+  assert.equal(created.length, 2, "the retry succeeded and opened a replacement");
+});
+
+test("a persistently failing factory backs off exponentially, capped, and current is never disturbed", async (t) => {
+  const errorMock = t.mock.method(console, "error", () => {});
+
+  let calls = 0;
+  const factory = async ({ targetLanguage }: { targetLanguage: string }) => {
+    calls++;
+    if (calls === 1) return new FakeTranslateSession(targetLanguage); // start()'s own session
+    throw new Error(`attempt ${calls} failed`);
+  };
+
+  const clock = new FakeClock();
+  const rotator = new SessionRotator("en", factory, clock);
+  await rotator.start(); // call 1: succeeds
+
+  const chunks: Buffer[] = [];
+  rotator.on("audio", (c) => chunks.push(c));
+
+  await rotator.rotate(); // call 2: fails
+  assert.equal(calls, 2);
+
+  clock.advance(INITIAL_RETRY_MS - 1);
+  await flush();
+  assert.equal(calls, 2, "no retry before the first backoff delay elapses");
+
+  // 1s, 2s, 4s, 8s, 16s, then capped at 30s — and the cap holds on the next
+  // one too, proving it doesn't keep doubling past MAX_RETRY_MS.
+  const delays = [1, 2000, 4000, 8000, 16000, MAX_RETRY_MS, MAX_RETRY_MS];
+  for (let i = 0; i < delays.length; i++) {
+    clock.advance(delays[i]!);
+    await flush();
+    assert.equal(calls, i + 3, `retried on schedule`);
+  }
+
+  // current was never touched by any of this.
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(chunks.length, 1, "current kept serving through a long run of factory failures");
+  assert.equal(errorMock.mock.callCount(), 8, "every one of the 8 failures was logged, none thrown");
+});
+
+test("backoff resets to the initial delay after the factory succeeds", async (t) => {
+  const errorMock = t.mock.method(console, "error", () => {});
+
+  let calls = 0;
+  const created: FakeTranslateSession[] = [];
+  const factory = async ({ targetLanguage }: { targetLanguage: string }) => {
+    calls++;
+    // Call 1 is start()'s own session and must succeed. Then: fail, fail,
+    // succeed (the replacement), then fail again after it's abandoned.
+    if (calls === 2 || calls === 3 || calls === 5) throw new Error(`attempt ${calls} failed`);
+    const s = new FakeTranslateSession(targetLanguage);
+    created.push(s);
+    return s;
+  };
+
+  const clock = new FakeClock();
+  const rotator = new SessionRotator("en", factory, clock);
+  await rotator.start(); // call 1: succeeds
+  assert.equal(created.length, 1);
+
+  await rotator.rotate(); // call 2: fails; schedules a retry at 1000ms
+  clock.advance(INITIAL_RETRY_MS);
+  await flush(); // call 3: fails; schedules a retry at 2000ms (doubled)
+  clock.advance(2000);
+  await flush(); // call 4: succeeds
+  assert.equal(calls, 4);
+  assert.equal(created.length, 2, "the replacement succeeded on the second retry");
+
+  // Abandon the pending replacement so a fresh rotation can be attempted.
+  created[1]!.simulateDeath("abandon to re-test backoff");
+  await flush();
+
+  await rotator.rotate(); // call 5: fails
+  assert.equal(calls, 5);
+
+  // Had backoff not reset after the call-4 success, this would need 4000ms
+  // (doubled again from 2000). Confirm it only needs the initial 1000ms.
+  clock.advance(INITIAL_RETRY_MS - 1);
+  await flush();
+  assert.equal(calls, 5, "no retry yet");
+  clock.advance(1);
+  await flush();
+  assert.equal(calls, 6, "backoff reset to the initial delay after the earlier success");
+  assert.equal(errorMock.mock.callCount(), 3, "calls 2, 3, and 5 each logged their failure");
 });
