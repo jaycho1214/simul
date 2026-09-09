@@ -41,3 +41,15 @@ test("encodes non-silent audio to a non-empty packet", () => {
   assert.equal(packets.length, 1);
   assert.ok(packets[0]!.length > 0);
 });
+
+test("close() is idempotent", () => {
+  const enc = new LaneOpusEncoder(24000, 24000);
+  enc.close();
+  assert.doesNotThrow(() => enc.close());
+});
+
+test("encode() after close() throws instead of touching freed WASM memory", () => {
+  const enc = new LaneOpusEncoder(24000, 24000);
+  enc.close();
+  assert.throws(() => enc.encode(Buffer.alloc(960)), /close/);
+});

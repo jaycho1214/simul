@@ -43,6 +43,13 @@ test("cluster timestamps advance by clusterMs", () => {
   assert.notDeepEqual(clusters[0], clusters[1]);
 });
 
+test("rejects a clusterMs that would overflow the SimpleBlock's signed 16-bit timestamp", () => {
+  assert.throws(
+    () => new WebMSink({ inputSampleRate: 24000, clusterMs: 32768 }),
+    /clusterMs/,
+  );
+});
+
 test("unsubscribe stops cluster delivery", () => {
   const sink = new WebMSink({ inputSampleRate: 24000, clusterMs: 20 });
   let count = 0;

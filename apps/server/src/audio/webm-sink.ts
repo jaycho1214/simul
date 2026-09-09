@@ -4,6 +4,12 @@ export const CLUSTER_ID = Buffer.from([0x1f, 0x43, 0xb6, 0x75]);
 
 const FRAME_MS = 20;
 
+// SimpleBlock's per-block timestamp is a signed 16-bit big-endian int
+// (see simpleBlock below), so a cluster-relative timestamp can never reach
+// 32768. clusterMs bounds that timestamp, so it must stay under the same
+// limit.
+const MAX_CLUSTER_MS = 32767;
+
 /**
  * OpusHead, 19 bytes. Note that WebM always declares Opus at 48 kHz because
  * Opus decodes to 48 kHz regardless of what went in; the true capture rate is
@@ -75,6 +81,10 @@ export class WebMSink {
   constructor(opts: { inputSampleRate: number; clusterMs?: number }) {
     this.initSegment = buildInitSegment(opts.inputSampleRate);
     this.clusterMs = opts.clusterMs ?? 100;
+
+    if (this.clusterMs > MAX_CLUSTER_MS) {
+      throw new Error(`clusterMs must be <= ${MAX_CLUSTER_MS} (SimpleBlock timestamps are a signed 16-bit int)`);
+    }
   }
 
   get subscriberCount(): number {
