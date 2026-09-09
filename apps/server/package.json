@@ -1,0 +1,19 @@
+{
+  "name": "@tongyeok/server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "typecheck": "tsc -p .",
+    "dev": "node --experimental-strip-types src/index.ts"
+  },
+  "dependencies": {
+    "@discordjs/opus": "^0.10.0",
+    "@google/genai": "^1.0.0",
+    "@tongyeok/protocol": "workspace:*",
+    "ws": "^8.18.0"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.5.13"
+  }
+}

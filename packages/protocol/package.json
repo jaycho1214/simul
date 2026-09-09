@@ -1,0 +1,7 @@
+{
+  "name": "@tongyeok/protocol",
+  "private": true,
+  "type": "module",
+  "main": "src/index.ts",
+  "scripts": { "typecheck": "tsc -p .", "test": "true" }
+}
