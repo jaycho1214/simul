@@ -3,7 +3,7 @@ import type { PcmConsumer } from "./lane/lane.ts";
 
 /**
  * Broadcasts ingest PCM to every open lane. Lanes are isolated: one that throws
- * or stalls cannot affect ingest or any sibling.
+ * cannot affect ingest or any sibling.
  */
 export class AudioHub {
   private readonly lanes = new Map<LangCode, PcmConsumer>();
@@ -13,6 +13,9 @@ export class AudioHub {
   }
 
   addLane(consumer: PcmConsumer): void {
+    if (this.lanes.has(consumer.lang)) {
+      throw new Error(`AudioHub already has a lane for "${consumer.lang}"`);
+    }
     this.lanes.set(consumer.lang, consumer);
   }
 

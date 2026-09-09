@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { AudioHub } from "./audio-hub.ts";
-import { BoundedFrameQueue, type PcmConsumer } from "./lane/lane.ts";
+import type { PcmConsumer } from "./lane/lane.ts";
 
 class SpyLane implements PcmConsumer {
   received: Buffer[] = [];
@@ -55,14 +55,16 @@ test("removeLane stops delivery", () => {
   assert.equal(hub.laneCount, 0);
 });
 
-test("BoundedFrameQueue drops the oldest frame when full", () => {
-  const q = new BoundedFrameQueue(2);
-  q.push(Buffer.from([1]));
-  q.push(Buffer.from([2]));
-  q.push(Buffer.from([3]));
+test("addLane throws instead of silently replacing an existing lane", () => {
+  const hub = new AudioHub();
+  const first = new SpyLane("en");
+  const second = new SpyLane("en");
+  hub.addLane(first);
 
-  assert.equal(q.drops, 1);
-  assert.deepEqual([...q.shift()!], [2]);
-  assert.deepEqual([...q.shift()!], [3]);
-  assert.equal(q.shift(), undefined);
+  assert.throws(() => hub.addLane(second), /en/);
+  assert.equal(hub.laneCount, 1);
+
+  hub.push(Buffer.alloc(640));
+  assert.equal(first.received.length, 1);
+  assert.equal(second.received.length, 0);
 });

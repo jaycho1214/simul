@@ -4,6 +4,7 @@ import type { TranscriptBus } from "../transcript-bus.ts";
 /** Anything AudioHub can hand ingest PCM to. */
 export interface PcmConsumer {
   readonly lang: LangCode;
+  /** Must not block: AudioHub calls this synchronously for every lane in turn. */
   pushPcm(frame: Buffer): void;
   readonly laneDrops: number;
 }
@@ -15,32 +16,4 @@ export interface Lane extends PcmConsumer {
   readonly transcripts: TranscriptBus;
   subscribeClusters(fn: (cluster: Buffer) => void): () => void;
   close(): void;
-}
-
-/** Fixed-capacity FIFO that discards the oldest entry under pressure. */
-export class BoundedFrameQueue {
-  private readonly items: Buffer[] = [];
-  private dropped = 0;
-
-  constructor(private readonly capacity: number) {}
-
-  get drops(): number {
-    return this.dropped;
-  }
-
-  get length(): number {
-    return this.items.length;
-  }
-
-  push(frame: Buffer): void {
-    if (this.items.length >= this.capacity) {
-      this.items.shift();
-      this.dropped++;
-    }
-    this.items.push(frame);
-  }
-
-  shift(): Buffer | undefined {
-    return this.items.shift();
-  }
 }
