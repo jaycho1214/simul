@@ -35,9 +35,16 @@ export const MAX_RETRY_MS = 30_000;
  * cutover, since during the overlap it is translating the same speech and
  * forwarding it too would duplicate. The replacement's first audio only
  * marks it *ready* — the actual switch happens on the current session's next
- * final transcript (a natural utterance boundary), or immediately if the
- * current session dies first. That gives no gap and no duplicate without
+ * final transcript (a natural utterance boundary), or as soon as possible if
+ * the current session dies first. That gives no gap and no duplicate without
  * depending on both sessions crossing an utterance boundary in lockstep.
+ *
+ * Cutover itself never happens inside an event handler. Handlers only *arm*
+ * it (`pendingPromotion`); `sendPcm16k` performs it once both sessions have
+ * been fed the frame. Promoting mid-dispatch would move `current` to the
+ * replacement while that same frame was still being delivered, so output the
+ * replacement produced for it would be forwarded as well as the current
+ * session's — two chunks for one utterance. See `sendPcm16k`.
  *
  * A pending replacement that dies, or that never produces audio within
  * `ROTATION_TIMEOUT_MS`, is abandoned: `current` is left serving and a future
@@ -55,13 +62,17 @@ export class SessionRotator implements TranslateSession {
 
   private current: TranslateSession | undefined;
   private replacement: TranslateSession | undefined;
-  /** True once `replacement` has produced its first audio; promotion still
-   * waits for `current`'s next final transcript (or an immediate death). */
+  /** True once `replacement` has produced its first audio; the cutover still
+   * waits for `current`'s next final transcript — or, if `current` has already
+   * died, for the end of the frame dispatch in progress. */
   private replacementReady = false;
   /** True once `current` has emitted an unsolicited `closed`. A pending or
-   * future replacement should promote itself the moment it is ready, since
+   * future replacement should be promoted as soon as it is ready, since
    * there is no longer a `current` to produce a boundary transcript. */
   private currentDead = false;
+  /** Armed when a cutover has been decided but must not happen yet: see the
+   * class comment and `sendPcm16k`, which is the only place it is acted on. */
+  private pendingPromotion = false;
   /** Guards the window between calling the factory and it resolving, which
    * `replacement` alone cannot cover since it is only set after the await. */
   private rotating = false;
@@ -110,25 +121,24 @@ export class SessionRotator implements TranslateSession {
    * an announced disconnect, or an unsolicited close on either session. */
   private attach(session: TranslateSession): void {
     session.on("audio", (pcm) => {
-      // Check readiness (and possibly promote) before deciding whether to
-      // forward: if `current` is already dead, this chunk both proves
-      // readiness *and* is the first real output since current went away,
-      // so it must be forwarded, not discarded as a would-be duplicate —
-      // there is nothing left for it to duplicate.
       if (session === this.replacement && !this.replacementReady) {
         this.replacementReady = true;
         this.clearWatchdog();
-        if (this.currentDead) this.promote(); // no boundary to wait on; promote now
+        // `current` is gone, so there is no boundary left to wait for: arm
+        // the cutover for the end of this dispatch.
+        if (this.currentDead) this.pendingPromotion = true;
       }
-      if (session === this.current) {
-        this.emit("audio", pcm);
-      }
+      if (this.isOutputActive(session)) this.emit("audio", pcm);
     });
 
     session.on("transcript", (text, isFinal) => {
-      if (session !== this.current) return; // replacement's output is discarded pre-cutover
+      if (!this.isOutputActive(session)) return;
       this.emit("transcript", text, isFinal);
-      if (isFinal && this.replacementReady) this.promote();
+      // Only the current session's boundaries decide a cutover, and only
+      // `sendPcm16k` acts on it — never promote from inside a handler.
+      if (session === this.current && isFinal && this.replacementReady) {
+        this.pendingPromotion = true;
+      }
     });
 
     session.on("state", (s) => {
@@ -154,19 +164,31 @@ export class SessionRotator implements TranslateSession {
       if (!this.replacement) {
         void this.rotate();
       } else if (this.replacementReady) {
-        this.promote();
+        this.pendingPromotion = true; // no boundary will ever come; cut over
       }
       // else: a replacement is already opening but not ready yet — the
-      // audio-readiness handler above will promote it immediately once it
-      // is, since currentDead is now true.
+      // audio-readiness handler above arms the cutover as soon as it is,
+      // since currentDead is now true.
     });
   }
 
-  /** Cut over: `replacement` becomes `current`, the old session is closed. */
+  /** Whose output reaches subscribers. Normally only `current`: a pending
+   * replacement is translating the same speech, so forwarding it too would
+   * duplicate. The exception is a dead `current` — it will never emit again,
+   * so the replacement's output duplicates nothing, and discarding it until
+   * the cutover lands would drop real audio. */
+  private isOutputActive(session: TranslateSession): boolean {
+    if (session === this.current) return true;
+    return session === this.replacement && this.currentDead;
+  }
+
+  /** Cut over: `replacement` becomes `current`, the old session is closed.
+   * Called only from `sendPcm16k`, between frames — never mid-dispatch. */
   private promote(): void {
+    this.pendingPromotion = false;
     const old = this.current;
     const next = this.replacement;
-    if (!next) return; // defensive; only called when a replacement is pending
+    if (!next) return; // the replacement was abandoned before the cutover landed
     this.clearWatchdog();
     this.current = next;
     this.replacement = undefined;
@@ -183,6 +205,7 @@ export class SessionRotator implements TranslateSession {
     this.clearWatchdog();
     this.replacement = undefined;
     this.replacementReady = false;
+    this.pendingPromotion = false; // nothing left to promote
     this.rotating = false;
     if (this.currentDead) void this.rotate();
   }
@@ -269,6 +292,7 @@ export class SessionRotator implements TranslateSession {
     this.watchdog = undefined;
     this.replacement = undefined;
     this.replacementReady = false;
+    this.pendingPromotion = false; // nothing left to promote
     this.rotating = false;
     pending.close();
     if (this.currentDead) void this.rotate();
@@ -280,15 +304,20 @@ export class SessionRotator implements TranslateSession {
 
   sendPcm16k(frame: Buffer): void {
     if (this.closed) return;
-    // Capture `replacement` before dispatching to `current`: current's own
-    // transcript handler can call promote() synchronously (if this frame
-    // completes its final utterance and the replacement is already ready),
-    // which clears the `replacement` field. Without capturing first, the
-    // freshly-promoted session would never receive the very frame that
-    // triggered its promotion.
+    // Capture `replacement` before dispatching to `current`, so that whichever
+    // session was pending when this frame arrived receives it even if one of
+    // current's handlers clears the field mid-dispatch. In particular the
+    // frame that arms a cutover must still reach the session about to be
+    // promoted, or that session would be a frame behind from the moment it
+    // takes over.
     const replacement = this.replacement;
     this.current?.sendPcm16k(frame);
     replacement?.sendPcm16k(frame); // both, until cutover
+    // Both sessions have now seen this frame and any output it produced has
+    // been forwarded (current's) or discarded (the replacement's), judged
+    // against a `current` that did not move mid-dispatch. Only now is it
+    // safe to cut over.
+    if (this.pendingPromotion) this.promote();
   }
 
   close(): void {

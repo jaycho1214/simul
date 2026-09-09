@@ -10,22 +10,18 @@ import {
 } from "./session-rotator.ts";
 import type { TranslateSession, TranslateSessionEvents } from "./translate-session.ts";
 
-// A note on "lockstep" scenarios below: FakeTranslateSession completes an
+// A note on "phase-locked" scenarios below: FakeTranslateSession completes an
 // utterance every exactly-25th frame it personally receives, counted from
 // whenever it started receiving them. If a replacement is opened at the
 // exact instant current's own count is freshly at 0 (e.g. rotate() called
 // before any frames, or right after current's own boundary), the two
-// sessions' counters stay permanently phase-locked from then on: every
-// later boundary current crosses, the replacement crosses too, in the very
-// same sendPcm16k() call (since every frame now reaches both — see the
-// capture-before-dispatch fix below). That coincidence can make the
-// freshly-promoted session *also* complete its own (redundant) utterance in
-// the same call that promotes it, forwarding a second chunk for audio
-// current just finished translating. Tests that need to assert an exact
-// "one chunk per utterance" count deliberately give current a head start
-// (a partial batch before rotate()) so the two counters are never aligned —
-// see "a non-lockstep overlap...". Tests that only care about *whether* a
-// rotation completes (not exact chunk counts) don't need to bother.
+// sessions' counters stay aligned from then on: every boundary current
+// crosses, the replacement crosses too, in the very same sendPcm16k() call
+// (every frame reaches both). That is the scenario that would double every
+// cutover utterance if promotion happened mid-dispatch, so several tests
+// below deliberately set it up; tests named "non-lockstep" deliberately give
+// current a head start so boundaries never coincide. Both shapes must emit
+// exactly one chunk and one final transcript per utterance.
 
 function controllableFactory() {
   const created: FakeTranslateSession[] = [];
@@ -84,12 +80,57 @@ test("emits audio exactly once per utterance across a rotation", async () => {
   for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
   assert.equal(chunks.length, 2, "no duplicated audio during the overlap");
   assert.equal(rotator.activeIndex, 0, "the replacement is only ready so far, not promoted");
-  // A full, non-lockstep rotation (readiness through promotion, still
-  // exactly one chunk per utterance) is exercised end-to-end by the
-  // "non-lockstep overlap" test below; rotate() being called here exactly
-  // on current's own boundary makes the two sessions' utterance counters
-  // stay permanently phase-locked, which is a narrower scenario than this
-  // test's name is about — see this file's block comment for why.
+
+  // current's next boundary completes the rotation.
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(chunks.length, 3, "still exactly one chunk per utterance, now including the cutover");
+  assert.equal(rotator.activeIndex, 1);
+});
+
+test("a rotation begun on a fresh utterance boundary emits one chunk and one final transcript per utterance", async () => {
+  const { factory } = controllableFactory();
+  const rotator = new SessionRotator("en", factory, new FakeClock());
+  await rotator.start();
+
+  const chunks: Buffer[] = [];
+  const finals: string[] = [];
+  rotator.on("audio", (c) => chunks.push(c));
+  rotator.on("transcript", (text, isFinal) => {
+    if (isFinal) finals.push(text);
+  });
+
+  // Utterance 1 completes cleanly and only then does the rotation start, so
+  // the replacement's 25-frame counter starts at 0 at the same instant
+  // current's does. From here the two are phase-locked: every frame that
+  // completes an utterance on current completes one on the replacement in
+  // the very same sendPcm16k() call. A real GoAway or an unsolicited death
+  // can land exactly here.
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  await rotator.rotate();
+  assert.equal(chunks.length, 1);
+  assert.equal(finals.length, 1);
+
+  // Utterance 2: current forwards it; the replacement crosses its own first
+  // boundary in the same call and is only marked ready.
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(chunks.length, 2, "the replacement's readiness chunk is discarded, not forwarded");
+  assert.equal(finals.length, 2, "and neither is its transcript");
+  assert.equal(rotator.activeIndex, 0, "readiness alone does not cut over");
+
+  // Utterance 3 is the cutover: current's final transcript arms the
+  // promotion, which must not take effect until this whole dispatch is
+  // done — otherwise the replacement, which completes the very same
+  // utterance later in this same call, would already be `current` and would
+  // emit a second chunk and a second final transcript for it.
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(rotator.activeIndex, 1, "the cutover happened");
+  assert.equal(chunks.length, 3, "one chunk for the cutover utterance, not two");
+  assert.equal(finals.length, 3, "one final transcript for the cutover utterance, not two");
+
+  // Utterance 4 comes from the promoted session alone, exactly once.
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(chunks.length, 4, "the promoted session is now the sole source");
+  assert.equal(finals.length, 4);
 });
 
 test("a non-lockstep overlap never suppresses current, and discards the replacement's output until cutover", async () => {
@@ -134,25 +175,17 @@ test("state(reconnecting) on the active session triggers rotation without an exp
   const chunks: Buffer[] = [];
   rotator.on("audio", (c) => chunks.push(c));
 
-  // Warm current up first so it isn't sitting exactly on a fresh utterance
-  // boundary when GoAway fires — see this file's block comment for why that
-  // matters now that every frame reaches the replacement (including the one
-  // that triggers promotion).
-  for (let i = 0; i < 10; i++) rotator.sendPcm16k(Buffer.alloc(640));
-
+  // GoAway lands with current sitting on a fresh utterance boundary — the
+  // phase-locked case, and the one a real GoAway can land on at any time.
   created[0]!.simulateGoAway();
   await flush();
   assert.equal(created.length, 2, "GoAway opened a replacement automatically");
 
-  for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640)); // current's boundary: 10 + 15
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
   assert.equal(chunks.length, 1);
   assert.equal(rotator.activeIndex, 0, "cutover waits for a boundary, not just readiness");
 
-  for (let i = 0; i < 10; i++) rotator.sendPcm16k(Buffer.alloc(640)); // replacement's boundary: 15 + 10 (readiness)
-  assert.equal(chunks.length, 1, "the replacement's readiness chunk is discarded, not forwarded");
-  assert.equal(rotator.activeIndex, 0);
-
-  for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640)); // current's next boundary: 10 + 15 — cuts over
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
   assert.equal(chunks.length, 2, "no duplicated audio; the replacement's readiness chunk was discarded");
   assert.equal(rotator.activeIndex, 1);
 });
