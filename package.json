@@ -10,7 +10,8 @@
     "typecheck": "pnpm -r typecheck",
     "build": "pnpm -r build",
     "start": "bash scripts/start.sh",
-    "tone": "node scripts/tone.mjs"
+    "tone": "node scripts/tone.mjs",
+    "serve": "bash scripts/serve.sh"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -1,9 +1,8 @@
 #!/usr/bin/env bash
-# One command to run the whole system: builds the attendee app and serves it
-# from the translation server, then prints the URLs to open.
+# Opens the Electron operator app. The app forks the translation server itself
+# into a utilityProcess, so this is the only thing you need to run.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-ROOT="$PWD"
 
 if [ ! -f .env ]; then
   echo "!! No .env found. Create one with:"
@@ -12,21 +11,16 @@ if [ ! -f .env ]; then
   exit 1
 fi
 
-echo "==> Building the attendee app..."
+echo "==> Building the attendee app (served by the server the app starts)..."
 pnpm --filter @tongyeok/web build >/dev/null
 
 LAN=$(ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "")
 PORT="${PORT:-8080}"
-
 echo ""
-echo "  On this machine : http://localhost:${PORT}"
-[ -n "$LAN" ] && echo "  From a phone    : http://${LAN}:${PORT}   (same wifi)"
+echo "  Attendees open : http://${LAN:-localhost}:${PORT}"
+echo "  Feed test audio: pnpm tone"
 echo ""
-echo "  Pick 한국어 to hear the passthrough lane (needs no API key)."
-echo "  Feed it audio with:  pnpm tone"
-echo ""
-echo "==> Starting server (Ctrl-C to stop)..."
+echo "==> Opening the operator app (server logs appear in its window)..."
 set -a; . ./.env; set +a
-exec node --disable-warning=ExperimentalWarning --experimental-transform-types \
-  --env-file-if-exists=.env \
-  "$ROOT/apps/server/src/index.ts"
+export WEB_ROOT="$PWD/apps/web/dist"
+exec pnpm --filter operator start
