@@ -8,6 +8,7 @@ import { IngestGateway } from "./http/ingest-gateway.ts";
 import { StreamRoute } from "./http/stream-route.ts";
 import { ListenSocket } from "./http/listen-socket.ts";
 import { AdminSocket } from "./http/admin-socket.ts";
+import { StaticRoute } from "./http/static-route.ts";
 import type { TranslateSessionFactory } from "./gemini/translate-session.ts";
 
 /**
@@ -28,6 +29,29 @@ function parseRequestTarget(target: string | undefined): URL | undefined {
   } catch {
     return undefined;
   }
+}
+
+/**
+ * `/listen`, `/admin` and `/ingest` only ever answer as WebSocket upgrades —
+ * the plain-HTTP request handler below has never had a case for them and
+ * they fall through to its 404, same as any other unknown path. `/stream/*`
+ * is handled above by regex for the well-formed `<lang>.webm` shape, but a
+ * malformed variant (no extension, wrong extension, extra segments) falls
+ * through the same way. Adding the SPA's "serve index.html for anything
+ * without a file extension" fallback below must not change any of that: an
+ * extensionless path is exactly the shape of `/listen` and `/admin`, so
+ * without this guard the static route would happily hand back `index.html`
+ * for them once a `webRoot` is configured, silently replacing a 404 with a
+ * 200 for what looks like a protocol endpoint.
+ */
+function isReservedApiPath(pathname: string): boolean {
+  return (
+    pathname === "/config" ||
+    pathname === "/listen" ||
+    pathname === "/admin" ||
+    pathname === "/ingest" ||
+    pathname.startsWith("/stream/")
+  );
 }
 
 export interface ServerDeps {
@@ -63,6 +87,7 @@ export function createServer(deps: ServerDeps) {
   const streamRoute = new StreamRoute({ manager });
   const listenSocket = new ListenSocket({ manager });
   const adminSocket = new AdminSocket({ manager, streamRoute, clock });
+  const staticRoute = config.webRoot ? new StaticRoute({ root: config.webRoot }) : null;
 
   const http: Server = createHttpServer((req, res) => {
     const url = parseRequestTarget(req.url);
@@ -93,6 +118,13 @@ export function createServer(deps: ServerDeps) {
         sourceLanguage: config.sourceLanguage,
         transcriptDelayMs: config.transcriptDelayMs,
       }));
+      return;
+    }
+
+    if (staticRoute && !isReservedApiPath(url.pathname)) {
+      void staticRoute.handle(req, res, url.pathname).then((served) => {
+        if (!served) res.writeHead(404).end();
+      });
       return;
     }
 

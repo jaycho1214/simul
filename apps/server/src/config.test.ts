@@ -84,3 +84,9 @@ test("rejects a fractional value where only whole units make sense", () => {
 test("still rejects a value that is not a number at all", () => {
   assert.throws(() => loadConfig({ ...base, PORT: "eight thousand" }), /PORT must be a number/);
 });
+
+test("defaults webRoot to the built web app and honours WEB_ROOT", () => {
+  assert.ok(loadConfig(base).webRoot.endsWith("/web/dist"));
+  assert.equal(loadConfig({ ...base, WEB_ROOT: "" }).webRoot, "");
+  assert.equal(loadConfig({ ...base, WEB_ROOT: "/srv/web" }).webRoot, "/srv/web");
+});

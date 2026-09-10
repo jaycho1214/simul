@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { connect } from "node:net";
+import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { WebSocket } from "ws";
 import { SystemClock } from "./clock.ts";
 import { createFakeTranslateSessionFactory } from "./gemini/fake-translate-session.ts";
@@ -38,6 +41,7 @@ const config = {
   transcriptHistoryLines: 200,
   transcriptDelayMs: 0,
   opusBitrate: 24000,
+  webRoot: "",
 };
 
 test("audio flows from ingest to a streaming client", async () => {
@@ -192,4 +196,80 @@ test("a malformed upgrade target drops the socket instead of killing the process
   const listen = new WebSocket(`ws://127.0.0.1:${port}/listen?lang=en`);
   await new Promise((r) => listen.once("open", r));
   listen.close();
+});
+
+// A `webRoot` wires a fourth route onto a server that previously only ever
+// answered "no route matched" for anything outside /config, /stream/* and
+// the two WebSocket upgrades. These tests exist to catch the two ways that
+// wiring can go wrong: the SPA fallback simply not working, and — the one
+// the brief calls out explicitly — the fallback shadowing an API path that
+// used to 404 and must keep 404ing once a webRoot is configured.
+async function withWebRoot(
+  run: (cfg: typeof config & { webRoot: string }) => Promise<void>,
+): Promise<void> {
+  const root = await mkdtemp(join(tmpdir(), "tongyeok-web-root-"));
+  try {
+    await writeFile(join(root, "index.html"), "<!doctype html><title>attendee app</title>");
+    await run({ ...config, webRoot: root });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+}
+
+test("serves the built app at / once webRoot is configured", async () => {
+  await withWebRoot(async (cfg) => {
+    const server = createServer({
+      config: cfg,
+      clock: new SystemClock(),
+      sessionFactory: createFakeTranslateSessionFactory(),
+    });
+    const port = await server.listen(0);
+
+    const res = await fetch(`http://127.0.0.1:${port}/`);
+    assert.equal(res.status, 200);
+    assert.equal(res.headers.get("content-type"), "text/html; charset=utf-8");
+    assert.equal(res.headers.get("cache-control"), "no-store");
+    assert.match(await res.text(), /attendee app/);
+
+    await server.close();
+  });
+});
+
+test("a webRoot does not shadow /config, /stream/*, /listen, /admin or /ingest", async () => {
+  await withWebRoot(async (cfg) => {
+    const server = createServer({
+      config: cfg,
+      clock: new SystemClock(),
+      sessionFactory: createFakeTranslateSessionFactory(),
+    });
+    const port = await server.listen(0);
+
+    // /config must still answer as JSON, not fall through to the SPA.
+    const cfgRes = await fetch(`http://127.0.0.1:${port}/config`);
+    assert.equal(cfgRes.status, 200);
+    assert.equal(cfgRes.headers.get("content-type"), "application/json");
+
+    // Each of these is the exact extensionless shape the SPA fallback would
+    // otherwise happily answer with index.html.
+    for (const path of ["/listen", "/admin", "/ingest", "/stream/bogus"]) {
+      const res = await fetch(`http://127.0.0.1:${port}${path}`);
+      assert.equal(res.status, 404, `${path} must still 404, not serve the SPA`);
+    }
+
+    await server.close();
+  });
+});
+
+test("without a webRoot, an unknown path still 404s exactly as before", async () => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+
+  const res = await fetch(`http://127.0.0.1:${port}/some-deep-link`);
+  assert.equal(res.status, 404);
+
+  await server.close();
 });

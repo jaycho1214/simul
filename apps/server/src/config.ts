@@ -1,3 +1,4 @@
+import { fileURLToPath } from "node:url";
 import type { LangCode } from "@tongyeok/protocol";
 
 export interface Config {
@@ -11,6 +12,8 @@ export interface Config {
   readonly transcriptHistoryLines: number;
   readonly transcriptDelayMs: number;
   readonly opusBitrate: number;
+  /** Directory of the built attendee app. Empty disables static serving. */
+  readonly webRoot: string;
 }
 
 type Env = Record<string, string | undefined>;
@@ -91,5 +94,11 @@ export function loadConfig(env: Env = process.env): Config {
     transcriptHistoryLines: num(env, "TRANSCRIPT_HISTORY_LINES", 200, { min: 1, max: 10_000 }),
     transcriptDelayMs: num(env, "TRANSCRIPT_DELAY_MS", 0, { min: 0, max: 60_000 }),
     opusBitrate: num(env, "OPUS_BITRATE", 24000, { min: MIN_OPUS_BITRATE, max: MAX_OPUS_BITRATE }),
+    // Empty is a deliberate opt-out (dev running Vite standalone in front of
+    // this server), not "not configured" — unlike num()'s treatment of an
+    // env var set to nothing, so `??` rather than `||` here.
+    webRoot:
+      env.WEB_ROOT ??
+      fileURLToPath(new URL("../../web/dist", import.meta.url)),
   });
 }
