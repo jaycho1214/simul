@@ -1,8 +1,21 @@
 packages:
   - "apps/*"
   - "packages/*"
+# node-linker=hoisted in the root .npmrc is not honored by this pnpm version for
+# project-level config; verified empirically that only this workspace-manifest
+# field actually changes the on-disk layout (see .npmrc for why hoisted is
+# required at all).
+nodeLinker: hoisted
+# @electron-forge/shared-types -> @electron/rebuild -> @electron/node-gyp is
+# resolved via a git-repository reference. pnpm blocks git-resolved transitive
+# dependencies by default; without this, `pnpm install` fails outright with
+# EXOTIC_SUBDEP before Electron Forge is installable. Also verified to require
+# this file rather than .npmrc.
+blockExoticSubdeps: false
 allowBuilds:
   '@discordjs/opus': true
   '@google/genai': true
+  electron: true
+  electron-winstaller: true
   esbuild: true
   protobufjs: true

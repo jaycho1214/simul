@@ -1,3 +1,9 @@
 node_modules/
 dist/
 .env
+.DS_Store
+
+# Electron Forge / Vite build output (apps/operator)
+.vite/
+out/
+*.tsbuildinfo
