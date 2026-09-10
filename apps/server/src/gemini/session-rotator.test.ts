@@ -704,3 +704,135 @@ test("a persistently failing factory reports error once the backoff saturates, t
   assert.equal(rotator.activeIndex, 1);
   assert.deepEqual(states, ["reconnecting", "error", "live"], "recovery is announced too");
 });
+
+// ---------------------------------------------------------------------------
+// start()'s own timeout. Real Gemini Live connections are opened via
+// `@google/genai`'s `Live.connect()`, whose own promise resolves only from
+// the WebSocket's `onopen` event and never rejects from `onerror`/`onclose`
+// — a handshake that fails before `onopen` (an invalid key, a blocked
+// network path, a Gemini-side outage) left `start()`'s bare `await
+// this.factory(...)` hanging forever, with no timeout and no catch, unlike
+// `rotate()` which already has both. That hang propagated untouched through
+// `TranslatedLane.create()` and `LaneManager.acquire()`: an attendee's very
+// first tap of a translated language produced no message, no error, and no
+// row on the operator dashboard, for as long as the socket was held open.
+// ---------------------------------------------------------------------------
+
+test("start() rejects instead of hanging forever when the factory never settles", async () => {
+  const clock = new FakeClock();
+  // Stands in for @google/genai's real defect: a handshake that fails
+  // before `onopen` never settles this promise at all.
+  const hangingFactory = async (): Promise<TranslateSession> =>
+    new Promise<TranslateSession>(() => {});
+  const rotator = new SessionRotator("en", hangingFactory, clock);
+
+  const starting = rotator.start();
+  clock.advance(ROTATION_TIMEOUT_MS);
+
+  await assert.rejects(starting, /first connect/);
+});
+
+test("start() does not time out early: a factory that settles just under the bound succeeds", async () => {
+  const { factory } = controllableFactory();
+  const clock = new FakeClock();
+  const rotator = new SessionRotator("en", factory, clock);
+
+  // The factory here resolves synchronously (on the same microtask), well
+  // inside the bound; advancing the clock afterwards must not retroactively
+  // fail a start() that has already succeeded.
+  await rotator.start();
+  clock.advance(ROTATION_TIMEOUT_MS);
+
+  const chunks: Buffer[] = [];
+  rotator.on("audio", (c) => chunks.push(c));
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(chunks.length, 1, "the lane works normally; the stale timer did nothing");
+});
+
+test("start() propagates an outright factory rejection immediately, without waiting for the timeout", async () => {
+  const clock = new FakeClock();
+  const factory = async (): Promise<TranslateSession> => {
+    throw new Error("invalid API key");
+  };
+  const rotator = new SessionRotator("en", factory, clock);
+
+  await assert.rejects(rotator.start(), /invalid API key/);
+});
+
+test("a timed-out first connect is not retried: no automatic second attempt, unlike rotate()", async () => {
+  const clock = new FakeClock();
+  let calls = 0;
+  const hangingFactory = async (): Promise<TranslateSession> => {
+    calls++;
+    return new Promise<TranslateSession>(() => {});
+  };
+  const rotator = new SessionRotator("en", hangingFactory, clock);
+
+  const starting = rotator.start();
+  clock.advance(ROTATION_TIMEOUT_MS);
+  await assert.rejects(starting);
+  assert.equal(calls, 1, "exactly one attempt was made");
+
+  // Advancing well past every one of rotate()'s own backoff steps (up to
+  // MAX_RETRY_MS) must not trigger a second attempt: a failed first connect
+  // is terminal, not retried in the background the way a failed rotation is.
+  clock.advance(MAX_RETRY_MS * 2);
+  await flush();
+  assert.equal(calls, 1, "a failed first connect must not enter rotate()'s retry loop");
+});
+
+test("a session that finishes connecting after start() has already timed out is closed, not leaked", async () => {
+  const clock = new FakeClock();
+  let resolveLate!: (session: TranslateSession) => void;
+  const lateFactory = (): Promise<TranslateSession> =>
+    new Promise<TranslateSession>((resolve) => {
+      resolveLate = resolve;
+    });
+  const rotator = new SessionRotator("en", lateFactory, clock);
+
+  const starting = rotator.start();
+  clock.advance(ROTATION_TIMEOUT_MS);
+  await assert.rejects(starting);
+
+  const late = new FakeTranslateSession("en");
+  resolveLate(late);
+  await flush();
+
+  assert.equal(
+    late.canAccept(),
+    false,
+    "a session that connects after start() has given up must be closed immediately, not left running (and billing)",
+  );
+});
+
+test("a factory that rejects after start() has already timed out does not become an unhandled rejection", async (t) => {
+  const errorMock = t.mock.method(console, "error", () => {});
+  const clock = new FakeClock();
+  let rejectLate!: (err: Error) => void;
+  const lateFactory = (): Promise<TranslateSession> =>
+    new Promise<TranslateSession>((_resolve, reject) => {
+      rejectLate = reject;
+    });
+  const rotator = new SessionRotator("en", lateFactory, clock);
+
+  // Node terminates the process on an unhandled rejection by default, so if
+  // start() left this dangling `attempt` promise unattended, this whole test
+  // process would crash — not just log something wrong.
+  let unhandled: unknown;
+  const onUnhandled = (err: unknown) => { unhandled = err; };
+  process.on("unhandledRejection", onUnhandled);
+
+  try {
+    const starting = rotator.start();
+    clock.advance(ROTATION_TIMEOUT_MS);
+    await assert.rejects(starting);
+
+    rejectLate(new Error("connect ECONNREFUSED, arriving late"));
+    await flush();
+
+    assert.equal(unhandled, undefined, "the late rejection must not escape as unhandled");
+    assert.equal(errorMock.mock.callCount(), 1, "it is logged instead");
+  } finally {
+    process.off("unhandledRejection", onUnhandled);
+  }
+});

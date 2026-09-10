@@ -7,11 +7,28 @@ import type {
 } from "./translate-session.ts";
 
 /**
- * How long a pending replacement is given to produce its first audio before
- * it is abandoned and `current` is left serving. Real Gemini Live connects
- * and starts streaming within a couple of seconds under normal conditions;
- * 10 s gives generous headroom for network jitter without leaving the lane
- * in limbo for long if the replacement is actually stuck or dead.
+ * Two different bounds intentionally share this one constant, because the
+ * same real-world fact about Gemini justifies both: "real Gemini Live
+ * connects and starts streaming within a couple of seconds under normal
+ * conditions."
+ *
+ * - `rotate()`'s watchdog: how long a pending *replacement* is given to
+ *   produce its first audio before it is abandoned and `current` is left
+ *   serving.
+ * - `start()`'s own timeout: how long the very first connect — the
+ *   `factory()` call itself, i.e. the WebSocket handshake — is given before
+ *   it is abandoned and rejected. This exists because the installed
+ *   `@google/genai` SDK's `Live.connect()` resolves its returned promise
+ *   only from the WebSocket's `onopen` event and never rejects it from
+ *   `onerror`/`onclose`: a handshake that fails before `onopen` (an invalid
+ *   key, a blocked network path, a Gemini-side outage) would otherwise
+ *   leave `start()` — and therefore the whole lane, since nothing else is
+ *   serving it yet — hanging forever with no error anywhere.
+ *
+ * 10 s gives generous headroom for network jitter in both cases without
+ * leaving an attendee's screen, or a stuck replacement, in limbo for long.
+ * A second, near-identical constant just for `start()` would only invite
+ * the two to drift apart for no real reason.
  */
 export const ROTATION_TIMEOUT_MS = 10_000;
 
@@ -111,8 +128,81 @@ export class SessionRotator implements TranslateSession {
     }
   }
 
+  /**
+   * Opens the very first session for this lane. Unlike `rotate()` — used for
+   * every later reconnect — there is no `current` already serving the lane
+   * while this settles, so this call has nowhere to fall back to: if it
+   * never settles, the lane never exists, and `LaneManager.acquire()` never
+   * resolves either. This is exactly the release blocker found live against
+   * a real Gemini outage/invalid key (see `ROTATION_TIMEOUT_MS`'s doc
+   * comment for the root cause): an attendee's socket sat open with no
+   * message, ever, and no row ever appeared for the language on the
+   * operator dashboard.
+   *
+   * Bounded by `ROTATION_TIMEOUT_MS`, via this class's existing `Clock`
+   * abstraction (the same mechanism `rotate()`'s watchdog and retry timer
+   * already use), rather than a raw `setTimeout` or a second constant. On
+   * expiry — or on an ordinary rejection from the factory — this method
+   * rejects instead of hanging, so the caller (`TranslatedLane.create`,
+   * then `LaneManager.acquire`) sees a real failure and its own callers
+   * (`ListenSocket`, `StreamRoute`) reach their existing generic-error
+   * paths: a bilingual close for the socket, a 500 for the stream.
+   *
+   * Deliberately not retried here, unlike `rotate()`'s exponential backoff.
+   * That backoff exists to keep an *already-serving* lane quiet through a
+   * transient blip while `current` keeps the room fed; there is no
+   * equivalent "keep serving silently" state before a lane has ever
+   * connected once. Retrying internally here would only trade an infinite,
+   * silent hang for a long, still-silent, merely-bounded one — the opposite
+   * of "visible failure." Failing fast instead lets the attendee's own next
+   * attempt (a reopened connection, or another attendee tapping the same
+   * language) start a completely fresh `LaneManager.openLane()` call, which
+   * is effectively the same recovery a transient blip needs, just visible
+   * and prompt rather than silent and open-ended.
+   */
   async start(): Promise<void> {
-    this.current = await this.factory({ targetLanguage: this.targetLanguage });
+    const attempt = this.factory({ targetLanguage: this.targetLanguage });
+    let timedOut = false;
+
+    // However the race below is decided, `attempt` is not necessarily done
+    // settling by the time it is: a timeout wins the race while the factory
+    // call is still in flight. Whatever it eventually does, it must not
+    // become an unhandled rejection, and a session that finishes connecting
+    // after this method has already given up must be closed rather than
+    // left dangling — an abandoned Gemini session still runs, and bills,
+    // until something closes it, and nothing else ever will.
+    attempt.then(
+      (session) => {
+        if (timedOut) session.close();
+      },
+      (err) => {
+        if (timedOut) {
+          console.error(
+            `[lane ${this.targetLanguage}] first connect failed after already timing out`,
+            err,
+          );
+        }
+      },
+    );
+
+    let timer: TimerHandle | undefined;
+    const timeout = new Promise<never>((_, reject) => {
+      timer = this.clock.setTimeout(() => {
+        timedOut = true;
+        reject(
+          new Error(
+            `[lane ${this.targetLanguage}] first connect did not complete within ${ROTATION_TIMEOUT_MS}ms`,
+          ),
+        );
+      }, ROTATION_TIMEOUT_MS);
+    });
+
+    try {
+      this.current = await Promise.race([attempt, timeout]);
+    } finally {
+      if (timer) this.clock.clearTimeout(timer);
+    }
+
     this.attach(this.current);
   }
 

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
 import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
+import { ROTATION_TIMEOUT_MS } from "../gemini/session-rotator.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
 import { LaneManager } from "../lane/lane-manager.ts";
 import { StreamRoute } from "./stream-route.ts";
@@ -164,6 +165,28 @@ test("an unexpected acquire failure still answers the request instead of hanging
   const res = new FakeResponse();
   await route.handle(res as any, "ko");
 
+  assert.equal(res.statusCode, 500);
+  assert.ok(res.ended);
+  assert.equal(errorMock.mock.callCount(), 1);
+});
+
+test("a translated lane's first connect that hangs forever (the real S6 bug) still answers with a real error", async (t) => {
+  const errorMock = t.mock.method(console, "error", () => {});
+  // Stands in for the real defect this guards against: @google/genai's
+  // Live.connect() resolves only from the WebSocket's onopen and never
+  // rejects on onerror/onclose, so a handshake that fails before onopen
+  // (an invalid key, a blocked network path, a Gemini outage) never settled
+  // this promise at all.
+  const hangingFactory: TranslateSessionFactory = () => new Promise(() => {});
+  const { clock, route } = setup(hangingFactory);
+  const res = new FakeResponse();
+
+  const handling = route.handle(res as any, "en");
+  clock.advance(ROTATION_TIMEOUT_MS);
+  await handling;
+
+  // Before the fix this never resolved: no headers, no body, the client
+  // hung with an open connection and nothing on it, forever.
   assert.equal(res.statusCode, 500);
   assert.ok(res.ended);
   assert.equal(errorMock.mock.callCount(), 1);

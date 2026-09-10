@@ -4,6 +4,7 @@ import type { ServerMessage } from "@tongyeok/protocol";
 import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
 import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
+import { ROTATION_TIMEOUT_MS } from "../gemini/session-rotator.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
 import { LaneManager } from "../lane/lane-manager.ts";
 import { ListenSocket, type ListenWebSocket } from "./listen-socket.ts";
@@ -37,10 +38,13 @@ function deferredSessionFactory(): {
 // event handler kicks off with a fire-and-forget `void rotate()` settles.
 const flush = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
 
-function setup(sessionFactory: TranslateSessionFactory = createFakeTranslateSessionFactory()) {
+function setup(
+  sessionFactory: TranslateSessionFactory = createFakeTranslateSessionFactory(),
+  clock: FakeClock = new FakeClock(),
+) {
   const hub = new AudioHub();
   const manager = new LaneManager({
-    clock: new FakeClock(),
+    clock,
     hub,
     sessionFactory,
     sourceLanguage: "ko",
@@ -50,7 +54,7 @@ function setup(sessionFactory: TranslateSessionFactory = createFakeTranslateSess
     transcriptHistoryLines: 200,
     opusBitrate: 24000,
   });
-  return { hub, manager, socket: new ListenSocket({ manager }) };
+  return { clock, hub, manager, socket: new ListenSocket({ manager }) };
 }
 
 test("greets with hello, history and lane state", async () => {
@@ -123,6 +127,33 @@ test("an unexpected acquire failure closes the socket instead of leaving it hang
   const ws = new FakeWs();
   await socket.handleConnection(ws, "ko");
 
+  assert.equal(ws.closedWith, 1011);
+  assert.equal(errorMock.mock.callCount(), 1);
+});
+
+test("a translated lane's first connect that hangs forever (the real S6 bug) still closes the socket, not silence", async (t) => {
+  const errorMock = t.mock.method(console, "error", () => {});
+  // Stands in for the real defect this guards against: @google/genai's
+  // Live.connect() resolves only from the WebSocket's onopen and never
+  // rejects on onerror/onclose, so a handshake that fails before onopen
+  // (an invalid key, a blocked network path, a Gemini outage) never settled
+  // this promise at all.
+  const hangingFactory: TranslateSessionFactory = () => new Promise(() => {});
+  const clock = new FakeClock();
+  const { socket } = setup(hangingFactory, clock);
+  const ws = new FakeWs();
+
+  const connecting = socket.handleConnection(ws, "en");
+  clock.advance(ROTATION_TIMEOUT_MS);
+  await connecting;
+
+  // Before the fix this never resolved at all: no message, ever, and the
+  // socket stayed open indefinitely. Now the attendee's socket is closed
+  // with a real error code (this generic-rejection branch closes with a
+  // reason string rather than a JSON `send()` — see the identical assertion
+  // shape in "an unexpected acquire failure closes the socket..." above)
+  // instead of an indefinitely spinning "connecting" state.
+  assert.deepEqual(ws.sent, [], "no lane ever opened, so nothing was ever sent");
   assert.equal(ws.closedWith, 1011);
   assert.equal(errorMock.mock.callCount(), 1);
 });
