@@ -53,21 +53,21 @@ function makeManagerWithFactory(
 
 test("opens a lane on the first subscriber and registers it with the hub", async () => {
   const { hub, manager } = makeManager();
-  await manager.acquire("en", {});
+  await manager.acquire("en", {}, "transcript");
   assert.equal(hub.laneCount, 1);
 });
 
 test("a second subscriber reuses the same lane", async () => {
   const { hub, manager } = makeManager();
-  const a = await manager.acquire("en", {});
-  const b = await manager.acquire("en", {});
+  const a = await manager.acquire("en", {}, "transcript");
+  const b = await manager.acquire("en", {}, "transcript");
   assert.equal(a, b);
   assert.equal(hub.laneCount, 1);
 });
 
 test("concurrent acquires of the same language open only one lane", async () => {
   const { hub, manager } = makeManager();
-  const [a, b] = await Promise.all([manager.acquire("en", {}), manager.acquire("en", {})]);
+  const [a, b] = await Promise.all([manager.acquire("en", {}, "transcript"), manager.acquire("en", {}, "transcript")]);
   assert.equal(a, b);
   assert.equal(hub.laneCount, 1);
 });
@@ -75,7 +75,7 @@ test("concurrent acquires of the same language open only one lane", async () => 
 test("the lane survives until the grace period expires", async () => {
   const { clock, hub, manager } = makeManager({ laneGraceMs: 60000 });
   const sub = {};
-  await manager.acquire("en", sub);
+  await manager.acquire("en", sub, "transcript");
   manager.release("en", sub);
 
   clock.advance(59999);
@@ -88,10 +88,10 @@ test("the lane survives until the grace period expires", async () => {
 test("re-acquiring within the grace period cancels teardown", async () => {
   const { clock, hub, manager } = makeManager({ laneGraceMs: 60000 });
   const sub = {};
-  await manager.acquire("en", sub);
+  await manager.acquire("en", sub, "transcript");
   manager.release("en", sub);
   clock.advance(30000);
-  await manager.acquire("en", {});
+  await manager.acquire("en", {}, "transcript");
   clock.advance(60000);
 
   assert.equal(hub.laneCount, 1);
@@ -99,26 +99,26 @@ test("re-acquiring within the grace period cancels teardown", async () => {
 
 test("the source language lane costs no session", async () => {
   const { manager } = makeManager();
-  const lane = await manager.acquire("ko", {});
+  const lane = await manager.acquire("ko", {}, "transcript");
   assert.equal(lane.constructor.name, "SourceLane");
 });
 
 test("rejects a language beyond the cap", async () => {
   const { manager } = makeManager({ maxConcurrentLanes: 2 });
-  await manager.acquire("en", {});
-  await manager.acquire("es", {});
-  await assert.rejects(() => manager.acquire("ja", {}), LaneCapError);
+  await manager.acquire("en", {}, "transcript");
+  await manager.acquire("es", {}, "transcript");
+  await assert.rejects(() => manager.acquire("ja", {}, "transcript"), LaneCapError);
 });
 
 test("rejects a language that is not offered", async () => {
   const { manager } = makeManager();
-  await assert.rejects(() => manager.acquire("xx", {}), UnknownLanguageError);
+  await assert.rejects(() => manager.acquire("xx", {}, "transcript"), UnknownLanguageError);
 });
 
 test("statuses report listener counts and drops", async () => {
   const { manager } = makeManager();
-  await manager.acquire("en", {});
-  await manager.acquire("en", {});
+  await manager.acquire("en", {}, "transcript");
+  await manager.acquire("en", {}, "transcript");
 
   const [status] = manager.statuses();
   assert.equal(status!.lang, "en");
@@ -139,9 +139,9 @@ test("a concurrent burst across different languages cannot exceed the cap", asyn
   // passing the cap check before any of them finishes opening.
   const { hub, manager } = makeManager({ maxConcurrentLanes: 2 });
   const results = await Promise.allSettled([
-    manager.acquire("en", {}),
-    manager.acquire("es", {}),
-    manager.acquire("ja", {}),
+    manager.acquire("en", {}, "transcript"),
+    manager.acquire("es", {}, "transcript"),
+    manager.acquire("ja", {}, "transcript"),
   ]);
 
   const fulfilled = results.filter((r) => r.status === "fulfilled");
@@ -154,8 +154,8 @@ test("a concurrent burst across different languages cannot exceed the cap", asyn
 
 test("closeAll closes every open lane and clears the hub", async () => {
   const { hub, manager } = makeManager();
-  await manager.acquire("en", {});
-  await manager.acquire("es", {});
+  await manager.acquire("en", {}, "transcript");
+  await manager.acquire("es", {}, "transcript");
   assert.equal(hub.laneCount, 2);
 
   manager.closeAll();
@@ -168,7 +168,7 @@ test("closeAll closes every open lane and clears the hub", async () => {
 test("closeAll cancels pending grace timers, not just closes lanes", async (t) => {
   const { clock, hub, manager } = makeManager({ laneGraceMs: 60000 });
   const sub = {};
-  await manager.acquire("en", sub);
+  await manager.acquire("en", sub, "transcript");
   manager.release("en", sub); // schedules a grace timer due at t=60000
 
   const clearTimeoutSpy = t.mock.method(clock, "clearTimeout");
@@ -197,7 +197,7 @@ test("closeAll while an open is in flight closes the lane and never registers it
   const { factory, resolve } = deferredSessionFactory();
   const { hub, manager } = makeManagerWithFactory(factory);
 
-  const acquiring = manager.acquire("en", {});
+  const acquiring = manager.acquire("en", {}, "transcript");
   // The Gemini session is still opening — "en" is in `opening`, not yet in
   // `entries` — when the server starts shutting down.
   manager.closeAll();
@@ -218,7 +218,7 @@ test("release() before the open resolves does not create a phantom subscriber", 
   const { clock, hub, manager } = makeManagerWithFactory(factory);
 
   const sub = {};
-  const acquiring = manager.acquire("en", sub);
+  const acquiring = manager.acquire("en", sub, "transcript");
   // The attendee backs out while the Gemini session is still opening — the
   // realistic case, since session setup is real network I/O. `release()`
   // has nothing to act on yet: there is no Entry for "en".
@@ -261,8 +261,8 @@ test("a joiner who stays after the owner releases mid-open is not blocked by a z
 
   // Owner opens "en"; joiner arrives while it is still opening and joins
   // the same in-flight open (the "Collapse concurrent ... races" path).
-  const ownerAcquiring = manager.acquire("en", owner);
-  const joinerAcquiring = manager.acquire("en", joiner);
+  const ownerAcquiring = manager.acquire("en", owner, "transcript");
+  const joinerAcquiring = manager.acquire("en", joiner, "transcript");
 
   // Owner backs out before the session finishes opening.
   manager.release("en", owner);
@@ -307,8 +307,8 @@ test("a joiner's own release starts a fresh grace period, not a stale one inheri
   const owner = {};
   const joiner = {};
 
-  const ownerAcquiring = manager.acquire("en", owner);
-  const joinerAcquiring = manager.acquire("en", joiner);
+  const ownerAcquiring = manager.acquire("en", owner, "transcript");
+  const joinerAcquiring = manager.acquire("en", joiner, "transcript");
   manager.release("en", owner); // arms a timer, due at t=60000, once the open resolves
 
   resolve(new FakeTranslateSession("en"));
@@ -338,7 +338,54 @@ test("acquire() after closeAll() rejects without opening a new session", async (
 
   manager.closeAll();
 
-  await assert.rejects(() => manager.acquire("en", {}));
+  await assert.rejects(() => manager.acquire("en", {}, "transcript"));
   assert.equal(factoryCalls, 0, "a closed manager must not open a new Gemini session at all, not open-then-close it");
   assert.equal(hub.laneCount, 0);
+});
+
+test("statuses count people, not transports", async () => {
+  const { manager } = makeManager();
+
+  // One attendee's phone holds two subscriptions to the same lane at once:
+  // the chunked /stream response carrying the audio, and the /listen socket
+  // carrying the transcript. Counting subscriptions reported three attendees
+  // as six.
+  const attendees = [
+    { audio: {}, transcript: {} },
+    { audio: {}, transcript: {} },
+    { audio: {}, transcript: {} },
+  ];
+  for (const attendee of attendees) {
+    await manager.acquire("en", attendee.audio, "audio");
+    await manager.acquire("en", attendee.transcript, "transcript");
+  }
+
+  const [status] = manager.statuses();
+  assert.equal(status!.listeners, 3, "three people in the room, not six sockets");
+  assert.equal(status!.audioListeners, 3);
+
+  // One of them mutes: the audio stream ends, the page stays open. A head
+  // count that wobbles when nobody left is a number the operator cannot act
+  // on, so the headline figure must hold — while the audio figure, which is
+  // the one that actually moved, shows what happened.
+  manager.release("en", attendees[0]!.audio);
+  const [afterMute] = manager.statuses();
+  assert.equal(afterMute!.listeners, 3, "muting is not leaving");
+  assert.equal(afterMute!.audioListeners, 2, "but the operator can see who is still hearing audio");
+
+  // And one of them actually leaves, closing both.
+  manager.release("en", attendees[1]!.audio);
+  manager.release("en", attendees[1]!.transcript);
+  const [afterLeaving] = manager.statuses();
+  assert.equal(afterLeaving!.listeners, 2);
+  assert.equal(afterLeaving!.audioListeners, 1);
+});
+
+test("statuses count a client that only ever pulls audio", async () => {
+  const { manager } = makeManager();
+  await manager.acquire("en", {}, "audio");
+
+  const [status] = manager.statuses();
+  assert.equal(status!.listeners, 1, "a bare /stream URL in a media player is still a listener");
+  assert.equal(status!.audioListeners, 1);
 });

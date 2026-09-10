@@ -22,6 +22,7 @@ export class FakeTranslateSession implements TranslateSession {
   private utterances = 0;
   private opened = false;
   private closed = false;
+  private saturated = false;
 
   constructor(readonly targetLanguage: LangCode) {}
 
@@ -33,7 +34,7 @@ export class FakeTranslateSession implements TranslateSession {
   }
 
   canAccept(): boolean {
-    return !this.closed;
+    return !this.closed && !this.saturated;
   }
 
   sendPcm16k(_frame: Buffer): void {
@@ -87,8 +88,47 @@ export class FakeTranslateSession implements TranslateSession {
     this.closed = true;
     for (const fn of this.handlers.closed) fn(reason);
   }
+
+  /**
+   * Test hook: simulate a transport-level error the session survives — what
+   * `GeminiTranslateSession` emits from the SDK's `onerror` callback. No
+   * production path may reach this.
+   *
+   * This hook exists because until it did, `"live"` was the only `LaneState`
+   * any test could ever observe through the fake: `sendPcm16k` emitted it and
+   * nothing else emitted anything but `"reconnecting"`. A lane-state defect
+   * that only shows up as `"error"` was therefore invisible to a suite of 130
+   * passing tests — which is exactly how C3 shipped.
+   */
+  simulateError(): void {
+    if (this.closed) return;
+    for (const fn of this.handlers.state) fn("error");
+  }
+
+  /**
+   * Test hook: simulate a saturated send buffer, the other half of
+   * `canAccept()`'s contract. Real sessions refuse frames while their
+   * transport is backed up; without this the fake could only ever say "yes"
+   * until closed, so nothing downstream that counts refused frames
+   * (`Lane.laneDrops`, the operator dashboard) could be exercised at all.
+   */
+  simulateSaturated(saturated: boolean): void {
+    this.saturated = saturated;
+  }
 }
 
-export function createFakeTranslateSessionFactory(): TranslateSessionFactory {
-  return async ({ targetLanguage }) => new FakeTranslateSession(targetLanguage);
+/**
+ * @param onCreate called with each session as it is created, so a test can
+ * reach the sessions a lane opened for itself and drive their test hooks —
+ * a lane owns its `SessionRotator` privately, so this is the only way to
+ * make a lane's session go away, go quiet, or come back.
+ */
+export function createFakeTranslateSessionFactory(
+  onCreate?: (session: FakeTranslateSession) => void,
+): TranslateSessionFactory {
+  return async ({ targetLanguage }) => {
+    const session = new FakeTranslateSession(targetLanguage);
+    onCreate?.(session);
+    return session;
+  };
 }

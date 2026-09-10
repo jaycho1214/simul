@@ -10,6 +10,26 @@ import { ListenSocket } from "./http/listen-socket.ts";
 import { AdminSocket } from "./http/admin-socket.ts";
 import type { TranslateSessionFactory } from "./gemini/translate-session.ts";
 
+/**
+ * Node's HTTP parser is deliberately more permissive than WHATWG `URL`: it
+ * accepts request targets like `//[` and hands them to the listener verbatim
+ * as `req.url`, where `new URL(target, base)` throws `ERR_INVALID_URL`.
+ * Thrown synchronously inside a request or upgrade listener there is nothing
+ * to catch it, so it surfaces as an uncaught exception and takes the whole
+ * process — every language lane, mid-talk — down with it. Nobody has to be
+ * attacking the server for this to happen: a port scanner, a captive-portal
+ * probe or an MDM agent on the venue's wifi does it by accident. Returns
+ * `undefined` instead of throwing so each listener can answer the request on
+ * its own terms.
+ */
+function parseRequestTarget(target: string | undefined): URL | undefined {
+  try {
+    return new URL(target ?? "/", "http://localhost");
+  } catch {
+    return undefined;
+  }
+}
+
 export interface ServerDeps {
   config: Config;
   clock: Clock;
@@ -45,7 +65,14 @@ export function createServer(deps: ServerDeps) {
   const adminSocket = new AdminSocket({ manager, streamRoute, clock });
 
   const http: Server = createHttpServer((req, res) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
+    const url = parseRequestTarget(req.url);
+    if (!url) {
+      // The request line itself is unusable, so there is no route to
+      // dispatch on and nothing to say beyond "that was not a request I can
+      // read". 400 and done.
+      res.writeHead(400).end();
+      return;
+    }
 
     // The capture group is restricted to letters and hyphens only, so it
     // can never smuggle a path separator, a query string, or anything else
@@ -75,7 +102,14 @@ export function createServer(deps: ServerDeps) {
   const wss = new WebSocketServer({ noServer: true });
 
   http.on("upgrade", (req, socket, head) => {
-    const url = new URL(req.url ?? "/", "http://localhost");
+    const url = parseRequestTarget(req.url);
+    if (!url) {
+      // An upgrade has no response object to write a status onto — the only
+      // thing left is to drop the connection rather than complete a
+      // handshake for an endpoint that could not be identified.
+      socket.destroy();
+      return;
+    }
 
     wss.handleUpgrade(req, socket, head, (ws) => {
       if (url.pathname === "/ingest") {

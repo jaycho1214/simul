@@ -1,9 +1,31 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { connect } from "node:net";
 import { WebSocket } from "ws";
 import { SystemClock } from "./clock.ts";
 import { createFakeTranslateSessionFactory } from "./gemini/fake-translate-session.ts";
 import { createServer } from "./server.ts";
+
+/**
+ * Speaks HTTP down a raw socket, because `fetch` (and every other client
+ * worth using) refuses to send a request target this malformed in the first
+ * place. Node's own HTTP parser accepts targets that WHATWG `URL` rejects,
+ * and that gap is only reachable from a client that does not validate — a
+ * port scanner, a captive-portal probe, an MDM agent on venue wifi.
+ * Resolves with everything the server sent back before the connection ended.
+ */
+function rawRequest(port: number, requestLine: string, headers: string[] = []): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const socket = connect(port, "127.0.0.1", () => {
+      socket.write([requestLine, "Host: 127.0.0.1", ...headers, "", ""].join("\r\n"));
+    });
+    let received = "";
+    socket.setTimeout(2000, () => socket.destroy());
+    socket.on("data", (chunk) => { received += chunk; });
+    socket.on("error", reject);
+    socket.on("close", () => resolve(received));
+  });
+}
 
 const config = {
   geminiApiKey: "unused",
@@ -118,4 +140,56 @@ test("listen() rejects instead of crashing when the port is already in use", asy
   await assert.rejects(() => serverB.listen(port));
 
   await serverA.close();
+});
+
+// `//[` is accepted by Node's HTTP parser and handed to the listener verbatim
+// as `req.url`, but `new URL("//[", "http://localhost")` throws
+// ERR_INVALID_URL. Thrown synchronously inside a request or upgrade listener
+// with nothing to catch it, that is an uncaught exception: the process dies
+// and every language lane dies with it, mid-talk, because one device on the
+// venue's wifi probed a path.
+const MALFORMED_TARGET = "//[";
+
+test("a request target Node accepts but WHATWG URL rejects is answered, not fatal", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  // Registered up front: the failure mode under test is a *throw* out of the
+  // request listener, which would otherwise skip the close() at the end and
+  // leave this whole test file hanging on a still-listening server.
+  t.after(() => server.close());
+
+  const response = await rawRequest(port, `GET ${MALFORMED_TARGET} HTTP/1.1`, ["Connection: close"]);
+  assert.match(response, /^HTTP\/1\.1 400 /, "the malformed request got a real HTTP answer");
+
+  // The point of the assertion above is only worth anything if the server is
+  // still standing afterwards: prove it still serves a normal request.
+  const ok = await fetch(`http://127.0.0.1:${port}/config`);
+  assert.equal(ok.status, 200);
+  await ok.json();
+});
+
+test("a malformed upgrade target drops the socket instead of killing the process", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const response = await rawRequest(port, `GET ${MALFORMED_TARGET} HTTP/1.1`, [
+    "Upgrade: websocket",
+    "Connection: Upgrade",
+    "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==",
+    "Sec-WebSocket-Version: 13",
+  ]);
+  assert.equal(response, "", "no handshake: the socket was destroyed outright");
+
+  const listen = new WebSocket(`ws://127.0.0.1:${port}/listen?lang=en`);
+  await new Promise((r) => listen.once("open", r));
+  listen.close();
 });

@@ -103,9 +103,25 @@ export class GeminiTranslateSession implements TranslateSession {
     const content = message.serverContent;
     if (!content) return;
 
-    const outText = content.outputTranscription?.text;
-    if (outText) {
-      this.emit("transcript", outText, Boolean(content.turnComplete));
+    // `Transcription` carries its own end-of-line flag: "Optional. The bool
+    // indicates the end of the transcription." `turnComplete` answers a
+    // different question — whether the *model* is done generating — and the
+    // SDK explicitly documents `outputTranscription` as "independent to the
+    // model turn which means it doesn't imply any ordering between
+    // transcription and model turn." So a `finished` transcription arriving
+    // with no `turnComplete` is normal, and reading only `turnComplete`
+    // published every one of those lines as interim: TranscriptBus stores
+    // only finalised lines, so `history()` would stay empty for the whole
+    // event and every late joiner would get a blank transcript pane.
+    // `finished` is optional, so `turnComplete` remains the fallback for a
+    // payload that omits it.
+    const transcription = content.outputTranscription;
+    if (transcription?.text) {
+      this.emit(
+        "transcript",
+        transcription.text,
+        transcription.finished ?? Boolean(content.turnComplete),
+      );
     }
 
     for (const part of content.modelTurn?.parts ?? []) {

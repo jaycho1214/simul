@@ -121,3 +121,72 @@ test("a resumption handle is captured while live", async () => {
   } as LiveServerMessage);
   assert.equal(session.resumptionHandle, "handle-1", "a post-mortem handle is ignored");
 });
+
+// @google/genai 2.21.0, dist/genai.d.ts:14896:
+//   /** Audio transcription in Server Content. */
+//   export declare interface Transcription {
+//     /** Optional. Transcription text. */          text?: string;
+//     /** Optional. The bool indicates the end of the transcription. */
+//                                                   finished?: boolean;
+//     ...
+//   }
+// and at :10310, on LiveServerContent:
+//   /** Output transcription. The transcription is independent to the model
+//    turn which means it doesn't imply any ordering between transcription and
+//    model turn. */                                 outputTranscription?: Transcription;
+//
+// So `turnComplete` answers a different question than the one being asked —
+// it is about the model's *turn*, which the SDK documents as carrying no
+// ordering relationship to the transcription at all. `finished` is the
+// transcription's own end-of-line flag, and it is what decides finality here.
+test("a transcription that reports itself finished is final, with or without turnComplete", async () => {
+  const gen = fakeGenAI();
+  const session = new GeminiTranslateSession("en");
+  await session.connect({ ai: gen.ai, model: "test-model" });
+  const events = record(session);
+
+  gen.live().onmessage({
+    serverContent: { outputTranscription: { text: "buenos", finished: false } },
+  } as LiveServerMessage);
+  gen.live().onmessage({
+    serverContent: { outputTranscription: { text: "buenos días", finished: true } },
+  } as LiveServerMessage);
+
+  // If `finished: true` without `turnComplete` publishes as interim — the
+  // SDK's documented normal case — TranscriptBus stores nothing, `history()`
+  // stays empty for the whole event, and every attendee who joins late, or
+  // reconnects after a tunnel, gets a blank transcript pane.
+  assert.deepEqual(events, ["transcript:buenos:false", "transcript:buenos días:true"]);
+});
+
+test("an unfinished transcription stays interim even when the model's turn completed", async () => {
+  const gen = fakeGenAI();
+  const session = new GeminiTranslateSession("en");
+  await session.connect({ ai: gen.ai, model: "test-model" });
+  const events = record(session);
+
+  // The two flags disagree, and the transcription's own flag wins: the model
+  // being done generating says nothing about whether this line of transcript
+  // is complete.
+  gen.live().onmessage({
+    serverContent: { outputTranscription: { text: "med", finished: false }, turnComplete: true },
+  } as LiveServerMessage);
+
+  assert.deepEqual(events, ["transcript:med:false"]);
+});
+
+test("turnComplete is still the fallback when the transcription omits finished", async () => {
+  const gen = fakeGenAI();
+  const session = new GeminiTranslateSession("en");
+  await session.connect({ ai: gen.ai, model: "test-model" });
+  const events = record(session);
+
+  gen.live().onmessage({
+    serverContent: { outputTranscription: { text: "interim" } },
+  } as LiveServerMessage);
+  gen.live().onmessage({
+    serverContent: { outputTranscription: { text: "settled" }, turnComplete: true },
+  } as LiveServerMessage);
+
+  assert.deepEqual(events, ["transcript:interim:false", "transcript:settled:true"]);
+});

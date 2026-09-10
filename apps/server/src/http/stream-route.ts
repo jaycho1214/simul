@@ -28,6 +28,18 @@ export class StreamRoute {
     // matches exactly one open HTTP stream.
     const subscriber = res;
     let unsubscribe: (() => void) | undefined;
+    /**
+     * Whether this client is still connected. The close handler below can
+     * fire during the `await` on acquire(), in which case the `unsubscribe`
+     * handle it reaches for does not exist yet: it unsubscribes nothing, and
+     * the subscribe path further down then registers a cluster callback into
+     * a lane that will hold it — and this response object with it — for as
+     * long as the lane lives, writing into a socket that is already gone.
+     * Re-reading this flag after the await is what closes the window;
+     * nothing between the check and the subscription awaits, so nothing can
+     * slip between them.
+     */
+    let live = true;
 
     // Registered before acquire() is even awaited, not after it resolves.
     // Opening a translated lane is real network I/O (spinning up a Gemini
@@ -44,13 +56,14 @@ export class StreamRoute {
     // to a listener added late — leaking a live, billing Gemini session for
     // the rest of the event.
     res.on("close", () => {
+      live = false;
       unsubscribe?.();
       this.opts.manager.release(lang, subscriber);
     });
 
     let lane;
     try {
-      lane = await this.opts.manager.acquire(lang, subscriber);
+      lane = await this.opts.manager.acquire(lang, subscriber, "audio");
     } catch (err) {
       if (err instanceof UnknownLanguageError) {
         this.respondError(res, 404, "알 수 없는 언어입니다 / Unknown language");
@@ -78,6 +91,12 @@ export class StreamRoute {
     // releasing again right here too, if setup itself fails, costs nothing
     // and closes the gap for a response object left in some state where
     // "close" is not reliably guaranteed to fire at all.
+    // The client left while the lane was opening. Their release is already
+    // recorded (see the close handler above); all that is left is to write
+    // nothing to a response that is gone, and above all to subscribe nothing
+    // on its behalf.
+    if (!live) return;
+
     try {
       res.writeHead(200, {
         "content-type": "audio/webm",

@@ -99,6 +99,7 @@ for (const end of ["close()", "simulateDeath()"] as const) {
 
     for (let i = 0; i < 50; i++) session.sendPcm16k(frame());
     session.simulateGoAway();
+    session.simulateError();
     session.simulateDeath("dead twice over");
     session.close();
     assert.deepEqual(events, [], "no audio, transcript, state or second closed");
@@ -126,4 +127,40 @@ test("simulateDeath is a test hook that emits closed without a caller close()", 
 
   assert.equal(closedReason, "connection reset");
   assert.equal(session.canAccept(), false);
+});
+
+test("simulateError is a test hook that emits an error state without closing", async () => {
+  const session = new FakeTranslateSession("en");
+  const states: string[] = [];
+  session.on("state", (s) => states.push(s));
+
+  session.simulateError();
+
+  assert.deepEqual(states, ["error"]);
+  assert.equal(session.canAccept(), true, "a transport error alone does not end the session");
+});
+
+test("simulateSaturated is a test hook that refuses frames without closing", async () => {
+  const session = new FakeTranslateSession("en");
+  const chunks: Buffer[] = [];
+  session.on("audio", (c) => chunks.push(c));
+
+  session.simulateSaturated(true);
+  assert.equal(session.canAccept(), false);
+
+  session.simulateSaturated(false);
+  assert.equal(session.canAccept(), true, "backpressure clears; it is not a death");
+  for (let i = 0; i < 25; i++) session.sendPcm16k(frame());
+  assert.equal(chunks.length, 1, "and the session still works afterwards");
+});
+
+test("the factory hands every session it creates to onCreate", async () => {
+  const created: FakeTranslateSession[] = [];
+  const factory = createFakeTranslateSessionFactory((s) => created.push(s));
+
+  const first = await factory({ targetLanguage: "en" });
+  const second = await factory({ targetLanguage: "es" });
+
+  assert.deepEqual(created, [first, second]);
+  assert.equal(created[1]!.targetLanguage, "es");
 });

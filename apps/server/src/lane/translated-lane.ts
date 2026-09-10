@@ -23,6 +23,7 @@ export class TranslatedLane implements Lane {
 
   private readonly encoder: LaneOpusEncoder;
   private readonly sink: WebMSink;
+  private readonly stateListeners = new Set<(state: LaneState) => void>();
   private elapsedMs = 0;
   private drops = 0;
   private laneState: LaneState = "starting";
@@ -45,7 +46,7 @@ export class TranslatedLane implements Lane {
     session.on("transcript", (text, isFinal) => {
       this.transcripts.publish(text, isFinal);
     });
-    session.on("state", (s) => { this.laneState = s; });
+    session.on("state", (s) => this.setState(s));
     // No "closed" handler: under R5, `session` here is always a
     // SessionRotator, which only emits "closed" from its own close() — and
     // that is only ever reached via this class's close(), which has already
@@ -65,17 +66,33 @@ export class TranslatedLane implements Lane {
   static async create(opts: TranslatedLaneOptions): Promise<TranslatedLane> {
     const rotator = new SessionRotator(opts.lang, opts.sessionFactory, opts.clock);
     await rotator.start();
-    return new TranslatedLane(opts.lang, rotator, opts);
+    try {
+      return new TranslatedLane(opts.lang, rotator, opts);
+    } catch (err) {
+      // `start()` has already opened a live, billing Gemini connection. The
+      // constructor below it can still throw — `LaneOpusEncoder` rejects a
+      // bitrate libopus does not like, for one — and if that throw escapes
+      // untouched the rotator ends up in neither `LaneManager.entries` nor
+      // its `opening` map: unreachable, so nothing can ever close it, and a
+      // fresh one opens for every subsequent attendee tap. The lane cap
+      // counts entries, not orphans, so it does not bound them either.
+      rotator.close();
+      throw err;
+    }
   }
 
   /**
-   * Frames pushed while `session.canAccept()` was false. `SessionRotator`
-   * only reports that once it has been closed, so in practice this counts
-   * PCM pushed after this lane's own close() has torn down the session —
-   * not backpressure or an audio-quality problem. On the operator dashboard,
-   * a rising count means "still receiving ingest audio after teardown," not
-   * "audio is degrading" — nothing upstream of close() currently makes
-   * canAccept() return false.
+   * Frames this lane was handed but had nowhere to put, because neither the
+   * session serving it nor a replacement opening behind it could take them.
+   *
+   * On the operator dashboard a rising count means audio is being lost right
+   * now: the lane's connection has died and its replacement has not arrived
+   * yet, or the transport is saturated. Read it alongside `state` — a lane
+   * that is "reconnecting" with a climbing drop count is one whose room is
+   * hearing silence, and the number says how much of the talk has gone.
+   *
+   * (It also counts PCM pushed after this lane's own close(), which is
+   * harmless and self-limiting: AudioHub drops the lane at the same moment.)
    */
   get laneDrops(): number {
     return this.drops;
@@ -83,6 +100,35 @@ export class TranslatedLane implements Lane {
 
   get state(): LaneState {
     return this.laneState;
+  }
+
+  onStateChange(fn: (state: LaneState) => void): () => void {
+    this.stateListeners.add(fn);
+    return () => { this.stateListeners.delete(fn); };
+  }
+
+  /**
+   * Deduplicated: the underlying session may re-announce a state it is
+   * already in (a rotator emits "reconnecting" for each fresh attempt of a
+   * failing reconnect), and forwarding those would push an identical
+   * `{type:"lane"}` message to every connected attendee for no reason.
+   */
+  private setState(next: LaneState): void {
+    if (next === this.laneState) return;
+    this.laneState = next;
+    // Guarded like every other subscriber dispatch in this codebase
+    // (FrameBus, WebMSink, TranscriptBus), and for a sharper reason here:
+    // this runs from close() too, which LaneManager.closeAll() calls in a
+    // loop over every open lane. A subscriber that threw would abort that
+    // loop and leave the remaining lanes — and their live Gemini sessions —
+    // open through a shutdown.
+    for (const fn of this.stateListeners) {
+      try {
+        fn(next);
+      } catch (err) {
+        console.error("lane state subscriber threw", err);
+      }
+    }
   }
 
   get initSegment(): Buffer {
@@ -104,7 +150,7 @@ export class TranslatedLane implements Lane {
   close(): void {
     if (this.closed) return;
     this.closed = true;
-    this.laneState = "error";
+    this.setState("error");
     this.session.close();
     this.encoder.close();
   }

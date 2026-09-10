@@ -161,6 +161,11 @@ export class SessionRotator implements TranslateSession {
       if (session !== this.current) return; // a stale, already-superseded session
 
       this.currentDead = true;
+      // An unsolicited death emits `closed`, never `state` — so unless this
+      // says so, a lane that has just lost its connection goes on reporting
+      // whatever it last reported, usually "live". The operator's dashboard
+      // stays green while the room hears nothing.
+      this.emit("state", "reconnecting");
       if (!this.replacement) {
         void this.rotate();
       } else if (this.replacementReady) {
@@ -196,6 +201,13 @@ export class SessionRotator implements TranslateSession {
     this.currentDead = false;
     this.rotations++;
     old?.close();
+    // The lane is serving again, and only this line can say so. A session
+    // emits "live" exactly once, on its first frame — which `next` burned
+    // while it was still the replacement, where `attach` correctly suppresses
+    // it. It will never emit again. Without this the lane would read
+    // "reconnecting" for the rest of the event after its first rotation,
+    // which for a real Gemini connection is roughly every ten minutes.
+    this.emit("state", "live");
   }
 
   /** Give up on a pending replacement without promoting it. `current` (if
@@ -234,6 +246,18 @@ export class SessionRotator implements TranslateSession {
     if (this.closed) return;
     const delay = this.retryDelayMs;
     this.retryDelayMs = Math.min(this.retryDelayMs * 2, MAX_RETRY_MS);
+    // The backoff has just saturated: every further attempt waits the full
+    // ceiling, which means the factory has been failing long enough that this
+    // is no longer a blip. "reconnecting" would still be literally true, but
+    // it reads as transient and this is not — the spec's failure table
+    // requires a lane in this shape to fail loudly on the operator dashboard,
+    // not to sit there looking like it is about to come back. The condition
+    // fires exactly once per failure episode, since `retryDelayMs` only
+    // crosses into the cap from below once and is reset to
+    // INITIAL_RETRY_MS the moment the factory succeeds again.
+    if (this.retryDelayMs === MAX_RETRY_MS && delay < MAX_RETRY_MS) {
+      this.emit("state", "error");
+    }
     this.retryTimer = this.clock.setTimeout(() => {
       this.retryTimer = undefined;
       void this.rotate();
@@ -298,8 +322,23 @@ export class SessionRotator implements TranslateSession {
     if (this.currentDead) void this.rotate();
   }
 
+  /**
+   * True when at least one of the sessions this rotator is dispatching to can
+   * actually take the frame — which is what `sendPcm16k` below does with it.
+   *
+   * Both halves matter. Consulting the sessions at all is what makes
+   * `Lane.laneDrops` mean something: reporting `true` merely because a
+   * `current` reference exists let a lane whose connection had died count
+   * zero drops while every frame it was handed evaporated. Including
+   * `replacement` is what keeps a recovery possible: while `current` is dead
+   * the replacement is the only thing that can take audio, and it needs that
+   * audio to produce its first output and be promoted. Refusing frames there
+   * would strand the lane permanently silent — the failure this whole class
+   * exists to prevent.
+   */
   canAccept(): boolean {
-    return !this.closed && this.current !== undefined;
+    if (this.closed) return false;
+    return Boolean(this.current?.canAccept()) || Boolean(this.replacement?.canAccept());
   }
 
   sendPcm16k(frame: Buffer): void {

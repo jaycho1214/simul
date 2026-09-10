@@ -250,3 +250,30 @@ test("a client that disconnects while the lane is still opening does not leak th
   assert.equal(manager.statuses().find((s) => s.lang === "en"), undefined, "the lane was torn down");
   assert.equal(hub.laneCount, 0, "the hub no longer holds the torn-down lane");
 });
+
+test("a client that disconnects while the lane is still opening leaves no cluster subscription behind", async () => {
+  const { factory, resolve } = deferredSessionFactory();
+  const { hub, manager, route } = setup(factory);
+  const res = new FakeResponse();
+
+  // The refcount half of this is covered by the test above. This is the
+  // other half, and the sixth occurrence of the shape in this project: the
+  // unsubscribe handle is assigned *after* the await, so the close handler
+  // that ran during the open unsubscribed nothing. The lane then writes
+  // clusters into a dead response for the rest of its life, and the closure
+  // keeps the response object alive with it.
+  const handling = route.handle(res as any, "en");
+  res.emit("close");
+
+  resolve(new FakeTranslateSession("en"));
+  await handling;
+
+  assert.equal(res.statusCode, 0, "no headers were written to a response that had already closed");
+  assert.deepEqual(res.written, [], "and no init segment either");
+
+  // The lane is still open (the grace timer has not run), so it is still
+  // producing clusters — exactly the condition a leaked subscription needs.
+  for (let i = 0; i < 50; i++) hub.push(Buffer.alloc(640));
+  assert.deepEqual(res.written, [], "no cluster subscription outlived the response");
+  assert.equal(manager.statuses().find((s) => s.lang === "en")?.listeners, 0);
+});

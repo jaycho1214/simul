@@ -37,6 +37,20 @@ export class ListenSocket {
 
     const subscriber = ws;
     let offTranscript: (() => void) | undefined;
+    let offLaneState: (() => void) | undefined;
+    /**
+     * Whether this listener is still here. The close handler below can fire
+     * during the `await` on acquire(), in which case the unsubscribe handles
+     * it reaches for do not exist yet: it unsubscribes nothing, and the
+     * subscribe path further down then registers into a lane that will hold
+     * those callbacks — and this socket object with them — for as long as it
+     * lives, publishing into a connection that is already gone. Six
+     * occurrences of that shape have now shipped in this project. Re-reading
+     * this flag after the await is what closes the window; nothing between
+     * the check and the subscriptions awaits, so nothing can slip between
+     * them.
+     */
+    let live = true;
 
     // Registered before acquire() is even awaited, not after it resolves.
     // Opening a translated lane is real network I/O (spinning up a Gemini
@@ -51,13 +65,15 @@ export class ListenSocket {
     // live, billing Gemini session for the rest of the event — the exact
     // bug two earlier tasks in this plan shipped.
     ws.on("close", () => {
+      live = false;
       offTranscript?.();
+      offLaneState?.();
       this.opts.manager.release(lang, subscriber);
     });
 
     let lane;
     try {
-      lane = await this.opts.manager.acquire(lang, subscriber);
+      lane = await this.opts.manager.acquire(lang, subscriber, "transcript");
     } catch (err) {
       if (err instanceof UnknownLanguageError) {
         send({
@@ -87,6 +103,11 @@ export class ListenSocket {
       return;
     }
 
+    // The listener left while the lane was opening. Their release is already
+    // recorded (see the close handler above); all that is left is to not
+    // greet, and above all not subscribe, a socket that is gone.
+    if (!live) return;
+
     const history = lane.transcripts.history();
     send({ type: "hello", lang, historyLines: history.length });
     send({ type: "history", lines: history });
@@ -94,6 +115,14 @@ export class ListenSocket {
 
     offTranscript = lane.transcripts.subscribe((line) => {
       send({ type: "transcript", line });
+    });
+    // Lane state is not static: a lane starts, goes live on its first audio,
+    // and reconnects roughly every ten minutes when Gemini drops the
+    // connection. Sending it once at connect and never again leaves every
+    // already-connected attendee reading a status that stopped being true
+    // minutes ago.
+    offLaneState = lane.onStateChange((state) => {
+      send({ type: "lane", state });
     });
   }
 }

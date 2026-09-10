@@ -32,9 +32,17 @@ export interface LaneManagerOptions {
   opusBitrate: number;
 }
 
+/**
+ * Which transport a subscriber holds. An attendee's phone opens one of each
+ * for the same lane, so without this distinction the refcount counts sockets
+ * and the operator dashboard reports double the head count. See
+ * `LaneStatus.listeners`.
+ */
+export type LaneSubscriberKind = "audio" | "transcript";
+
 interface Entry {
   lane: Lane;
-  subscribers: Set<object>;
+  subscribers: Map<object, LaneSubscriberKind>;
   openedAt: number;
   closeTimer?: TimerHandle;
 }
@@ -64,7 +72,11 @@ export class LaneManager {
     return this.entries.get(lang)?.lane;
   }
 
-  async acquire(lang: LangCode, subscriber: object): Promise<Lane> {
+  async acquire(
+    lang: LangCode,
+    subscriber: object,
+    kind: LaneSubscriberKind,
+  ): Promise<Lane> {
     if (this.closed) {
       throw new Error("LaneManager is closed");
     }
@@ -78,7 +90,7 @@ export class LaneManager {
         this.opts.clock.clearTimeout(existing.closeTimer);
         existing.closeTimer = undefined;
       }
-      existing.subscribers.add(subscriber);
+      existing.subscribers.set(subscriber, kind);
       return existing.lane;
     }
 
@@ -86,7 +98,7 @@ export class LaneManager {
     const inFlight = this.opening.get(lang);
     if (inFlight) {
       const lane = await inFlight.promise;
-      this.registerSubscriberAfterOpen(lang, subscriber, inFlight);
+      this.registerSubscriberAfterOpen(lang, subscriber, kind, inFlight);
       return lane;
     }
 
@@ -111,11 +123,11 @@ export class LaneManager {
 
       this.entries.set(lang, {
         lane,
-        subscribers: new Set(),
+        subscribers: new Map(),
         openedAt: this.opts.clock.now(),
       });
       this.opts.hub.addLane(lane);
-      this.registerSubscriberAfterOpen(lang, subscriber, opening);
+      this.registerSubscriberAfterOpen(lang, subscriber, kind, opening);
       return lane;
     } finally {
       this.opening.delete(lang);
@@ -143,7 +155,12 @@ export class LaneManager {
    *    fresh grace timer if that leaves the lane with no subscribers —
    *    instead of leaving a subscriber that will never release again.
    */
-  private registerSubscriberAfterOpen(lang: LangCode, subscriber: object, opening: Opening): void {
+  private registerSubscriberAfterOpen(
+    lang: LangCode,
+    subscriber: object,
+    kind: LaneSubscriberKind,
+    opening: Opening,
+  ): void {
     const entry = this.entries.get(lang);
     if (!entry) return; // closeAll() ran; nothing to join.
 
@@ -151,7 +168,7 @@ export class LaneManager {
       this.opts.clock.clearTimeout(entry.closeTimer);
       entry.closeTimer = undefined;
     }
-    entry.subscribers.add(subscriber);
+    entry.subscribers.set(subscriber, kind);
 
     if (opening.pendingReleases.delete(subscriber)) {
       this.release(lang, subscriber);
@@ -206,14 +223,25 @@ export class LaneManager {
 
   statuses(): LaneStatus[] {
     const now = this.opts.clock.now();
-    return [...this.entries.entries()].map(([lang, entry]) => ({
-      lang,
-      listeners: entry.subscribers.size,
-      state: entry.lane.state,
-      laneDrops: entry.lane.laneDrops,
-      listenerDrops: 0, // filled in by the stream route in Task 14
-      ageMs: now - entry.openedAt,
-    }));
+    return [...this.entries.entries()].map(([lang, entry]) => {
+      let audioListeners = 0;
+      let transcriptListeners = 0;
+      for (const kind of entry.subscribers.values()) {
+        if (kind === "audio") audioListeners++;
+        else transcriptListeners++;
+      }
+      return {
+        lang,
+        // Not the sum: an attendee holds one of each, so adding them counts
+        // every person twice. See `LaneStatus.listeners`.
+        listeners: Math.max(audioListeners, transcriptListeners),
+        audioListeners,
+        state: entry.lane.state,
+        laneDrops: entry.lane.laneDrops,
+        listenerDrops: 0, // filled in by the stream route in Task 14
+        ageMs: now - entry.openedAt,
+      };
+    });
   }
 
   closeAll(): void {

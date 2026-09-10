@@ -578,3 +578,129 @@ test("backoff resets to the initial delay after the factory succeeds", async (t)
   assert.equal(calls, 6, "backoff reset to the initial delay after the earlier success");
   assert.equal(errorMock.mock.callCount(), 3, "calls 2, 3, and 5 each logged their failure");
 });
+
+// ---------------------------------------------------------------------------
+// Lane state. This is the operator's only health signal, and every test above
+// this line watches audio and transcripts instead — which is how a rotator
+// that never re-announced anything after `start()` passed 130 tests while
+// reporting a permanently wrong state in both directions.
+// ---------------------------------------------------------------------------
+
+test("a healthy rotation announces live again once the cutover lands", async () => {
+  const { created, factory } = controllableFactory();
+  const rotator = new SessionRotator("en", factory, new FakeClock());
+  await rotator.start();
+
+  const states: string[] = [];
+  rotator.on("state", (s) => states.push(s));
+
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.deepEqual(states, ["live"], "the original session announced itself");
+
+  created[0]!.simulateGoAway();
+  await flush();
+  assert.deepEqual(states, ["live", "reconnecting"], "the announced disconnect reached the lane");
+
+  // The replacement emits its own single "live" on its first frame — while it
+  // is still the replacement, so `attach` correctly suppresses it. Nothing
+  // ever emits again from that session, so unless promote() re-announces,
+  // this lane reads 재연결 중 for the rest of the event despite working
+  // perfectly. Gemini kills a connection roughly every 10 minutes, so that is
+  // every translated lane, every event, within the first ten minutes.
+  for (let i = 0; i < 50; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(rotator.activeIndex, 1, "the cutover happened");
+  assert.deepEqual(states, ["live", "reconnecting", "live"], "and was announced");
+});
+
+test("an unsolicited death is announced as reconnecting, and the recovery as live", async () => {
+  const { created, factory } = controllableFactory();
+  const rotator = new SessionRotator("en", factory, new FakeClock());
+  await rotator.start();
+
+  const states: string[] = [];
+  rotator.on("state", (s) => states.push(s));
+
+  // A connection that dies without a GoAway emits `closed`, never `state`.
+  // The rotator handles it correctly — it opens a replacement — but said
+  // nothing about it, so the dashboard stayed on whatever it last read.
+  created[0]!.simulateDeath("connection reset");
+  await flush();
+  assert.deepEqual(states, ["reconnecting"], "the operator learns the lane is down");
+
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(rotator.activeIndex, 1);
+  assert.deepEqual(states, ["reconnecting", "live"], "and that it came back");
+});
+
+test("canAccept follows the sessions, so frames that go nowhere are counted as drops", async () => {
+  const { created, factory } = controllableFactory();
+  const rotator = new SessionRotator("en", factory, new FakeClock());
+  await rotator.start();
+
+  assert.equal(rotator.canAccept(), true);
+
+  // Between the death and the replacement existing there is genuinely
+  // nowhere to put a frame. Reporting `true` here is what let `laneDrops`
+  // sit at 0 while 100% of the lane's audio vanished — the dashboard reading
+  // green through ten minutes of silence.
+  created[0]!.simulateDeath("connection reset");
+  assert.equal(rotator.canAccept(), false, "nothing can take a frame yet");
+
+  await flush();
+  assert.equal(
+    rotator.canAccept(),
+    true,
+    "the replacement can take frames, and must get them: it needs audio to be promoted",
+  );
+
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+  assert.equal(rotator.activeIndex, 1, "and it was promoted, so frames really did reach it");
+});
+
+test("a persistently failing factory reports error once the backoff saturates, then live on recovery", async (t) => {
+  t.mock.method(console, "error", () => {});
+
+  const created: FakeTranslateSession[] = [];
+  let healthy = true;
+  const clock = new FakeClock();
+  const factory = async ({ targetLanguage }: { targetLanguage: string }) => {
+    if (!healthy) throw new Error("connection refused");
+    const s = new FakeTranslateSession(targetLanguage);
+    created.push(s);
+    return s;
+  };
+
+  const rotator = new SessionRotator("en", factory, clock);
+  await rotator.start();
+
+  const states: string[] = [];
+  rotator.on("state", (s) => states.push(s));
+
+  healthy = false;
+  created[0]!.simulateDeath("connection reset");
+  await flush();
+  assert.deepEqual(states, ["reconnecting"]);
+
+  // Each retry is scheduled only after the previous factory call rejects, so
+  // the clock has to be advanced one backoff step at a time with a microtask
+  // flush between. 1s, 2s, 4s, 8s — and the fifth wait would be the capped
+  // one, which is where the lane stops being "briefly reconnecting" and
+  // starts being broken.
+  for (const step of [INITIAL_RETRY_MS, 2_000, 4_000, 8_000]) {
+    clock.advance(step);
+    await flush();
+  }
+  assert.deepEqual(
+    states,
+    ["reconnecting", "error"],
+    "a lane that has been retrying since before the backoff ceiling is not 'reconnecting', it is broken",
+  );
+
+  healthy = true;
+  clock.advance(MAX_RETRY_MS);
+  await flush();
+  for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
+
+  assert.equal(rotator.activeIndex, 1);
+  assert.deepEqual(states, ["reconnecting", "error", "live"], "recovery is announced too");
+});

@@ -18,6 +18,7 @@ export class SourceLane implements Lane {
 
   private readonly encoder: LaneOpusEncoder;
   private readonly sink: WebMSink;
+  private readonly stateListeners = new Set<(state: LaneState) => void>();
   private elapsedMs = 0;
   private closed = false;
 
@@ -43,6 +44,17 @@ export class SourceLane implements Lane {
     return this.sink.subscribe(fn);
   }
 
+  /**
+   * A passthrough lane has exactly one state transition in its life — the
+   * one close() makes below — but it still has to offer this, because the
+   * HTTP layer serves source and translated lanes through the same code and
+   * must not have to ask which kind it is holding.
+   */
+  onStateChange(fn: (state: LaneState) => void): () => void {
+    this.stateListeners.add(fn);
+    return () => { this.stateListeners.delete(fn); };
+  }
+
   pushPcm(frame: Buffer): void {
     if (this.closed) return;
     this.elapsedMs = pumpPackets(this.encoder, this.frames, frame, this.elapsedMs);
@@ -52,5 +64,18 @@ export class SourceLane implements Lane {
     if (this.closed) return;
     this.closed = true;
     this.encoder.close();
+    // Guarded like every other subscriber dispatch in this codebase
+    // (FrameBus, WebMSink, TranscriptBus), and for a sharper reason here:
+    // this one runs inside close(), which LaneManager.closeAll() calls in a
+    // loop over every open lane. A subscriber that threw would abort that
+    // loop and leave the remaining lanes — and their live Gemini sessions —
+    // open through a shutdown.
+    for (const fn of this.stateListeners) {
+      try {
+        fn(this.state);
+      } catch (err) {
+        console.error("lane state subscriber threw", err);
+      }
+    }
   }
 }
