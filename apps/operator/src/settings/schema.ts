@@ -171,11 +171,21 @@ export function redactSettings(settings: OperatorSettings): PublicSettings {
   return { ...rest, hasGeminiApiKey: geminiApiKey.length > 0 };
 }
 
-/** Exactly the variables apps/server's loadConfig reads, and nothing else. */
+/**
+ * Exactly the variables apps/server's loadConfig reads, and nothing else.
+ *
+ * main.ts merges this over process.env: `{ ...process.env, ...buildServerEnv(...) }`.
+ * That merge means every key returned here unconditionally *wins* — so a
+ * setting that is merely unset must be absent from this object, not present
+ * with an empty-string value, or it would blot out a GEMINI_API_KEY / INGEST_TOKEN
+ * the engineer exported in the shell or a .env file before the store had ever
+ * been written to. geminiApiKey and ingestToken are the only two fields whose
+ * DEFAULT_SETTINGS value is "" — every other field always carries a real,
+ * meaningful default (e.g. port 8080), so they are never "unset" in this sense
+ * and are always included.
+ */
 export function buildServerEnv(settings: OperatorSettings): Record<string, string> {
-  return {
-    GEMINI_API_KEY: settings.geminiApiKey,
-    INGEST_TOKEN: settings.ingestToken,
+  const env: Record<string, string> = {
     PORT: String(settings.port),
     SOURCE_LANGUAGE: settings.sourceLanguage,
     OFFERED_LANGUAGES: JSON.stringify(settings.offeredLanguages),
@@ -185,4 +195,9 @@ export function buildServerEnv(settings: OperatorSettings): Record<string, strin
     TRANSCRIPT_DELAY_MS: String(settings.transcriptDelayMs),
     OPUS_BITRATE: String(settings.opusBitrate),
   };
+  // Omitted rather than set to "" so an inherited process.env value shows
+  // through instead of being erased by the spread in main.ts.
+  if (settings.geminiApiKey) env.GEMINI_API_KEY = settings.geminiApiKey;
+  if (settings.ingestToken) env.INGEST_TOKEN = settings.ingestToken;
+  return env;
 }

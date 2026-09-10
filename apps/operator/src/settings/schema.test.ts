@@ -164,4 +164,49 @@ describe("buildServerEnv", () => {
     });
     expect(JSON.parse(env.OFFERED_LANGUAGES!)).toEqual(["ko", "fr"]);
   });
+
+  // main.ts merges this over process.env: { ...process.env, ...buildServerEnv(...) }.
+  // An unset secret must be absent from the returned object, not present as
+  // "", or the spread erases a key the engineer already exported in the shell
+  // or a .env file — the server would then refuse to start on a fresh install
+  // even though a perfectly good GEMINI_API_KEY was inherited.
+  test("an empty geminiApiKey leaves an inherited process.env value intact", () => {
+    const env = buildServerEnv({ ...DEFAULT_SETTINGS, geminiApiKey: "", ingestToken: "tok" });
+    expect(env).not.toHaveProperty("GEMINI_API_KEY");
+
+    const merged = { ...{ GEMINI_API_KEY: "sk-from-shell" }, ...env };
+    expect(merged.GEMINI_API_KEY).toBe("sk-from-shell");
+  });
+
+  test("a non-empty geminiApiKey overrides an inherited process.env value", () => {
+    const env = buildServerEnv({
+      ...DEFAULT_SETTINGS,
+      geminiApiKey: "sk-from-settings",
+      ingestToken: "tok",
+    });
+    expect(env.GEMINI_API_KEY).toBe("sk-from-settings");
+
+    const merged = { ...{ GEMINI_API_KEY: "sk-from-shell" }, ...env };
+    expect(merged.GEMINI_API_KEY).toBe("sk-from-settings");
+  });
+
+  test("an empty ingestToken leaves an inherited process.env value intact", () => {
+    const env = buildServerEnv({ ...DEFAULT_SETTINGS, geminiApiKey: "k", ingestToken: "" });
+    expect(env).not.toHaveProperty("INGEST_TOKEN");
+
+    const merged = { ...{ INGEST_TOKEN: "tok-from-shell" }, ...env };
+    expect(merged.INGEST_TOKEN).toBe("tok-from-shell");
+  });
+
+  test("a non-empty ingestToken overrides an inherited process.env value", () => {
+    const env = buildServerEnv({
+      ...DEFAULT_SETTINGS,
+      geminiApiKey: "k",
+      ingestToken: "tok-from-settings",
+    });
+    expect(env.INGEST_TOKEN).toBe("tok-from-settings");
+
+    const merged = { ...{ INGEST_TOKEN: "tok-from-shell" }, ...env };
+    expect(merged.INGEST_TOKEN).toBe("tok-from-settings");
+  });
 });
