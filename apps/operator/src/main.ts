@@ -8,6 +8,8 @@ import {
 import { ipcContext } from "@/ipc/context";
 import { ServerSupervisor, electronForkFn } from "@/server-host/server-supervisor";
 import { IPC_CHANNELS, inDevelopment } from "./constants";
+import { buildServerEnv } from "./settings/schema.ts";
+import { getSettings } from "./settings/store.ts";
 import { getBasePath } from "./utils/path";
 
 const externalServer =
@@ -19,10 +21,9 @@ const serverEntryPath = path.join(getBasePath(), "server-entry.js");
 
 export const supervisor = new ServerSupervisor({
   entryPath: serverEntryPath,
-  // Task 9 replaces this stub with the real electron-store read. It stays a
-  // function so every spawn picks up settings (e.g. a freshly pasted Gemini
-  // API key) as they are at fork time, not as they were when the app booted.
-  env: () => ({ PORT: "8080" }),
+  // Evaluated on every spawn, so a key saved in 제어 is picked up by the next
+  // 서버 재시작 without reconstructing the supervisor.
+  env: () => ({ ...process.env, ...buildServerEnv(getSettings()) }) as Record<string, string>,
   external: externalServer,
   fork: electronForkFn(),
 });
