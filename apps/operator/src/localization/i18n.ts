@@ -25,7 +25,10 @@ export const KO_STRINGS = {
     requestedChannels: "요청 채널 수",
     requestedChannelsHint: "장치가 지원하는 최대 채널 수를 넣으세요. 맥에서는 18, 윈도우 페어 장치에서는 2입니다.",
     channelCount: "요청 {{requested}}채널 · 실제 {{achieved}}채널",
-    sampleRate: "샘플레이트 — 장치 {{device}} Hz · 처리 {{context}} Hz",
+    // "processed", not "context": i18next reserves {{context}} for its own
+    // contextual-pluralization feature, and react-i18next's typed t() rejects
+    // a number there because of it.
+    sampleRate: "샘플레이트 — 장치 {{device}} Hz · 처리 {{processed}} Hz",
     dspOff: "DSP 꺼짐 확인됨 — 에코 제거 · 잡음 억제 · 자동 게인",
     permissionNeeded: "마이크 권한이 필요합니다. 권한을 허용하면 장치 이름이 표시됩니다.",
   },
@@ -65,6 +68,13 @@ export const KO_STRINGS = {
 
   reach: {
     title: "도달 여부",
+    // network_profile/firewall_rule read the laptop's own config and can be
+    // wrong (a rule can exist and still not match the active adapter);
+    // external_hit is the only one of the three backed by a phone that
+    // actually reached the server. Tagged separately so a "참고" line is never
+    // mistaken for the same kind of confirmation as "실측".
+    advisory: "참고",
+    proof: "실측",
     profile_pass: "네트워크 프로필: {{alias}} — 개인(Private)",
     profile_warn: "경고: {{alias}} 네트워크가 공용(Public)으로 분류되어 있습니다. 휴대폰이 접속하지 못합니다.",
     profile_unknown: "네트워크 프로필을 확인하지 못했습니다.",
@@ -79,11 +89,17 @@ export const KO_STRINGS = {
   lanes: {
     language: "언어",
     listeners: "청취자 수",
+    // The figure that moves when someone mutes; listeners (max of audio and
+    // transcript subscriptions) does not, so muting is invisible without
+    // this column next to it.
+    audioListeners: "오디오 청취자 수",
     status: "상태",
     laneDrops: "레인 드롭",
     listenerDrops: "청취자 드롭",
     sessionState: "세션 상태",
     empty: "열린 레인이 없습니다",
+    laneDropsHint:
+      "레인 드롭은 레인이 종료된 뒤에도 들어온 오디오 프레임 수입니다. 오디오 품질과는 무관하니 이 수치만으로 문제를 의심하지 마세요.",
   },
 
   laneState: {
@@ -114,6 +130,14 @@ export const KO_STRINGS = {
     apiKeySet: "설정됨",
     apiKeyMissing: "설정되지 않음 — 번역 레인이 열리지 않습니다",
     save: "저장",
+  },
+
+  // The sixth surface, added beyond the spec's five panels so the server's
+  // stdout/stderr — otherwise invisible once the app is packaged and there is
+  // no terminal — is readable from inside the window.
+  serverLog: {
+    title: "서버 로그",
+    empty: "로그가 없습니다",
   },
 } as const;
 

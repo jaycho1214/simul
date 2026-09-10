@@ -1,5 +1,23 @@
 import { describe, expect, test, vi } from "vitest";
-import { ServerSupervisor, type ForkedProcess, type ForkFn } from "./server-supervisor.ts";
+import {
+  MAX_LOG_LINES,
+  ServerSupervisor,
+  type ForkedProcess,
+  type ForkFn,
+} from "./server-supervisor.ts";
+
+/** A stand-in for a utilityProcess's stdout/stderr NodeJS.ReadableStream. */
+class FakeStream {
+  private readonly handlers: Array<(chunk: Buffer | string) => void> = [];
+
+  on(event: "data", fn: (chunk: Buffer | string) => void): void {
+    if (event === "data") this.handlers.push(fn);
+  }
+
+  emit(chunk: Buffer | string): void {
+    for (const fn of this.handlers) fn(chunk);
+  }
+}
 
 /**
  * A stand-in for a forked utility process. It is a real object with a real
@@ -9,6 +27,8 @@ import { ServerSupervisor, type ForkedProcess, type ForkFn } from "./server-supe
 class FakeProcess implements ForkedProcess {
   killed = false;
   readonly received: unknown[] = [];
+  readonly stdout = new FakeStream();
+  readonly stderr = new FakeStream();
   private readonly handlers = new Map<string, Array<(...args: any[]) => void>>();
 
   on(event: string, fn: (...args: any[]) => void): void {
@@ -175,5 +195,102 @@ describe("ServerSupervisor", () => {
     advance(500);
 
     expect(seen).toEqual(["starting", "listening", "crashed", "starting"]);
+  });
+
+  test("captures a stdout line and tags it by stream", () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+
+    spawned[0]!.stdout.emit("tongyeok server on :8080\n");
+
+    expect(supervisor.logs).toEqual([
+      { stream: "stdout", text: "tongyeok server on :8080", at: 0 },
+    ]);
+  });
+
+  test("keeps stdout and stderr separate", () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+
+    spawned[0]!.stdout.emit("normal boot line\n");
+    spawned[0]!.stderr.emit("uncaught exception\n");
+
+    expect(supervisor.logs.map((l) => [l.stream, l.text])).toEqual([
+      ["stdout", "normal boot line"],
+      ["stderr", "uncaught exception"],
+    ]);
+  });
+
+  test("joins a line split across two chunks", () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+
+    // A pipe delivers data as it becomes available, not aligned to line
+    // boundaries — the second half of a line can arrive in its own "data" event.
+    spawned[0]!.stdout.emit("languages: ko, en");
+    spawned[0]!.stdout.emit(", ja (source ko)\n");
+
+    expect(supervisor.logs).toEqual([
+      { stream: "stdout", text: "languages: ko, en, ja (source ko)", at: 0 },
+    ]);
+  });
+
+  test("notifies log subscribers as lines arrive", () => {
+    const { supervisor, spawned } = harness();
+    const seen: number[] = [];
+    supervisor.onLog((lines) => seen.push(lines.length));
+
+    supervisor.start();
+    spawned[0]!.stdout.emit("one\n");
+    spawned[0]!.stdout.emit("two\n");
+
+    expect(seen).toEqual([1, 2]);
+  });
+
+  test("bounds the log so a 90-minute event cannot grow it without limit", () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+
+    for (let i = 0; i < MAX_LOG_LINES + 20; i++) {
+      spawned[0]!.stdout.emit(`line ${i}\n`);
+    }
+
+    expect(supervisor.logs).toHaveLength(MAX_LOG_LINES);
+    // Oldest lines are dropped first; the newest survive at the tail.
+    expect(supervisor.logs.at(0)!.text).toBe("line 20");
+    expect(supervisor.logs.at(-1)!.text).toBe(`line ${MAX_LOG_LINES + 19}`);
+  });
+
+  test("flushes a trailing partial line when the child exits without a final newline", () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+
+    spawned[0]!.stdout.emit("shutting down");
+    spawned[0]!.emit("exit", 0);
+
+    expect(supervisor.logs).toEqual([{ stream: "stdout", text: "shutting down", at: 0 }]);
+  });
+
+  test("log history survives a restart; only the in-flight partial line is dropped", () => {
+    const { supervisor, spawned, advance } = harness();
+    supervisor.start();
+    spawned[0]!.stdout.emit("boot 1\n");
+
+    spawned[0]!.emit("exit", 1);
+    advance(500);
+    spawned[1]!.stdout.emit("boot 2\n");
+
+    expect(supervisor.logs.map((l) => l.text)).toEqual(["boot 1", "boot 2"]);
+  });
+
+  test("restart() flushes the outgoing child's trailing partial line before spawning the next", () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+    // No trailing newline: still in flight when restart() replaces this child.
+    spawned[0]!.stdout.emit("mid-line at restart time");
+
+    supervisor.restart();
+
+    expect(supervisor.logs.map((l) => l.text)).toEqual(["mid-line at restart time"]);
   });
 });

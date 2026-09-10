@@ -33,9 +33,9 @@ async function main(): Promise<void> {
   });
 
   const port = await server.listen(config.port);
-  // stdio: "inherit" (see electronForkFn) exists specifically so these two
-  // lines land in the same terminal as the operator app during development,
-  // instead of the server's boot state being invisible outside its status.
+  // stdio: "pipe" (see electronForkFn) lets the supervisor capture these two
+  // lines for the 서버 로그 panel and echo them to its own console, instead of
+  // the server's boot state being invisible outside its status.
   console.log(`tongyeok server on :${port}`);
   console.log(`languages: ${config.offeredLanguages.join(", ")} (source ${config.sourceLanguage})`);
   process.parentPort.postMessage({ type: "listening", port });
