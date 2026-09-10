@@ -156,8 +156,8 @@ describe("evaluateReachability", () => {
       platform: "darwin", port, probe: undefined, externalListenerSeen: false,
     });
     expect(checks.slice(0, 2)).toEqual([
-      { id: "network_profile", status: "unknown", messageKey: "reach.macos", params: {} },
-      { id: "firewall_rule", status: "unknown", messageKey: "reach.macos", params: {} },
+      { id: "network_profile", status: "unknown", kind: "advisory", messageKey: "reach.macos", params: {} },
+      { id: "firewall_rule", status: "unknown", kind: "advisory", messageKey: "reach.macos", params: {} },
     ]);
   });
 
@@ -168,8 +168,13 @@ describe("evaluateReachability", () => {
     expect(checks[2]).toEqual({
       id: "external_hit",
       status: "pass",
+      kind: "proof",
       messageKey: "reach.external_pass",
       params: {},
     });
+
+    // The field exists so a UI cannot render an advisory as though it were
+    // proof. Assert the distinction directly, or it can regress silently.
+    expect(checks.map((c) => c.kind)).toEqual(["advisory", "advisory", "proof"]);
   });
 });

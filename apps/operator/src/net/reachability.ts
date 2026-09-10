@@ -22,9 +22,20 @@ export interface ReachabilityProbe {
 
 export type ReachabilityStatus = "pass" | "warn" | "unknown";
 
+/**
+ * "advisory" checks read configuration that *looks* right but is not evidence
+ * anything actually got through — the laptop probing itself never crosses the
+ * inbound firewall path. "proof" is the one check that can only be true because
+ * a foreign device completed a real request. This travels with the data
+ * precisely so a UI author doesn't have to remember which of three `id`
+ * strings is the real one.
+ */
+export type ReachabilityKind = "advisory" | "proof";
+
 export interface ReachabilityCheck {
   id: "network_profile" | "firewall_rule" | "external_hit";
   status: ReachabilityStatus;
+  kind: ReachabilityKind;
   /** Key into the Korean string table; the UI never builds copy itself. */
   messageKey: string;
   params: Record<string, string | number>;
@@ -84,11 +95,14 @@ export function parseReachabilityProbe(json: string): ReachabilityProbe {
 }
 
 /** Windows maps NetworkCategory onto firewall profile names by these aliases. */
+function categoryToProfileName(category: string): string {
+  return category.toLowerCase() === "domainauthenticated" ? "domain" : category.toLowerCase();
+}
+
 function profileMatches(rule: string, category: string): boolean {
   const normalised = rule.toLowerCase();
   if (normalised === "any" || normalised === "") return true;
-  const wanted = category.toLowerCase() === "domainauthenticated" ? "domain" : category.toLowerCase();
-  return normalised.split(/\s*,\s*/).includes(wanted);
+  return normalised.split(/\s*,\s*/).includes(categoryToProfileName(category));
 }
 
 export interface EvaluateReachabilityInput {
@@ -100,6 +114,59 @@ export interface EvaluateReachabilityInput {
 }
 
 /**
+ * The rule check has no active-profile fallback to assume. Unlike
+ * network_profile it cannot report anything about "the" active profile when
+ * there isn't a known one — defaulting to Private (the permissive profile)
+ * would produce a "pass" on exactly the axis this task exists to catch, so an
+ * empty `connections` list means unknown here too, not a guess.
+ */
+function evaluateFirewallRule(
+  probe: ReachabilityProbe,
+  active: ProbeConnection[],
+  port: number,
+): ReachabilityCheck {
+  if (active.length === 0) {
+    return { id: "firewall_rule", status: "unknown", kind: "advisory", messageKey: "reach.rule_unknown", params: {} };
+  }
+
+  const categories = active.map((c) => c.networkCategory);
+
+  const covering = probe.rules.find((rule) =>
+    categories.some((category) => profileMatches(rule.profile, category)),
+  );
+  if (covering) {
+    return {
+      id: "firewall_rule",
+      status: "pass",
+      kind: "advisory",
+      messageKey: "reach.rule_pass",
+      params: { name: covering.displayName },
+    };
+  }
+
+  // No explicit Allow rule was found. The active profile's own default policy
+  // can still mean nothing is blocked — either because that profile has no
+  // inbound blocking configured (DefaultInboundAction Allow) or because
+  // Windows Firewall is switched off for it entirely.
+  const openProfile = probe.firewallProfiles.find(
+    (fp) =>
+      categories.some((category) => categoryToProfileName(category) === fp.name.toLowerCase()) &&
+      (fp.enabled.toLowerCase() === "false" || fp.defaultInboundAction.toLowerCase() === "allow"),
+  );
+  if (openProfile) {
+    return {
+      id: "firewall_rule",
+      status: "pass",
+      kind: "advisory",
+      messageKey: "reach.rule_pass_open",
+      params: { profile: openProfile.name },
+    };
+  }
+
+  return { id: "firewall_rule", status: "warn", kind: "advisory", messageKey: "reach.rule_warn", params: { port } };
+}
+
+/**
  * Two advisory checks and one proof, in that order. Nothing here ever returns
  * "pass" on evidence the laptop produced about itself — connecting to your own
  * LAN address goes over loopback and never touches an inbound firewall rule, so
@@ -107,21 +174,21 @@ export interface EvaluateReachabilityInput {
  */
 export function evaluateReachability(input: EvaluateReachabilityInput): ReachabilityCheck[] {
   const external: ReachabilityCheck = input.externalListenerSeen
-    ? { id: "external_hit", status: "pass", messageKey: "reach.external_pass", params: {} }
-    : { id: "external_hit", status: "warn", messageKey: "reach.external_warn", params: {} };
+    ? { id: "external_hit", status: "pass", kind: "proof", messageKey: "reach.external_pass", params: {} }
+    : { id: "external_hit", status: "warn", kind: "proof", messageKey: "reach.external_warn", params: {} };
 
   if (input.platform !== "win32") {
     return [
-      { id: "network_profile", status: "unknown", messageKey: "reach.macos", params: {} },
-      { id: "firewall_rule", status: "unknown", messageKey: "reach.macos", params: {} },
+      { id: "network_profile", status: "unknown", kind: "advisory", messageKey: "reach.macos", params: {} },
+      { id: "firewall_rule", status: "unknown", kind: "advisory", messageKey: "reach.macos", params: {} },
       external,
     ];
   }
 
   if (!input.probe) {
     return [
-      { id: "network_profile", status: "unknown", messageKey: "reach.profile_unknown", params: {} },
-      { id: "firewall_rule", status: "unknown", messageKey: "reach.rule_unknown", params: {} },
+      { id: "network_profile", status: "unknown", kind: "advisory", messageKey: "reach.profile_unknown", params: {} },
+      { id: "firewall_rule", status: "unknown", kind: "advisory", messageKey: "reach.rule_unknown", params: {} },
       external,
     ];
   }
@@ -133,38 +200,21 @@ export function evaluateReachability(input: EvaluateReachabilityInput): Reachabi
     ? {
         id: "network_profile",
         status: "warn",
+        kind: "advisory",
         messageKey: "reach.profile_warn",
         params: { alias: publicConnection.interfaceAlias },
       }
     : active.length === 0
-      ? { id: "network_profile", status: "unknown", messageKey: "reach.profile_unknown", params: {} }
+      ? { id: "network_profile", status: "unknown", kind: "advisory", messageKey: "reach.profile_unknown", params: {} }
       : {
           id: "network_profile",
           status: "pass",
+          kind: "advisory",
           messageKey: "reach.profile_pass",
           params: { alias: active[0]!.interfaceAlias },
         };
 
-  const categories = active.map((c) => c.networkCategory);
-  const covering = input.probe.rules.find((rule) =>
-    categories.length === 0
-      ? profileMatches(rule.profile, "Private")
-      : categories.some((category) => profileMatches(rule.profile, category)),
-  );
-
-  const ruleCheck: ReachabilityCheck = covering
-    ? {
-        id: "firewall_rule",
-        status: "pass",
-        messageKey: "reach.rule_pass",
-        params: { name: covering.displayName },
-      }
-    : {
-        id: "firewall_rule",
-        status: "warn",
-        messageKey: "reach.rule_warn",
-        params: { port: input.port },
-      };
+  const ruleCheck = evaluateFirewallRule(input.probe, active, input.port);
 
   return [profileCheck, ruleCheck, external];
 }
