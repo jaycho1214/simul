@@ -53,3 +53,103 @@ button {
   opacity: 0;
   pointer-events: none;
 }
+
+.listen {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  gap: 0.75rem;
+  padding: 0.75rem;
+}
+
+.listen-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.listen-lang {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+.listen-back {
+  color: var(--dim);
+  text-decoration: underline;
+}
+
+/*
+ * The single most likely way a working system looks broken at an event: the
+ * iOS silent switch mutes <audio> outright, silently. This notice is the
+ * mitigation, so it is loud on purpose — full-width, high-contrast, always
+ * the first thing under the header, and never dismissible. Do not tone this
+ * down to match the rest of the chrome.
+ */
+.silent-notice {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  padding: 0.75rem 1rem;
+  border-radius: 0.5rem;
+  background: var(--notice-bg);
+  color: var(--notice-fg);
+}
+
+.silent-notice-title {
+  font-size: 1.05rem;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--line);
+}
+
+/* "reconnecting" during a routine session rotation is normal traffic, not an
+   incident — amber and quiet, no retry offered. */
+.status--warn {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+/* A sustained lane error is the operator's problem and must read as one. */
+.status--error {
+  border-color: var(--error);
+  color: var(--error);
+}
+
+.status--ok {
+  color: var(--ok);
+}
+
+.status-retry {
+  text-decoration: underline;
+  white-space: nowrap;
+}
+
+.transcript {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.mute {
+  min-height: var(--tap);
+  border-radius: 0.5rem;
+  background: var(--row);
+  font-size: 1.1rem;
+  font-weight: 600;
+}
+
+.mute:active {
+  background: var(--row-press);
+}
+
+.mute[aria-pressed="true"] {
+  color: var(--dim);
+}
