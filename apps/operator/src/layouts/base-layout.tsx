@@ -10,9 +10,10 @@ export default function BaseLayout({
   const { t } = useTranslation();
 
   return (
-    <>
+    <div className="flex h-screen flex-col">
       <DragWindowRegion title={t("appName")} />
-      <main className="h-screen p-2 pb-20">{children}</main>
-    </>
+      {/* The route owns scrolling, so its sticky header strip stays put. */}
+      <div className="min-h-0 flex-1">{children}</div>
+    </div>
   );
 }

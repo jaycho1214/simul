@@ -132,6 +132,16 @@ export const KO_STRINGS = {
     save: "저장",
   },
 
+  // The header strip that never scrolls away: capture, server, head count,
+  // and — only while there is one — a count of lanes in error. `n` rather
+  // than `count` so i18next does not go looking for plural-suffixed keys.
+  strip: {
+    capturing: "캡처 중",
+    captureStopped: "캡처 정지됨",
+    listeners: "청취자 {{n}}",
+    errorLanes: "오류 레인 {{n}}",
+  },
+
   // The sixth surface, added beyond the spec's five panels so the server's
   // stdout/stderr — otherwise invisible once the app is packaged and there is
   // no terminal — is readable from inside the window.

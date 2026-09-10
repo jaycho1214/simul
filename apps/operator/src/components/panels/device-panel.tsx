@@ -1,6 +1,10 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { RefreshCw } from "lucide-react";
 import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import { Input, Select } from "@/components/ui/input";
+import { Field, Notice, Panel } from "@/components/ui/panel";
 import { listInputDevices } from "../../capture/capture-controller.ts";
 import { useCapture } from "../../hooks/use-capture.ts";
 import { ipc } from "../../ipc/manager.ts";
@@ -32,62 +36,72 @@ export function DevicePanel() {
   const channelMax = report?.achievedChannelCount ?? current?.requestedChannelCount ?? 2;
 
   return (
-    <section className="rounded-lg border p-4">
-      <h2 className="mb-3 text-lg font-semibold">{t("panel.device")}</h2>
-
-      <label className="block text-sm">{t("device.select")}</label>
-      <select
-        className="mt-1 w-full rounded border p-2"
-        value={current?.deviceId ?? ""}
-        onChange={(e) => {
-          const device = devices.data?.find((d) => d.deviceId === e.target.value);
-          void patch({ deviceId: e.target.value, deviceLabel: device?.label ?? null });
-        }}
-      >
-        <option value="">{t("device.none")}</option>
-        {devices.data?.map((device) => (
-          <option key={device.deviceId} value={device.deviceId}>
-            {device.label || device.deviceId}
-          </option>
-        ))}
-      </select>
+    <Panel
+      title={t("panel.device")}
+      aside={
+        <Button variant="ghost" size="sm" onClick={() => void devices.refetch()}>
+          <RefreshCw data-icon="inline-start" />
+          {t("device.refresh")}
+        </Button>
+      }
+    >
+      <Field label={t("device.select")}>
+        <Select
+          value={current?.deviceId ?? ""}
+          onChange={(e) => {
+            const device = devices.data?.find((d) => d.deviceId === e.target.value);
+            void patch({ deviceId: e.target.value, deviceLabel: device?.label ?? null });
+          }}
+        >
+          <option value="">{t("device.none")}</option>
+          {devices.data?.map((device) => (
+            <option key={device.deviceId} value={device.deviceId}>
+              {device.label || device.deviceId}
+            </option>
+          ))}
+        </Select>
+      </Field>
       {devices.data?.some((d) => d.label === "") ? (
-        <p className="mt-1 text-sm text-amber-600">{t("device.permissionNeeded")}</p>
+        <Notice tone="warn">{t("device.permissionNeeded")}</Notice>
       ) : null}
-      <button className="mt-2 text-sm underline" onClick={() => void devices.refetch()}>
-        {t("device.refresh")}
-      </button>
 
       {/* getUserMedia has no way to ask a device how many channels it has, so
           the engineer states it. The spec's chain is "getUserMedia
           (channelCount: device max)"; on macOS the XR18 is one 18-channel
           device, on Windows the WDM driver hands out 2-channel USB pairs.
           Without this control the app can never reach channels 3–18 on macOS. */}
-      <label className="mt-4 block text-sm">{t("device.requestedChannels")}</label>
-      <input
-        type="number"
-        min={1}
-        max={32}
-        className="mt-1 w-full rounded border p-2"
-        value={current?.requestedChannelCount ?? 2}
-        onChange={(e) => void patch({ requestedChannelCount: Number(e.target.value) })}
-      />
-      <p className="mt-1 text-xs text-neutral-500">{t("device.requestedChannelsHint")}</p>
+      <div className="grid grid-cols-2 gap-3">
+        <Field label={t("device.requestedChannels")}>
+          <Input
+            type="number"
+            min={1}
+            max={32}
+            className="font-mono tabular-nums"
+            value={current?.requestedChannelCount ?? 2}
+            onChange={(e) => void patch({ requestedChannelCount: Number(e.target.value) })}
+          />
+        </Field>
+        <Field label={t("device.channel")}>
+          <Select
+            className="font-mono tabular-nums"
+            value={current?.channelIndex ?? 0}
+            onChange={(e) => void patch({ channelIndex: Number(e.target.value) })}
+          >
+            {Array.from({ length: channelMax }, (_, i) => (
+              <option key={i} value={i}>
+                {i + 1}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      </div>
+      <p className="-mt-1 text-xs leading-snug text-muted-foreground">
+        {t("device.requestedChannelsHint")}
+      </p>
 
-      <label className="mt-4 block text-sm">{t("device.channel")}</label>
-      <select
-        className="mt-1 w-full rounded border p-2"
-        value={current?.channelIndex ?? 0}
-        onChange={(e) => void patch({ channelIndex: Number(e.target.value) })}
-      >
-        {Array.from({ length: channelMax }, (_, i) => (
-          <option key={i} value={i}>
-            {i + 1}
-          </option>
-        ))}
-      </select>
-
-      <dl className="mt-4 space-y-1 text-sm">
+      {/* What the chain actually opened at, as opposed to what was asked for.
+          A recessed readout so it reads as measured, not editable. */}
+      <div className="grid gap-1 rounded-md bg-inset px-3 py-2 text-xs text-muted-foreground tabular-nums">
         <div>
           {t("device.channelCount", {
             requested: report?.requestedChannelCount ?? current?.requestedChannelCount ?? 0,
@@ -104,23 +118,25 @@ export function DevicePanel() {
             processed: report?.contextSampleRate ?? 0,
           })}
         </div>
-        <div className={report?.dspConfirmedOff ? "text-emerald-600" : "text-amber-600"}>
-          {report?.dspConfirmedOff ? t("device.dspOff") : null}
-        </div>
-      </dl>
+        {report?.dspConfirmedOff ? <div className="text-live">{t("device.dspOff")}</div> : null}
+      </div>
 
       {/* Every warning code maps to a Korean sentence in the string table; the
           component never composes copy itself. */}
-      <ul className="mt-3 space-y-2">
-        {report?.warnings.map((warning) => (
-          <li key={warning.code} className="rounded bg-amber-100 p-2 text-sm text-amber-900">
-            {t(`warn.${warning.code}`, {
-              ...warning,
-              flags: "flags" in warning ? warning.flags.join(", ") : undefined,
-            })}
-          </li>
-        ))}
-      </ul>
-    </section>
+      {report?.warnings.length ? (
+        <ul className="grid gap-2">
+          {report.warnings.map((warning) => (
+            <li key={warning.code}>
+              <Notice tone="warn">
+                {t(`warn.${warning.code}`, {
+                  ...warning,
+                  flags: "flags" in warning ? warning.flags.join(", ") : undefined,
+                })}
+              </Notice>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </Panel>
   );
 }

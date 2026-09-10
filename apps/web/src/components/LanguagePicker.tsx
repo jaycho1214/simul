@@ -1,5 +1,6 @@
 import type { LanguageRow } from "../languages.ts";
 import { S } from "../strings.ts";
+import { ChevronIcon } from "./icons.tsx";
 
 export interface LanguagePickerProps {
   rows: LanguageRow[];
@@ -31,6 +32,7 @@ export function LanguagePicker({ rows, onPick }: LanguagePickerProps) {
               {row.tag ? (
                 <span className="picker-tag">{`(${row.tag})`}</span>
               ) : null}
+              <ChevronIcon className="picker-chevron" />
             </button>
           </li>
         ))}

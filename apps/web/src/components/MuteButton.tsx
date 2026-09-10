@@ -1,4 +1,5 @@
 import { S } from "../strings.ts";
+import { SpeakerIcon, SpeakerOffIcon } from "./icons.tsx";
 
 export interface MuteButtonProps {
   muted: boolean;
@@ -13,6 +14,11 @@ export function MuteButton({ muted, onToggle }: MuteButtonProps) {
       aria-pressed={muted}
       onClick={onToggle}
     >
+      {muted ? (
+        <SpeakerOffIcon className="mute-icon" />
+      ) : (
+        <SpeakerIcon className="mute-icon" />
+      )}
       {muted ? S.unmute : S.mute}
     </button>
   );

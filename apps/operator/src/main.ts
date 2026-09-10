@@ -59,7 +59,14 @@ function createWindow() {
   const basePath = getBasePath();
   const preload = path.join(basePath, "preload.js");
   const mainWindow = new BrowserWindow({
-    height: 600,
+    // Six panels at a glance, no scrolling, on any laptop from 13" up. The
+    // Forge template's 800×600 fit only the first two (pre-event checklist
+    // U1). Painted in the app's own dark before the renderer loads, so the
+    // first frame is not a white flash in a dark room.
+    height: 820,
+    minHeight: 680,
+    minWidth: 960,
+    backgroundColor: "#17191e",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
     trafficLightPosition:
       process.platform === "darwin" ? { x: 5, y: 5 } : undefined,
@@ -71,7 +78,7 @@ function createWindow() {
 
       preload,
     },
-    width: 800,
+    width: 1200,
   });
   ipcContext.setMainWindow(mainWindow);
 

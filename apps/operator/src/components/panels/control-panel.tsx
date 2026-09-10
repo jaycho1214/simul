@@ -1,8 +1,22 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Group, Notice, Panel } from "@/components/ui/panel";
+import { StatusLine, type Tone } from "@/components/ui/status-dot";
+import type { ServerHostState } from "@/server-host/server-supervisor";
 import { captureController, useCapture } from "../../hooks/use-capture.ts";
 import { ipc } from "../../ipc/manager.ts";
+
+const SERVER_TONE: Record<ServerHostState, Tone> = {
+  stopped: "idle",
+  starting: "warn",
+  listening: "live",
+  external: "live",
+  crashed: "error",
+  giving_up: "error",
+};
 
 export function ControlPanel() {
   const { t } = useTranslation();
@@ -44,79 +58,89 @@ export function ControlPanel() {
     await queryClient.invalidateQueries({ queryKey: ["devices"] });
   }
 
-  return (
-    <section className="rounded-lg border p-4">
-      <h2 className="mb-3 text-lg font-semibold">{t("panel.control")}</h2>
+  const hasKey = settings.data?.hasGeminiApiKey ?? false;
 
+  return (
+    <Panel title={t("panel.control")}>
+      {/* The transport. Start is the one filled green control in the app;
+          stop is outlined so it is findable without shouting, and neither is
+          ever ambiguous about which one is available right now. */}
       <div className="flex gap-2">
-        <button
-          className="rounded bg-emerald-600 px-6 py-3 text-lg font-semibold text-white disabled:opacity-40"
+        <Button
+          className="h-11 flex-1 bg-live text-base font-semibold text-[oklch(0.2_0.03_155)] hover:bg-live/90"
           disabled={capture.running || !settings.data?.deviceId}
           onClick={() => void start()}
         >
           {t("control.start")}
-        </button>
-        <button
-          className="rounded bg-neutral-700 px-6 py-3 text-lg font-semibold text-white disabled:opacity-40"
+        </Button>
+        <Button
+          variant="outline"
+          className="h-11 flex-1 text-base font-semibold"
           disabled={!capture.running}
           onClick={() => void captureController.stop()}
         >
           {t("control.stop")}
-        </button>
+        </Button>
       </div>
 
       {capture.error ? (
-        <p className="mt-3 rounded bg-red-100 p-2 text-red-900">
+        <Notice tone="error">
           {t(`error.${capture.error.code}`, capture.error as Record<string, string>)}
-        </p>
+        </Notice>
       ) : null}
       {capture.running && capture.ingestState !== "open" ? (
-        <p className="mt-3 rounded bg-amber-100 p-2 text-amber-900">
-          {t("error.ingestDisconnected")}
-        </p>
+        <Notice tone="warn">{t("error.ingestDisconnected")}</Notice>
       ) : null}
 
-      <h3 className="mt-4 text-sm font-semibold">{t("control.serverTitle")}</h3>
-      <p className="text-sm">{statusText}</p>
-      {status?.detail ? (
-        <p className="font-mono text-xs text-neutral-600">{status.detail}</p>
-      ) : null}
-      <button
-        className="mt-1 text-sm underline"
-        onClick={async () => {
-          await ipc.client.server.restart();
-          await queryClient.invalidateQueries({ queryKey: ["serverStatus"] });
-        }}
+      <Group
+        label={t("control.serverTitle")}
+        aside={
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={async () => {
+              await ipc.client.server.restart();
+              await queryClient.invalidateQueries({ queryKey: ["serverStatus"] });
+            }}
+          >
+            {t("control.restart")}
+          </Button>
+        }
       >
-        {t("control.restart")}
-      </button>
+        {status ? <StatusLine tone={SERVER_TONE[status.state]}>{statusText}</StatusLine> : null}
+        {status?.detail ? (
+          <p className="font-mono text-xs break-all text-muted-foreground">{status.detail}</p>
+        ) : null}
+      </Group>
 
-      <h3 className="mt-4 text-sm font-semibold">{t("control.apiKey")}</h3>
-      <p className={settings.data?.hasGeminiApiKey ? "text-sm text-emerald-700" : "text-sm text-amber-700"}>
-        {settings.data?.hasGeminiApiKey ? t("control.apiKeySet") : t("control.apiKeyMissing")}
-      </p>
-      <div className="mt-1 flex gap-2">
-        <input
-          type="password"
-          className="flex-1 rounded border p-2"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-        />
-        <button
-          className="rounded border px-3"
-          onClick={async () => {
-            await ipc.client.settings.set({ geminiApiKey: apiKey });
-            setApiKey("");
-            await queryClient.invalidateQueries({ queryKey: ["settings"] });
-            // The supervisor re-reads settings on every spawn, but the running
-            // process still holds the old key, so the restart is explicit. It
-            // is safe here because saving a key is a pre-event action.
-            await ipc.client.server.restart();
-          }}
-        >
-          {t("control.save")}
-        </button>
-      </div>
-    </section>
+      <Group label={t("control.apiKey")}>
+        <StatusLine tone={hasKey ? "live" : "warn"}>
+          {hasKey ? t("control.apiKeySet") : t("control.apiKeyMissing")}
+        </StatusLine>
+        <div className="flex gap-2">
+          <Input
+            type="password"
+            autoComplete="off"
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+          />
+          <Button
+            variant="secondary"
+            className="h-9 px-4 text-sm"
+            onClick={async () => {
+              await ipc.client.settings.set({ geminiApiKey: apiKey });
+              setApiKey("");
+              await queryClient.invalidateQueries({ queryKey: ["settings"] });
+              // The supervisor re-reads settings on every spawn, but the running
+              // process still holds the old key, so the restart is explicit. It
+              // is safe here because saving a key is a pre-event action.
+              await ipc.client.server.restart();
+            }}
+          >
+            {t("control.save")}
+          </Button>
+        </div>
+      </Group>
+    </Panel>
   );
 }

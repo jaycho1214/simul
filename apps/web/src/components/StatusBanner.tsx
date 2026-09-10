@@ -63,6 +63,7 @@ export interface StatusBannerProps {
 export function StatusBanner({ banner, onRetry }: StatusBannerProps) {
   return (
     <div className={`status status--${banner.tone}`} role="status">
+      <span className="status-dot" aria-hidden="true" />
       <span className="status-text">{banner.text}</span>
       {onRetry ? (
         <button type="button" className="status-retry" onClick={onRetry}>

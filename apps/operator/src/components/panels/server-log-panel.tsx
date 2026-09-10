@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
+import { Panel } from "@/components/ui/panel";
 import { ipc } from "../../ipc/manager.ts";
 
 /**
@@ -34,23 +35,24 @@ export function ServerLogPanel() {
   }, [lines.length]);
 
   return (
-    <section className="col-span-2 rounded-lg border p-4">
-      <h2 className="mb-3 text-lg font-semibold">{t("serverLog.title")}</h2>
-
+    <Panel title={t("serverLog.title")}>
       <div
         ref={scrollRef}
-        className="h-48 overflow-y-auto rounded bg-neutral-950 p-2 font-mono text-xs whitespace-pre-wrap text-neutral-200"
+        className="h-52 overflow-y-auto rounded-md bg-inset px-3 py-2 font-mono text-xs leading-relaxed whitespace-pre-wrap"
       >
         {lines.length === 0 ? (
-          <p className="text-neutral-500">{t("serverLog.empty")}</p>
+          <p className="text-muted-foreground">{t("serverLog.empty")}</p>
         ) : (
           lines.map((line, index) => (
-            <div key={`${line.at}-${index}`} className={line.stream === "stderr" ? "text-red-400" : undefined}>
+            <div
+              key={`${line.at}-${index}`}
+              className={line.stream === "stderr" ? "text-error" : "text-foreground/85"}
+            >
               {line.text}
             </div>
           ))
         )}
       </div>
-    </section>
+    </Panel>
   );
 }
