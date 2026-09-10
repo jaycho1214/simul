@@ -5,12 +5,24 @@ import {
   installExtension,
   REACT_DEVELOPER_TOOLS,
 } from "electron-devtools-installer";
+import squirrelStartup from "electron-squirrel-startup";
 import { ipcContext } from "@/ipc/context";
 import { ServerSupervisor, electronForkFn } from "@/server-host/server-supervisor";
 import { IPC_CHANNELS, inDevelopment } from "./constants";
 import { buildServerEnv } from "./settings/schema.ts";
 import { getSettings } from "./settings/store.ts";
-import { getBasePath } from "./utils/path";
+import { getBasePath, resolveWebRoot } from "./utils/path";
+
+// Squirrel launches this same executable with --squirrel-install,
+// --squirrel-updated etc. during install/update/uninstall, each time as a
+// real app relaunch. Without this guard every one of those relaunches would
+// fall through to app.whenReady() below and flash a full window (and fork a
+// second server) at whoever is standing at the venue laptop during an
+// install or an auto-update. app.quit() here runs before the app is ready,
+// which is what stops "ready" from ever firing for this launch.
+if (squirrelStartup) {
+  app.quit();
+}
 
 const externalServer =
   process.argv.includes("--external-server") ||
@@ -19,11 +31,26 @@ const externalServer =
 // Both in development and in a packaged app the bundle sits beside main.js.
 const serverEntryPath = path.join(getBasePath(), "server-entry.js");
 
+// apps/server defaults WEB_ROOT from import.meta.url, which only means
+// anything as an ES module — Forge's Vite plugin bundles server-entry.js to
+// CommonJS, where that default throws instead of quietly picking a wrong
+// path (see forge.config.ts's extraResource comment). Passed explicitly here
+// so that default is never reached; process.env.WEB_ROOT still wins when a
+// developer sets one (e.g. scripts/start.sh's standalone-server flow), same
+// as apps/server's own `??` treats an explicit empty string as "disabled"
+// rather than "unset".
+const webRoot = resolveWebRoot(getBasePath(), app.isPackaged, process.resourcesPath);
+
 export const supervisor = new ServerSupervisor({
   entryPath: serverEntryPath,
   // Evaluated on every spawn, so a key saved in 제어 is picked up by the next
   // 서버 재시작 without reconstructing the supervisor.
-  env: () => ({ ...process.env, ...buildServerEnv(getSettings()) }) as Record<string, string>,
+  env: () =>
+    ({
+      ...process.env,
+      ...buildServerEnv(getSettings()),
+      WEB_ROOT: process.env.WEB_ROOT ?? webRoot,
+    }) as Record<string, string>,
   external: externalServer,
   fork: electronForkFn(),
 });
