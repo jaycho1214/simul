@@ -42,6 +42,17 @@ export interface LanguageRow {
   isSource: boolean;
 }
 
+/**
+ * Assumes `sourceLanguage` is a member of `offeredLanguages` — the server's
+ * own config loader (`apps/server/src/config.ts`) refuses to start unless
+ * `OFFERED_LANGUAGES` includes `SOURCE_LANGUAGE`, so every `/config` response
+ * this client will ever see already satisfies it. `parseConfig` deliberately
+ * does not re-check this: it is not part of the wire contract, just an
+ * invariant the server enforces on itself. If it were ever violated anyway,
+ * this function degrades safely rather than throwing — no row is tagged
+ * `ORIGINAL_TAG`/`isSource: true`, but the list still renders in the server's
+ * given order.
+ */
 export function languageRows(
   config: Pick<WebConfig, "offeredLanguages" | "sourceLanguage">,
 ): LanguageRow[] {

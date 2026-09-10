@@ -1,12 +1,13 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { fetchConfig, parseConfig, serverBaseUrls } from "./config.ts";
 
 function stubFetch(body: unknown, status = 200): typeof fetch {
-  return (async () =>
+  return vi.fn(async () =>
     new Response(JSON.stringify(body), {
       status,
       headers: { "content-type": "application/json" },
-    })) as unknown as typeof fetch;
+    }),
+  ) as unknown as typeof fetch;
 }
 
 describe("parseConfig", () => {
@@ -51,21 +52,50 @@ describe("parseConfig", () => {
 
 describe("fetchConfig", () => {
   test("reads /config from the given origin", async () => {
-    const config = await fetchConfig(
-      "http://192.168.1.4:8080",
-      stubFetch({
-        offeredLanguages: ["ko", "en"],
-        sourceLanguage: "ko",
-        transcriptDelayMs: 0,
-      }),
-    );
+    const fetchImpl = stubFetch({
+      offeredLanguages: ["ko", "en"],
+      sourceLanguage: "ko",
+      transcriptDelayMs: 0,
+    });
+
+    const config = await fetchConfig("http://192.168.1.4:8080", fetchImpl);
+
     expect(config.offeredLanguages).toEqual(["ko", "en"]);
+    // A wrong path or a dropped no-store here would connect the phone
+    // nowhere, silently — indistinguishable from a venue wifi problem.
+    expect(fetchImpl).toHaveBeenCalledWith("http://192.168.1.4:8080/config", {
+      cache: "no-store",
+    });
   });
 
   test("throws on a non-OK response", async () => {
     await expect(
       fetchConfig("http://192.168.1.4:8080", stubFetch({}, 503)),
     ).rejects.toThrow(/503/);
+  });
+
+  test("propagates a malformed JSON body instead of swallowing it", async () => {
+    const fetchImpl = vi.fn(
+      async () =>
+        new Response("not json", {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    ) as unknown as typeof fetch;
+
+    await expect(
+      fetchConfig("http://192.168.1.4:8080", fetchImpl),
+    ).rejects.toThrow();
+  });
+
+  test("propagates a network failure instead of swallowing it", async () => {
+    const fetchImpl = vi.fn(async () => {
+      throw new Error("network unreachable");
+    }) as unknown as typeof fetch;
+
+    await expect(
+      fetchConfig("http://192.168.1.4:8080", fetchImpl),
+    ).rejects.toThrow(/network unreachable/);
   });
 });
 
