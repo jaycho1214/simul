@@ -30,6 +30,14 @@ const config: ForgeConfig = {
           entry: "src/preload.ts",
           target: "preload",
         },
+        {
+          // The translation server, bundled for the utility process. target
+          // "main" because it runs in a Node context, not a renderer; the
+          // output lands beside main.js in .vite/build as server-entry.js.
+          config: "vite.server.config.mts",
+          entry: "src/server-host/server-entry.ts",
+          target: "main",
+        },
       ],
       renderer: [
         {

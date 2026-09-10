@@ -2,6 +2,13 @@
   "name": "@tongyeok/server",
   "private": true,
   "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./server": "./src/server.ts",
+    "./config": "./src/config.ts",
+    "./clock": "./src/clock.ts",
+    "./gemini": "./src/gemini/gemini-translate-session.ts"
+  },
   "scripts": {
     "test": "node --disable-warning=ExperimentalWarning --experimental-transform-types --test",
     "typecheck": "tsc -p .",
