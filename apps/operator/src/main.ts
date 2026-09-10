@@ -1,5 +1,5 @@
 import path from "node:path";
-import { app, BrowserWindow } from "electron";
+import { app, BrowserWindow, session, systemPreferences } from "electron";
 import { ipcMain } from "electron/main";
 import {
   installExtension,
@@ -63,6 +63,19 @@ async function setupORPC() {
 
 app.whenReady().then(async () => {
   try {
+    // The operator app only ever asks for the microphone. Everything else is
+    // denied. Electron refuses getUserMedia outright unless this handler
+    // explicitly allows it, independent of the OS-level TCC prompt below.
+    session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
+      callback(permission === "media");
+    });
+
+    if (process.platform === "darwin") {
+      // Returns the cached answer if the user already decided; the dialog
+      // only appears once. Requires NSMicrophoneUsageDescription (Task 11).
+      void systemPreferences.askForMediaAccess("microphone");
+    }
+
     createWindow();
     await installExtensions();
     await setupORPC();
