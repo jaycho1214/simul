@@ -153,3 +153,125 @@ button {
 .mute[aria-pressed="true"] {
   color: var(--dim);
 }
+
+/* ---------- picker ---------- */
+
+.picker {
+  min-height: 100%;
+  padding: 1.5rem 1rem max(1.5rem, env(safe-area-inset-bottom));
+}
+
+.picker-title {
+  margin: 0 0 0.25rem;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: var(--dim);
+}
+
+.picker-prompt {
+  margin: 0 0 1.5rem;
+  font-size: 1.15rem;
+  color: var(--dim);
+}
+
+.picker-rows {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.picker-row {
+  display: flex;
+  align-items: baseline;
+  /* LanguagePicker.tsx renders the endonym and its "(원음 · Original)" tag as
+     adjacent JSX siblings with no text between them, so without this the row
+     reads as one run-on word ("한국어(원음 · Original)"). This gap is a
+     visual-only fix: a screen reader concatenates the two text nodes exactly
+     as they are in the DOM, so it does not gain a pause from CSS. LanguagePicker
+     is out of scope for this task, so a literal separator character is left to
+     whichever task next touches that component if a screen-reader pause turns
+     out to matter in practice. */
+  gap: 0.5rem;
+  width: 100%;
+  min-height: var(--tap);
+  padding: 1rem 1.25rem;
+  border-radius: 0.5rem;
+  background: var(--row);
+  text-align: left;
+}
+
+.picker-row:active {
+  background: var(--row-press);
+}
+
+.picker-endonym {
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.picker-tag {
+  font-size: 1rem;
+  color: var(--dim);
+}
+
+/* ---------- transcript lines ---------- */
+
+.transcript-lines {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.85rem;
+}
+
+/* Read at arm's length in a dim room. */
+.transcript-line {
+  font-size: clamp(1.35rem, 5.2vw, 2rem);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.transcript-line--interim {
+  color: var(--dim);
+}
+
+.transcript-empty {
+  font-size: 1.1rem;
+  color: var(--dim);
+}
+
+.silent-notice-body {
+  font-size: 0.95rem;
+  line-height: 1.35;
+}
+
+.status-text {
+  overflow-wrap: anywhere;
+}
+
+/* ---------- loading and failure ---------- */
+
+.notice-screen {
+  display: grid;
+  place-content: center;
+  gap: 1.25rem;
+  min-height: 100%;
+  padding: 2rem 1.5rem;
+  text-align: center;
+}
+
+.notice-text {
+  margin: 0;
+  font-size: 1.2rem;
+  color: var(--dim);
+}
+
+.notice-retry {
+  min-height: var(--tap);
+  padding: 0 1.5rem;
+  border-radius: 0.5rem;
+  background: var(--row);
+  font-size: 1.15rem;
+}
