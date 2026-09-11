@@ -1,3 +1,7 @@
+// A URL to a file, never inlined: vite.renderer.config.mts excludes the
+// worklet from `assetsInlineLimit`, because the packaged window's
+// `script-src 'self'` refuses a data: module and addModule() fails with
+// "Unable to load a worklet's module" — as it did on the venue laptop.
 import workletUrl from "./pcm-tap.worklet.js?url";
 import { buildDeviceReport, clampChannelIndex, type DeviceReport } from "./device-report.ts";
 import { FrameAccumulator } from "./frame-accumulator.ts";

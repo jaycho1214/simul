@@ -365,19 +365,23 @@ aux` confirmed no `NodeService`-type utility process under
       from `out/`, `curl /config` → 200) and nothing packaging-related has
       changed since.
 
-- [ ] **P2 — the AudioWorklet loads in the packaged app.**
-      **UNVERIFIED this session.** Not independently re-run against a fresh
-      `out/` build. Task 5's finding — Vite inlines the worklet as a base64
-      data URI under 4 KB, so there is no packaged-vs-dev divergence to trigger
-      the blob-URL fallback — still holds by inspection (nothing in
-      `capture-controller.ts` or the worklet file has changed since Task 5),
-      but this is an inference, not a fresh empirical check. **To verify for
-      real: `pnpm --filter operator package`, open the app from `out/`, start
-      capture, and confirm no `Failed to load module script` appears in the
-      DevTools console** (packaged apps have DevTools available via the same
-      `devTools: inDevelopment` flag only in dev builds — check via a
-      `--remote-debugging-port` launch of the packaged binary if the in-app
-      console isn't reachable).
+- [x] **P2 — the AudioWorklet loads in the packaged app.**
+      **FAILED on the venue laptop with v0.2.0, root-caused and fixed in
+      v0.2.1.** Every 시작 ended in "Unable to load a worklet's module". The
+      inference recorded here earlier — "Vite inlines the worklet as a
+      base64 data URI under 4 KB, so there is no packaged-vs-dev divergence"
+      — was true and was the bug: the packaged window is a `file://` document
+      whose `index.html` sets `script-src 'self'`, and Chromium refuses a
+      `data:` worklet module under it ("violates the following Content
+      Security Policy directive", read off the packaged renderer's console
+      over CDP on 2026-09-11). Dev never showed it because Vite serves the
+      worklet as a same-origin URL there. `vite.renderer.config.mts` now
+      excludes `*.worklet.js` from inlining (`src/build/inline-assets.ts`),
+      the bundle references `assets/pcm-tap.worklet-<hash>.js` relative to
+      itself, and `addModule` + `new AudioWorkletNode(ctx, "pcm-tap")` were
+      confirmed working from inside `app.asar` on the packaged macOS build.
+      **Pass on the laptop:** 시작 reaches 캡처 중 and the 앱 log shows
+      `캡처 시작 — …`; a failure would name `workletFailed` in the 앱 tab.
 
 - [ ] **P3 — device loss is handled.**
       **UNVERIFIED — no removable/unpluggable USB audio device available in
