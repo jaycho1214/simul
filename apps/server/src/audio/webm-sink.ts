@@ -55,8 +55,8 @@ function buildInitSegment(inputSampleRate: number): Buffer {
     id(0x1549a966),
     Buffer.concat([
       elem(id(0x2ad7b1), uint(1_000_000)), // TimestampScale: 1 ms
-      elem(id(0x4d80), Buffer.from("tongyeok")), // MuxingApp
-      elem(id(0x5741), Buffer.from("tongyeok")), // WritingApp
+      elem(id(0x4d80), Buffer.from("simul")), // MuxingApp
+      elem(id(0x5741), Buffer.from("simul")), // WritingApp
     ]),
   );
 

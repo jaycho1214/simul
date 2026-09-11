@@ -4,7 +4,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -f .env ] || { echo "!! No .env found (need GEMINI_API_KEY and INGEST_TOKEN)"; exit 1; }
-pnpm --filter @tongyeok/web build >/dev/null
+pnpm --filter @simul/web build >/dev/null
 LAN=$(ipconfig getifaddr en0 2>/dev/null || echo localhost)
 echo "  Attendees open : http://${LAN}:${PORT:-8080}"
 set -a; . ./.env; set +a

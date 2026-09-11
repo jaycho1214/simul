@@ -1,4 +1,4 @@
-import type { LangCode, ServerMessage } from "@tongyeok/protocol";
+import type { LangCode, ServerMessage } from "@simul/protocol";
 import { LaneCapError, UnknownLanguageError, type LaneManager } from "../lane/lane-manager.ts";
 
 export interface ListenWebSocket {

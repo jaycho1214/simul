@@ -1,4 +1,4 @@
-import type { LangCode } from "@tongyeok/protocol";
+import type { LangCode } from "@simul/protocol";
 import type {
   TranslateSession,
   TranslateSessionEvents,

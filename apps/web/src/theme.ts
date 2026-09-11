@@ -11,7 +11,7 @@ import type { Theme } from "./config.ts";
  */
 export type Preference = "light" | "dark" | null;
 
-export const PREFERENCE_KEY = "tongyeok.theme";
+export const PREFERENCE_KEY = "simul.theme";
 
 const VALID = ["light", "dark"] as const;
 

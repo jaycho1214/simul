@@ -1,4 +1,4 @@
-import type { TranscriptLine } from "@tongyeok/protocol";
+import type { TranscriptLine } from "@simul/protocol";
 import { describe, expect, test } from "vitest";
 import {
   MAX_VISIBLE_LINES,

@@ -10,7 +10,7 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 echo "==> Building the attendee app (served by the server the app starts)..."
-pnpm --filter @tongyeok/web build >/dev/null
+pnpm --filter @simul/web build >/dev/null
 
 LAN=$(ipconfig getifaddr en0 2>/dev/null || hostname -I 2>/dev/null | awk '{print $1}' || echo "")
 PORT="${PORT:-8080}"

@@ -1,6 +1,6 @@
 /**
  * Exactly 20 ms of 16 kHz mono s16le, the only frame size the server's
- * IngestGateway accepts. Kept here rather than imported from @tongyeok/protocol,
+ * IngestGateway accepts. Kept here rather than imported from @simul/protocol,
  * which exports types only.
  */
 export const INGEST_FRAME_BYTES = 640;

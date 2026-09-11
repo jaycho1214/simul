@@ -1,5 +1,5 @@
 import { useTranslation } from "react-i18next";
-import type { LaneState, LaneStatus } from "@tongyeok/protocol";
+import type { LaneState, LaneStatus } from "@simul/protocol";
 import { Panel } from "@/components/ui/panel";
 import { StatusDot, type Tone } from "@/components/ui/status-dot";
 import { cn } from "@/utils/tailwind";

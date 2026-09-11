@@ -1,5 +1,5 @@
 import type { ServerResponse } from "node:http";
-import type { LangCode } from "@tongyeok/protocol";
+import type { LangCode } from "@simul/protocol";
 import { LaneCapError, UnknownLanguageError, type LaneManager } from "../lane/lane-manager.ts";
 
 /**

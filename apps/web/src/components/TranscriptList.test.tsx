@@ -1,4 +1,4 @@
-import type { TranscriptLine } from "@tongyeok/protocol";
+import type { TranscriptLine } from "@simul/protocol";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
 import { STICKY_THRESHOLD_PX, TranscriptList, isAtBottom } from "./TranscriptList.tsx";

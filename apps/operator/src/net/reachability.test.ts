@@ -11,7 +11,7 @@ const fullProbe = JSON.stringify({
     { Name: "Private", Enabled: "True", DefaultInboundAction: "Block" },
     { Name: "Public", Enabled: "True", DefaultInboundAction: "Block" },
   ],
-  rules: [{ DisplayName: "tongyeok 8080", Profile: "Private" }],
+  rules: [{ DisplayName: "Simul 8080", Profile: "Private" }],
 });
 
 describe("parseReachabilityProbe", () => {
@@ -19,7 +19,7 @@ describe("parseReachabilityProbe", () => {
     const probe = parseReachabilityProbe(fullProbe);
     expect(probe.connections).toHaveLength(1);
     expect(probe.firewallProfiles).toHaveLength(2);
-    expect(probe.rules).toEqual([{ displayName: "tongyeok 8080", profile: "Private" }]);
+    expect(probe.rules).toEqual([{ displayName: "Simul 8080", profile: "Private" }]);
   });
 
   test("survives PowerShell 5.1 unrolling a single-element array into an object", () => {
@@ -81,7 +81,7 @@ describe("evaluateReachability", () => {
       JSON.stringify({
         connections: [{ InterfaceAlias: "Wi-Fi", NetworkCategory: "Public" }],
         firewallProfiles: [],
-        rules: [{ DisplayName: "tongyeok 8080", Profile: "Private" }],
+        rules: [{ DisplayName: "Simul 8080", Profile: "Private" }],
       }),
     );
     const [profile] = evaluateReachability({
@@ -103,7 +103,7 @@ describe("evaluateReachability", () => {
       JSON.stringify({
         connections: [{ InterfaceAlias: "Wi-Fi", NetworkCategory: "Public" }],
         firewallProfiles: [],
-        rules: [{ DisplayName: "tongyeok 8080", Profile: "Private" }],
+        rules: [{ DisplayName: "Simul 8080", Profile: "Private" }],
       }),
     );
     const checks = evaluateReachability({

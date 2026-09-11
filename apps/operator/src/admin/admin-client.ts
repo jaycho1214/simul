@@ -1,4 +1,4 @@
-import type { LaneStatus } from "@tongyeok/protocol";
+import type { LaneStatus } from "@simul/protocol";
 import {
   ReconnectingSocket,
   type ConnectionState,

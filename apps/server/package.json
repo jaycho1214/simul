@@ -1,5 +1,5 @@
 {
-  "name": "@tongyeok/server",
+  "name": "@simul/server",
   "private": true,
   "type": "module",
   "exports": {
@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@google/genai": "^2.21.0",
-    "@tongyeok/protocol": "workspace:*",
+    "@simul/protocol": "workspace:*",
     "opusscript": "^0.1.1",
     "ws": "^8.18.0"
   },

@@ -7,7 +7,7 @@ import { normalizeSettings, type OperatorSettings } from "./schema.ts";
  * file that a previous build wrote must degrade to defaults rather than stop the
  * app from starting.
  */
-const store = new Store<{ settings: unknown }>({ name: "tongyeok-operator" });
+const store = new Store<{ settings: unknown }>({ name: "simul-operator" });
 
 export function getSettings(): OperatorSettings {
   const settings = normalizeSettings(store.get("settings"));

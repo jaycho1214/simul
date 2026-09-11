@@ -31,9 +31,9 @@ const config: ForgeConfig = {
     // removes the question entirely — and it is a 310 KB data file, not code,
     // so there is no size argument for keeping it packed.
     asar: { unpack: "**/opusscript/build/*.wasm" },
-    name: "tongyeok",
-    executableName: "tongyeok",
-    appBundleId: "kr.tongyeok.operator",
+    name: "Simul",
+    executableName: "simul",
+    appBundleId: "io.github.jaycho1214.simul",
     afterCopy: [
       (buildPath, _electronVersion, _platform, _arch, callback) => {
         cp(
@@ -60,8 +60,7 @@ const config: ForgeConfig = {
     extendInfo: {
       // Required before systemPreferences.askForMediaAccess("microphone") can
       // show a dialog on macOS; without it the app is killed on first call.
-      NSMicrophoneUsageDescription:
-        "통역 시스템이 믹서의 오디오를 캡처하려면 마이크 접근 권한이 필요합니다.",
+      NSMicrophoneUsageDescription: "Simul needs microphone access to capture the mixer's audio.",
     },
   },
 
@@ -70,7 +69,7 @@ const config: ForgeConfig = {
 
   makers: [
     // Windows: the venue laptop's installer.
-    new MakerSquirrel({ name: "tongyeok", setupExe: "tongyeok-setup.exe" }),
+    new MakerSquirrel({ name: "Simul", setupExe: "Simul-Setup.exe" }),
     // macOS: a zip is enough for a development machine; there is no notarised
     // distribution channel and none is needed.
     new MakerZIP({}, ["darwin"]),

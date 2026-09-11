@@ -1,4 +1,4 @@
-import type { ServerMessage } from "@tongyeok/protocol";
+import type { ServerMessage } from "@simul/protocol";
 import { useCallback, useEffect, useReducer, useRef } from "react";
 import { DelayQueue } from "./delay-queue.ts";
 import { ListenClient } from "./listen-client.ts";

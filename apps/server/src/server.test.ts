@@ -220,7 +220,7 @@ test("a malformed upgrade target drops the socket instead of killing the process
 async function withWebRoot(
   run: (cfg: typeof config & { webRoot: string }) => Promise<void>,
 ): Promise<void> {
-  const root = await mkdtemp(join(tmpdir(), "tongyeok-web-root-"));
+  const root = await mkdtemp(join(tmpdir(), "simul-web-root-"));
   try {
     await writeFile(join(root, "index.html"), "<!doctype html><title>attendee app</title>");
     await run({ ...config, webRoot: root });

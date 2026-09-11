@@ -12,7 +12,7 @@ const server = createServer({
 });
 
 const port = await server.listen(config.port);
-console.log(`tongyeok server on :${port}`);
+console.log(`simul server on :${port}`);
 console.log(
   `languages: ${config.offeredLanguages.join(", ")}${config.passthroughLane ? " + passthrough lane (debug)" : ""}`,
 );

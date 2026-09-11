@@ -1,6 +1,6 @@
 import { GoogleGenAI, Modality } from "@google/genai";
 import type { LiveServerMessage } from "@google/genai";
-import type { LangCode } from "@tongyeok/protocol";
+import type { LangCode } from "@simul/protocol";
 import type { Clock, TimerHandle } from "../clock.ts";
 import { splitCompleteSentences } from "./segment-lines.ts";
 import type {

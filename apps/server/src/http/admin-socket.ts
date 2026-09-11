@@ -1,4 +1,4 @@
-import type { AdminMessage } from "@tongyeok/protocol";
+import type { AdminMessage } from "@simul/protocol";
 import type { Clock, TimerHandle } from "../clock.ts";
 import type { LaneManager } from "../lane/lane-manager.ts";
 import type { StreamRoute } from "./stream-route.ts";

@@ -358,7 +358,7 @@ export function electronForkFn(): ForkFn {
   return (entryPath, args, env) =>
     utilityProcess.fork(entryPath, args, {
       env,
-      serviceName: "tongyeok-server",
+      serviceName: "simul-server",
       // Piped, not inherited: a packaged app run from the venue laptop's
       // Start Menu has no terminal for "inherit" to land in, so stdout/stderr
       // must come back through this process to reach the 서버 로그 panel —

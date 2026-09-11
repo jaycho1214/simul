@@ -1,4 +1,4 @@
-import type { TranscriptLine } from "@tongyeok/protocol";
+import type { TranscriptLine } from "@simul/protocol";
 import { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 
 /** How close to the bottom still counts as "following along". */

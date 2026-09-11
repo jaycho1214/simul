@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { ServerMessage } from "@tongyeok/protocol";
+import type { ServerMessage } from "@simul/protocol";
 import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
 import {

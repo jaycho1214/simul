@@ -22,7 +22,7 @@ if (squirrelStartup) {
 }
 
 const externalServer =
-  process.argv.includes("--external-server") || process.env.TONGYEOK_EXTERNAL_SERVER === "1";
+  process.argv.includes("--external-server") || process.env.SIMUL_EXTERNAL_SERVER === "1";
 
 // Both in development and in a packaged app the bundle sits beside main.js.
 const serverEntryPath = path.join(getBasePath(), "server-entry.js");

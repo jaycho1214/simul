@@ -1,4 +1,4 @@
-import type { LaneStatus } from "@tongyeok/protocol";
+import type { LaneStatus } from "@simul/protocol";
 
 /**
  * Endonyms, matching the attendee picker. A lane is shown in its own script so

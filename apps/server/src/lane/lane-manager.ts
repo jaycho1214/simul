@@ -1,4 +1,4 @@
-import type { LangCode, LaneStatus } from "@tongyeok/protocol";
+import type { LangCode, LaneStatus } from "@simul/protocol";
 import type { Clock, TimerHandle } from "../clock.ts";
 import type { AudioHub } from "../audio-hub.ts";
 import type { TranslateSessionFactory } from "../gemini/translate-session.ts";

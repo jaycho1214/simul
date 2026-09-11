@@ -1,4 +1,4 @@
-# Pre-event checklist — tongyeok operator app
+# Pre-event checklist — Simul operator app
 
 This is the document that stands between "all automated tests pass" and "it
 worked in the room." Nothing here is aspirational: every item in the
@@ -108,19 +108,19 @@ all — that file is for `pnpm serve`, the headless server.)
       window immediately after launch.**
 
 - [x] **U2 — device labels appear only after permission.** With a fresh
-      `~/Library/Application Support/tongyeok-operator/`, confirm the device
+      `~/Library/Application Support/Simul/`, confirm the device
       dropdown first shows blank labels and the 마이크 권한이 필요합니다 hint, then
       shows real names after the first 시작.
       **Correction: the path in the original checklist is wrong.** The app's
       real userData directory (checked directly on disk) is
-      `~/Library/Application Support/tongyeok/` — Electron names it from
-      `package.json`'s `productName` ("tongyeok"), not from the
+      `~/Library/Application Support/Simul/` — Electron names it from
+      `package.json`'s `productName` ("Simul"), not from the
       `electron-store` file name. The settings file itself, inside that
-      directory, is `tongyeok-operator.json` (that part of the name comes from
-      `new Store({ name: "tongyeok-operator" })` in `settings/store.ts`) — that
+      directory, is `simul-operator.json` (that part of the name comes from
+      `new Store({ name: "simul-operator" })` in `settings/store.ts`) — that
       is almost certainly the source of the original checklist's mistake.
       **To get a genuinely fresh state, delete `~/Library/Application
-Support/tongyeok/tongyeok-operator.json`, not the directory** (deleting
+Support/Simul/simul-operator.json`, not the directory** (deleting
       the whole directory also wipes Local Storage/cookies/etc., which is
       harmless but unnecessary).
       **Result: PASS by source inspection, not independently re-verified fresh
@@ -128,10 +128,10 @@ Support/tongyeok/tongyeok-operator.json`, not the directory** (deleting
       earlier Task 5/7 verification runs, and in _dev_ mode
       (`electron-forge start`) the app runs under the generic Electron
       binary's own signing identity, not the packaged app's
-      `kr.tongyeok.operator` bundle ID (`tccutil reset Microphone
-kr.tongyeok.operator` fails with "no such bundle identifier" in dev mode
+      `io.github.jaycho1214.simul` bundle ID (`tccutil reset Microphone
+io.github.jaycho1214.simul` fails with "no such bundle identifier" in dev mode
       for exactly this reason) — so a truly fresh permission test is only
-      meaningful against the **packaged** app (`out/tongyeok-darwin-*/tongyeok.app`),
+      meaningful against the **packaged** app (`out/Simul-darwin-*/Simul.app`),
       not `pnpm start`. The code path is straightforward and was read directly:
       `device-panel.tsx` shows `device.permissionNeeded` whenever any
       enumerated device has an empty label, exactly as designed.
@@ -234,12 +234,12 @@ tone` connects without printing any error (the WS technically "opens"),
       mismatch is almost certainly why.** Either run the headless
       `pnpm serve` (which uses `.env`'s `INGEST_TOKEN` directly, no Electron
       involved), or read the real token out of
-      `~/Library/Application Support/tongyeok/tongyeok-operator.json` first.
+      `~/Library/Application Support/Simul/simul-operator.json` first.
 
 - [x] **S1 — the server runs in its own process.**
       **Correction: the brief's exact command does not work on macOS.**
-      `ps -A | grep tongyeok-server` finds **nothing** — verified directly.
-      `serviceName: "tongyeok-server"` (passed to `utilityProcess.fork()` in
+      `ps -A | grep simul-server` finds **nothing** — verified directly.
+      `serviceName: "simul-server"` (passed to `utilityProcess.fork()` in
       `electronForkFn`) is documented by Electron's own `.d.ts`
       (`ForkOptions.serviceName`) as appearing in `app.getAppMetrics()` and
       platform task managers, **not** in a plain `ps` listing — and empirically,
@@ -252,18 +252,18 @@ pid,comm` for the forked PID still shows the generic `Electron Helper`).
   ```
 
   This prints the PID that actually owns port 8080. Confirm it differs from
-  the operator app's own PID (visible in Activity Monitor as "tongyeok").
+  the operator app's own PID (visible in Activity Monitor as "Simul").
   **Result: PASS** with the corrected command — confirmed the forked
   server's PID was consistently different from the main Electron process's
-  PID throughout this session. **On Windows, the original `tongyeok-server`
+  PID throughout this session. **On Windows, the original `simul-server`
   name may well show up in Task Manager's Details tab**, per Electron's own
   documented behavior for `serviceName` — worth checking for real on the
   venue laptop rather than assuming the macOS finding transfers.
 
 - [x] **S2 — a server crash does not take the window down.**
-      **Correction:** `pkill -f tongyeok-server` also matches nothing on
+      **Correction:** `pkill -f simul-server` also matches nothing on
       macOS, for the same reason as S1 — verified directly (`pkill -f
-tongyeok-server` exits 1, "no process matched"). **Kill the actual PID
+simul-server` exits 1, "no process matched"). **Kill the actual PID
       instead:**
 
   ```
@@ -400,16 +400,16 @@ wifi). None of it has been run. Each item lists exact steps and pass
 criteria so it can actually be executed rather than assumed passing.
 
 - [ ] **P4 — the Windows build exists and was built on Windows.**
-      **UNVERIFIED.** Run `pnpm --filter @tongyeok/operator make` on the venue
+      **UNVERIFIED.** Run `pnpm --filter @simul/operator make` on the venue
       laptop or a Windows CI runner (a macOS cross-build is not a tested
       Windows artifact — Task 11 confirmed this explicitly). **Pass:**
-      `out/make/squirrel.windows/x64/tongyeok-setup.exe` exists, installs
+      `out/make/squirrel.windows/x64/Simul-Setup.exe` exists, installs
       without error, and the installed app launches to the same six-panel
       window verified above.
 
 - [ ] **P5 — `opusscript` loaded and its WASM is on disk.**
       **UNVERIFIED.** **Pass:** the server reaches `listening` (visible in
-      서버 로그 as `tongyeok server on :8080`) rather than crashing on
+      서버 로그 as `simul server on :8080`) rather than crashing on
       `Cannot find module 'opusscript'` or an `ENOENT` for
       `opusscript_native_wasm.wasm`. Confirm the file exists at
       `resources\app.asar.unpacked\node_modules\opusscript\build\opusscript_native_wasm.wasm`
@@ -452,7 +452,7 @@ criteria so it can actually be executed rather than assumed passing.
   2. The firewall line names an inbound allow rule for TCP 8080. If it
      warns, create one from an elevated PowerShell:
      ```powershell
-     New-NetFirewallRule -DisplayName "tongyeok 8080" -Direction Inbound `
+     New-NetFirewallRule -DisplayName "Simul 8080" -Direction Inbound `
        -Action Allow -Protocol TCP -LocalPort 8080 -Profile Private
      ```
      The app deliberately never creates this rule itself.

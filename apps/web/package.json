@@ -1,5 +1,5 @@
 {
-  "name": "@tongyeok/web",
+  "name": "@simul/web",
   "private": true,
   "type": "module",
   "scripts": {
@@ -16,7 +16,7 @@
   "devDependencies": {
     "@testing-library/dom": "^10.4.0",
     "@testing-library/react": "^16.1.0",
-    "@tongyeok/protocol": "workspace:*",
+    "@simul/protocol": "workspace:*",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
     "@vitejs/plugin-react": "^4.3.4",

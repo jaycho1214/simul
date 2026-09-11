@@ -1,4 +1,4 @@
-import type { AdminMessage, LaneState, LaneStatus } from "@tongyeok/protocol";
+import type { AdminMessage, LaneState, LaneStatus } from "@simul/protocol";
 
 const LANE_STATES: readonly LaneState[] = ["starting", "live", "reconnecting", "error"];
 

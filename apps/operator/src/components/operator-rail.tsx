@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import type { LaneStatus } from "@tongyeok/protocol";
+import type { LaneStatus } from "@simul/protocol";
 import { Image, Mic, QrCode, Radio, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";

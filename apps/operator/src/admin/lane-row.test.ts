@@ -1,5 +1,5 @@
 import { describe, expect, test } from "vitest";
-import type { LaneStatus } from "@tongyeok/protocol";
+import type { LaneStatus } from "@simul/protocol";
 import { anyExternalListener, toLaneRow } from "./lane-row.ts";
 
 const lane = (patch: Partial<LaneStatus> = {}): LaneStatus => ({

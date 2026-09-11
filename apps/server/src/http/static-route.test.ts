@@ -53,12 +53,12 @@ let root = "";
 let secretDir = "";
 
 before(async () => {
-  root = await mkdtemp(join(tmpdir(), "tongyeok-web-"));
+  root = await mkdtemp(join(tmpdir(), "simul-web-"));
   await writeFile(join(root, "index.html"), "<!doctype html><title>t</title>");
   await mkdir(join(root, "assets"));
   await writeFile(join(root, "assets", "index-abc123.js"), "console.log(1)");
 
-  secretDir = await mkdtemp(join(tmpdir(), "tongyeok-secret-"));
+  secretDir = await mkdtemp(join(tmpdir(), "simul-secret-"));
   await writeFile(join(secretDir, "passwd"), "root:x:0:0");
   // A symlink placed *inside* the served root but pointing *outside* it. The
   // string-prefix check on the request path alone cannot catch this: the

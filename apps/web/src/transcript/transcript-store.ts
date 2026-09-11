@@ -1,4 +1,4 @@
-import type { LaneState, ServerMessage, TranscriptLine } from "@tongyeok/protocol";
+import type { LaneState, ServerMessage, TranscriptLine } from "@simul/protocol";
 
 /**
  * The spec caps the transcript DOM at ~50 visible lines. Truncating here rather

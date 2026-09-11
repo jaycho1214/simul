@@ -36,7 +36,7 @@ makes this checklist a real deliverable instead of a wish list.
 
 1. On the laptop that will run the server during the event:
    ```
-   pnpm --filter @tongyeok/web build
+   pnpm --filter @simul/web build
    ```
    Confirm `apps/web/dist/index.html` and hashed files under
    `apps/web/dist/assets/` exist.
@@ -46,7 +46,7 @@ makes this checklist a real deliverable instead of a wish list.
    it as `<lan-ip>`.
 3. Start the server with the built app wired in:
    ```
-   GEMINI_API_KEY=<real key> INGEST_TOKEN=<token> WEB_ROOT=apps/web/dist pnpm --filter @tongyeok/server dev
+   GEMINI_API_KEY=<real key> INGEST_TOKEN=<token> WEB_ROOT=apps/web/dist pnpm --filter @simul/server dev
    ```
 4. From a laptop browser (not a phone yet), confirm `http://127.0.0.1:8080/`
    loads the picker and `http://127.0.0.1:8080/config` returns JSON. If

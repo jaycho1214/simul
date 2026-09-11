@@ -226,11 +226,9 @@ describe("ServerSupervisor", () => {
     const { supervisor, spawned } = harness();
     supervisor.start();
 
-    spawned[0]!.stdout.emit("tongyeok server on :8080\n");
+    spawned[0]!.stdout.emit("simul server on :8080\n");
 
-    expect(supervisor.logs).toEqual([
-      { stream: "stdout", text: "tongyeok server on :8080", at: 0 },
-    ]);
+    expect(supervisor.logs).toEqual([{ stream: "stdout", text: "simul server on :8080", at: 0 }]);
   });
 
   test("keeps stdout and stderr separate", () => {

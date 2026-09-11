@@ -1,4 +1,4 @@
-import type { LangCode, LaneState } from "@tongyeok/protocol";
+import type { LangCode, LaneState } from "@simul/protocol";
 import { LaneOpusEncoder } from "../audio/opus-encoder.ts";
 import { WebMSink } from "../audio/webm-sink.ts";
 import { FrameBus } from "../frame-bus.ts";

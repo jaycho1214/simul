@@ -4,8 +4,8 @@ import { resolveWebRoot } from "./path.ts";
 
 describe("resolveWebRoot", () => {
   test("packaged: resources dir joined with the extraResource's basename", () => {
-    expect(resolveWebRoot("/unused", true, "/Applications/tongyeok.app/Contents/Resources")).toBe(
-      path.join("/Applications/tongyeok.app/Contents/Resources", "dist"),
+    expect(resolveWebRoot("/unused", true, "/Applications/Simul.app/Contents/Resources")).toBe(
+      path.join("/Applications/Simul.app/Contents/Resources", "dist"),
     );
   });
 

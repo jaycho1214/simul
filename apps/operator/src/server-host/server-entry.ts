@@ -1,7 +1,7 @@
-import { SystemClock } from "@tongyeok/server/clock";
-import { loadConfig } from "@tongyeok/server/config";
-import { createGeminiTranslateSessionFactory } from "@tongyeok/server/gemini";
-import { createServer } from "@tongyeok/server/server";
+import { SystemClock } from "@simul/server/clock";
+import { loadConfig } from "@simul/server/config";
+import { createGeminiTranslateSessionFactory } from "@simul/server/gemini";
+import { createServer } from "@simul/server/server";
 
 /**
  * Runs inside an Electron utilityProcess. Deliberately has no top-level await:
@@ -44,7 +44,7 @@ async function main(): Promise<void> {
   // stdio: "pipe" (see electronForkFn) lets the supervisor capture these two
   // lines for the 서버 로그 panel and echo them to its own console, instead of
   // the server's boot state being invisible outside its status.
-  console.log(`tongyeok server on :${port}`);
+  console.log(`simul server on :${port}`);
   console.log(
     `languages: ${config.offeredLanguages.join(", ")}${config.passthroughLane ? " + passthrough lane (debug)" : ""}`,
   );

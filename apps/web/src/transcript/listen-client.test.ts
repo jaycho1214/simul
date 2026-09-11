@@ -1,4 +1,4 @@
-import type { ServerMessage } from "@tongyeok/protocol";
+import type { ServerMessage } from "@simul/protocol";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   ListenClient,

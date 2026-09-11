@@ -1,4 +1,4 @@
-import type { TranscriptLine } from "@tongyeok/protocol";
+import type { TranscriptLine } from "@simul/protocol";
 import type { Clock } from "./clock.ts";
 
 /**

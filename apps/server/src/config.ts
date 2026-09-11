@@ -1,5 +1,5 @@
 import { fileURLToPath } from "node:url";
-import type { LangCode } from "@tongyeok/protocol";
+import type { LangCode } from "@simul/protocol";
 
 export type BrandTheme = "dark" | "light" | "auto";
 

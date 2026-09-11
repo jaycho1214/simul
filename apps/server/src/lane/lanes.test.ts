@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import type { LaneState } from "@tongyeok/protocol";
+import type { LaneState } from "@simul/protocol";
 import { FakeClock } from "../clock.ts";
 import { LaneOpusEncoder } from "../audio/opus-encoder.ts";
 import {

@@ -1,4 +1,4 @@
-import type { LangCode, LaneState } from "@tongyeok/protocol";
+import type { LangCode, LaneState } from "@simul/protocol";
 import type { TranscriptBus } from "../transcript-bus.ts";
 
 /** Anything AudioHub can hand ingest PCM to. */

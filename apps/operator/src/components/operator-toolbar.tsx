@@ -1,4 +1,4 @@
-import type { LaneStatus } from "@tongyeok/protocol";
+import type { LaneStatus } from "@simul/protocol";
 import { useEffect, useRef, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { StatusDot } from "@/components/ui/status-dot";

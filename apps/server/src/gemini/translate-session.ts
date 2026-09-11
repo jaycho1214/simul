@@ -1,4 +1,4 @@
-import type { LangCode, LaneState } from "@tongyeok/protocol";
+import type { LangCode, LaneState } from "@simul/protocol";
 
 export interface TranslateSessionEvents {
   /** Translated speech, 16-bit PCM mono at 24 kHz. */

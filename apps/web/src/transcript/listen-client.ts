@@ -1,4 +1,4 @@
-import type { ServerMessage } from "@tongyeok/protocol";
+import type { ServerMessage } from "@simul/protocol";
 
 /**
  * Deliberately without `send`. The listen protocol is server→client only, so
