@@ -69,8 +69,17 @@ const config: ForgeConfig = {
   // nothing to compile and adding it back only introduces a step that can fail.
 
   makers: [
-    // Windows: the venue laptop's installer.
-    new MakerSquirrel({ name: "Simul", setupExe: "Simul-Setup.exe" }),
+    // Windows: the venue laptop's installer. Squirrel builds a NuGet package
+    // underneath, and NuGet refuses a nuspec without authors and a
+    // description — the first Release run failed on exactly that. They are
+    // read from package.json's author/description; named here too so the
+    // maker cannot lose them to a package.json edit.
+    new MakerSquirrel({
+      name: "Simul",
+      setupExe: "Simul-Setup.exe",
+      authors: "Jay Cho",
+      description: "Live speech-to-speech translation for a room.",
+    }),
     // macOS: a zip is enough for a development machine; there is no notarised
     // distribution channel and none is needed.
     new MakerZIP({}, ["darwin"]),
