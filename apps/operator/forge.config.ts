@@ -6,6 +6,7 @@ import { MakerSquirrel } from "@electron-forge/maker-squirrel";
 import { MakerZIP } from "@electron-forge/maker-zip";
 import { FusesPlugin } from "@electron-forge/plugin-fuses";
 import { VitePlugin } from "@electron-forge/plugin-vite";
+import { PublisherGithub } from "@electron-forge/publisher-github";
 import type { ForgeConfig } from "@electron-forge/shared-types";
 
 // This workspace's pnpm nodeLinker is "hoisted" — but, verified by actually
@@ -73,6 +74,21 @@ const config: ForgeConfig = {
     // macOS: a zip is enough for a development machine; there is no notarised
     // distribution channel and none is needed.
     new MakerZIP({}, ["darwin"]),
+  ],
+
+  publishers: [
+    // GITHUB_TOKEN comes from the Actions job (contents: write). draft: false
+    // matters: the publisher's default is a draft release, and
+    // update.electronjs.org — which the packaged app asks (see
+    // updates/electron-updater.ts) — only serves published, non-prerelease
+    // releases. The release is looked up by tag v<version>, so the tag
+    // scripts/release.sh pushes and the one the publisher would create agree.
+    new PublisherGithub({
+      repository: { owner: "jaycho1214", name: "simul" },
+      draft: false,
+      prerelease: false,
+      generateReleaseNotes: true,
+    }),
   ],
 
   plugins: [
