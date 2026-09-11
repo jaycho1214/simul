@@ -173,6 +173,11 @@ export function ControlPanel({ usage }: { usage?: UsageReport | undefined }) {
       requestedChannelCount: current.requestedChannelCount,
       channelIndex: current.channelIndex,
       inputGainDb: current.inputGainDb,
+      noise: {
+        enabled: current.noiseReduction,
+        profile: current.noiseProfile,
+        sensitivityDb: current.noiseSensitivityDb,
+      },
       port: current.port,
       ingestToken: token,
     });

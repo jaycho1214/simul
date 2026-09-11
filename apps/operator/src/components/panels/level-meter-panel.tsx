@@ -1,10 +1,18 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/utils/tailwind";
 import { MAX_GAIN_DB, MIN_GAIN_DB, clampGainDb } from "../../capture/gain.ts";
+import {
+  MAX_SENSITIVITY_DB,
+  MIN_SENSITIVITY_DB,
+  clampSensitivityDb,
+  type NoiseProfile,
+} from "../../capture/noise-reducer.ts";
+import { appLog } from "../../hooks/use-app-log.ts";
 import { captureController, useCapture } from "../../hooks/use-capture.ts";
 import { ipc } from "../../ipc/manager.ts";
 
@@ -111,6 +119,143 @@ function GainControl() {
   );
 }
 
+/** How long the room is listened to for a profile. Two seconds is enough
+ *  frames (250) for a stable percentile and short enough to find a gap in
+ *  the talk for. */
+const NOISE_MEASURE_MS = 2000;
+
+/**
+ * The noise reducer's three settings, under the trim. The profile is
+ * measured here — the one place the engineer can see the meter while
+ * choosing the quiet moment — and every change reaches the reducer at once
+ * through setNoise(); the slider saves once the hand comes to rest, like
+ * the trim above it.
+ */
+function NoiseControl() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const { running } = useCapture();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: () => ipc.client.settings.get() });
+  const profile = settings.data?.noiseProfile ?? null;
+  const enabled = settings.data?.noiseReduction ?? false;
+  const saved = settings.data?.noiseSensitivityDb;
+  const [draft, setDraft] = useState<number | null>(null);
+  const [measuring, setMeasuring] = useState(false);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const unsaved = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (saved !== undefined && draft === null) setDraft(saved);
+  }, [saved, draft]);
+
+  // Whatever settings say, the reducer says too — including a profile that
+  // arrived from a measurement or a toggle from this very component.
+  useEffect(() => {
+    if (saved === undefined) return;
+    captureController.setNoise({ enabled, profile, sensitivityDb: unsaved.current ?? saved });
+  }, [enabled, profile, saved]);
+
+  function patch(next: Parameters<typeof ipc.client.settings.set>[0]) {
+    return ipc.client.settings
+      .set(next)
+      .then(() => queryClient.invalidateQueries({ queryKey: ["settings"] }));
+  }
+
+  function save(db: number) {
+    unsaved.current = null;
+    void patch({ noiseSensitivityDb: db });
+  }
+
+  useEffect(
+    () => () => {
+      clearTimeout(saveTimer.current);
+      if (unsaved.current !== null) save(unsaved.current);
+    },
+    [],
+  );
+
+  function applySensitivity(db: number) {
+    const next = clampSensitivityDb(db);
+    setDraft(next);
+    captureController.setNoise({ enabled, profile, sensitivityDb: next });
+    unsaved.current = next;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => save(next), GAIN_SAVE_DELAY_MS);
+  }
+
+  async function measure() {
+    setMeasuring(true);
+    try {
+      const measured: NoiseProfile = await captureController.measureNoise(NOISE_MEASURE_MS);
+      // A fresh measurement is meant to be used: turning reduction on with it
+      // saves the engineer a second click, and the checkbox shows it happened.
+      await patch({ noiseProfile: measured, noiseReduction: true });
+      appLog.info(t("log.noiseMeasured", { level: measured.levelDb.toFixed(1) }));
+    } catch (err) {
+      const reason = err instanceof Error ? err.message : String(err);
+      appLog.error(t("level.noiseMeasureFailed", { reason }));
+      toast.error(t("level.noiseMeasureFailed", { reason }));
+    } finally {
+      setMeasuring(false);
+    }
+  }
+
+  const db = draft ?? 0;
+
+  return (
+    <div className="grid gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <label className="flex items-center gap-2 text-sm font-medium">
+          <input
+            type="checkbox"
+            checked={enabled && profile !== null}
+            disabled={profile === null}
+            onChange={(e) => void patch({ noiseReduction: e.target.checked })}
+          />
+          {t("level.noise")}
+        </label>
+        <Button
+          variant="secondary"
+          size="sm"
+          disabled={!running || measuring}
+          title={running ? undefined : t("level.noiseNeedsCapture")}
+          onClick={() => void measure()}
+        >
+          {measuring ? t("level.noiseMeasuring") : t("level.noiseMeasure")}
+        </Button>
+      </div>
+      <p className="text-xs leading-snug text-muted-foreground tabular-nums">
+        {profile
+          ? t("level.noiseMeasured", { level: profile.levelDb.toFixed(1) })
+          : t("level.noiseNotMeasured")}
+      </p>
+      <div className="grid gap-1.5">
+        <div className="flex items-baseline justify-between gap-3">
+          <label className="text-sm" htmlFor="noise-sensitivity">
+            {t("level.noiseSensitivity")}
+          </label>
+          <span className="font-mono text-sm tabular-nums">
+            {db > 0 ? "+" : ""}
+            {db.toFixed(0)} dB
+          </span>
+        </div>
+        <input
+          id="noise-sensitivity"
+          type="range"
+          min={MIN_SENSITIVITY_DB}
+          max={MAX_SENSITIVITY_DB}
+          step={1}
+          value={db}
+          disabled={draft === null || profile === null}
+          onChange={(e) => applySensitivity(Number(e.target.value))}
+          className="w-full accent-live"
+        />
+      </div>
+      <p className="text-xs leading-snug text-muted-foreground">{t("level.noiseHint")}</p>
+    </div>
+  );
+}
+
 export function LevelMeterPanel() {
   const { t } = useTranslation();
   const { running } = useCapture();
@@ -118,6 +263,7 @@ export function LevelMeterPanel() {
   const peakRef = useRef<HTMLDivElement>(null);
   const readoutRef = useRef<HTMLSpanElement>(null);
   const clipRef = useRef<HTMLSpanElement>(null);
+  const reductionRef = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
     if (!running) return;
@@ -141,6 +287,13 @@ export function LevelMeterPanel() {
       if (clipRef.current) {
         clipRef.current.style.visibility = performance.now() < clipUntil ? "visible" : "hidden";
       }
+      // What the reducer is taking out right now — the one live sign that
+      // it is on and doing something, since the meter reads before it.
+      if (reductionRef.current) {
+        const reduction = captureController.readReductionDb();
+        reductionRef.current.hidden = reduction < 0.5;
+        reductionRef.current.textContent = t("level.noiseReducing", { db: reduction.toFixed(0) });
+      }
       frame = requestAnimationFrame(tick);
     };
 
@@ -150,8 +303,9 @@ export function LevelMeterPanel() {
       if (coverRef.current) coverRef.current.style.width = "100%";
       if (peakRef.current) peakRef.current.style.left = "0%";
       if (clipRef.current) clipRef.current.style.visibility = "hidden";
+      if (reductionRef.current) reductionRef.current.hidden = true;
     };
-  }, [running]);
+  }, [running, t]);
 
   const zones = `linear-gradient(90deg, var(--live) 0 ${widthPercent(AMBER_FROM_DB)}%, var(--warn) ${widthPercent(AMBER_FROM_DB)}% ${widthPercent(RED_FROM_DB)}%, var(--error) ${widthPercent(RED_FROM_DB)}% 100%)`;
 
@@ -159,12 +313,19 @@ export function LevelMeterPanel() {
     <Panel
       title={t("panel.level")}
       aside={
-        <span
-          ref={clipRef}
-          className="rounded-sm bg-error px-1.5 py-0.5 text-[11px] leading-none font-bold text-white"
-          style={{ visibility: "hidden" }}
-        >
-          {t("level.clipping")}
+        <span className="flex items-center gap-2">
+          <span
+            ref={reductionRef}
+            hidden
+            className="rounded-sm bg-secondary px-1.5 py-0.5 font-mono text-[11px] leading-none text-muted-foreground tabular-nums"
+          />
+          <span
+            ref={clipRef}
+            className="rounded-sm bg-error px-1.5 py-0.5 text-[11px] leading-none font-bold text-white"
+            style={{ visibility: "hidden" }}
+          >
+            {t("level.clipping")}
+          </span>
         </span>
       }
     >
@@ -231,6 +392,7 @@ export function LevelMeterPanel() {
       </div>
 
       <GainControl />
+      <NoiseControl />
     </Panel>
   );
 }

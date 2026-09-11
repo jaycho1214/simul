@@ -80,6 +80,30 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ inputGainDb: "6" }).inputGainDb).toBe(0);
   });
 
+  test("starts with no room measured, reduction off, and the default sensitivity", () => {
+    expect(DEFAULT_SETTINGS.noiseProfile).toBeNull();
+    expect(DEFAULT_SETTINGS.noiseReduction).toBe(false);
+    expect(DEFAULT_SETTINGS.noiseSensitivityDb).toBe(6);
+
+    const bins = Array.from({ length: 257 }, (_, i) => -70 + i / 100);
+    const profile = { bins, gainDb: 3, levelDb: -48 };
+    const settings = normalizeSettings({
+      noiseProfile: profile,
+      noiseReduction: true,
+      noiseSensitivityDb: 12,
+    });
+    expect(settings.noiseProfile).toEqual(profile);
+    expect(settings.noiseReduction).toBe(true);
+    expect(settings.noiseSensitivityDb).toBe(12);
+
+    // A profile from a build with a different frame size is not a profile.
+    expect(
+      normalizeSettings({ noiseProfile: { ...profile, bins: [1, 2, 3] } }).noiseProfile,
+    ).toBeNull();
+    expect(normalizeSettings({ noiseReduction: "yes" }).noiseReduction).toBe(false);
+    expect(normalizeSettings({ noiseSensitivityDb: 99 }).noiseSensitivityDb).toBe(24);
+  });
+
   test("clamps a port outside the legal range", () => {
     expect(normalizeSettings({ port: 0 }).port).toBe(8080);
     expect(normalizeSettings({ port: 70000 }).port).toBe(8080);

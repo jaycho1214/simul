@@ -1,5 +1,11 @@
 import { randomBytes } from "node:crypto";
 import { clampGainDb } from "../capture/gain.ts";
+import {
+  DEFAULT_SENSITIVITY_DB,
+  clampSensitivityDb,
+  normalizeNoiseProfile,
+  type NoiseProfile,
+} from "../capture/noise-reducer.ts";
 import { BRAND_THEMES, maskSecret, normalizeAccent, type BrandTheme } from "./brand.ts";
 import { isUiLanguage, type UiLanguage } from "./ui-language.ts";
 
@@ -53,6 +59,15 @@ export interface OperatorSettings {
    * or too hot to fix at the mixer during a service — see capture/gain.ts.
    */
   inputGainDb: number;
+  /**
+   * The room's background as measured from the 레벨 panel, or null until it
+   * has been. See capture/noise-reducer.ts: the reducer cannot run without
+   * it, so `noiseReduction` is only honoured when this is set.
+   */
+  noiseProfile: NoiseProfile | null;
+  noiseReduction: boolean;
+  /** How far above the measured room a sound must be to survive, in dB. */
+  noiseSensitivityDb: number;
   /** Which LAN address the engineer pinned, or null to auto-pick. */
   lanAddress: string | null;
   /**
@@ -113,6 +128,9 @@ export const DEFAULT_SETTINGS: OperatorSettings = Object.freeze({
   channelIndex: 0,
   requestedChannelCount: 2,
   inputGainDb: 0,
+  noiseProfile: null,
+  noiseReduction: false,
+  noiseSensitivityDb: DEFAULT_SENSITIVITY_DB,
   lanAddress: null,
   uiLanguage: null,
 
@@ -192,6 +210,9 @@ export function normalizeSettings(raw: unknown): OperatorSettings {
       MAX_CHANNELS,
     ),
     inputGainDb: clampGainDb(source.inputGainDb),
+    noiseProfile: normalizeNoiseProfile(source.noiseProfile),
+    noiseReduction: source.noiseReduction === true,
+    noiseSensitivityDb: clampSensitivityDb(source.noiseSensitivityDb),
     lanAddress: nullableStr(source.lanAddress),
     uiLanguage: isUiLanguage(source.uiLanguage) ? source.uiLanguage : null,
 

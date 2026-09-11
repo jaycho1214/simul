@@ -178,6 +178,11 @@ export function OperatorRail({ active, onSelect, lanes }: OperatorRailProps) {
       requestedChannelCount: current.requestedChannelCount,
       channelIndex: current.channelIndex,
       inputGainDb: current.inputGainDb,
+      noise: {
+        enabled: current.noiseReduction,
+        profile: current.noiseProfile,
+        sensitivityDb: current.noiseSensitivityDb,
+      },
       port: current.port,
       ingestToken: token,
     });
