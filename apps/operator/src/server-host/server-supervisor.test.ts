@@ -317,3 +317,19 @@ describe("ServerSupervisor", () => {
     expect(supervisor.logs.map((l) => l.text)).toEqual(["mid-line at restart time"]);
   });
 });
+
+describe("note", () => {
+  test("appends a host-originated line to the same log the panel reads", () => {
+    const supervisor = new ServerSupervisor({
+      entryPath: "/x/server-entry.js",
+      env: () => ({}),
+      external: false,
+      fork: () => new FakeProcess(),
+      now: () => 42,
+    });
+    supervisor.note("[update] checking for updates");
+    expect(supervisor.logs).toEqual([
+      { stream: "stdout", text: "[update] checking for updates", at: 42 },
+    ]);
+  });
+});

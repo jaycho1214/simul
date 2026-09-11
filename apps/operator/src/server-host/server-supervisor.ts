@@ -120,6 +120,15 @@ export class ServerSupervisor {
     return this.logLines;
   }
 
+  /**
+   * A line from this process rather than the child — the updater's
+   * transitions, for instance — into the same bounded buffer the 서버 로그
+   * panel polls, so it is visible on a venue laptop with no terminal.
+   */
+  note(text: string): void {
+    this.pushLines("stdout", [text]);
+  }
+
   onLog(fn: (lines: readonly LogLine[]) => void): () => void {
     this.logListeners.add(fn);
     return () => {

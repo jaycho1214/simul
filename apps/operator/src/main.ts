@@ -10,6 +10,7 @@ import { serverEnv } from "./settings/schema.ts";
 import { mainStrings } from "./localization/main-strings.ts";
 import { getSettings, uiLanguageForMain } from "./settings/store.ts";
 import { getBasePath, resolveWebRoot } from "./utils/path";
+import { createElectronUpdater } from "./updates/electron-updater.ts";
 
 // Squirrel launches this same executable with --squirrel-install,
 // --squirrel-updated etc. during install/update/uninstall, each time as a
@@ -52,6 +53,18 @@ export const supervisor = new ServerSupervisor({
   fork: electronForkFn(),
 });
 
+// Transitions land in the server log: the one place an engineer can read
+// anything on a packaged app. Started after the window exists (below).
+export const updater = createElectronUpdater((line) => supervisor.note(line));
+
+// The close handler in createWindow() asks before quitting a live server. A
+// restart the engineer has already confirmed (updates.install) sets this so
+// the same question is not asked twice.
+let closeConfirmed = false;
+export function allowCloseWithoutPrompt(): void {
+  closeConfirmed = true;
+}
+
 function createWindow() {
   const basePath = getBasePath();
   const preload = path.join(basePath, "preload.js");
@@ -84,7 +97,6 @@ function createWindow() {
   // server has already stopped, closing is just closing and a prompt would be
   // noise. `showMessageBoxSync` blocks the main process, which is what we want
   // here: the close cannot proceed until the engineer has answered.
-  let closeConfirmed = false;
   mainWindow.on("close", (event) => {
     if (closeConfirmed || supervisor.status.state !== "listening") return;
 
@@ -162,6 +174,9 @@ app.whenReady().then(async () => {
     supervisor.start();
 
     createWindow();
+    // First check now, then hourly. update-electron-app disables itself when
+    // not packaged; createElectronUpdater also limits it to win32.
+    updater.start();
     await installExtensions();
     await setupORPC();
   } catch (error) {
