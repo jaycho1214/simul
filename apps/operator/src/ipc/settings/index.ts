@@ -12,6 +12,7 @@ import {
 } from "../../settings/brand.ts";
 import { redactSettings, type PublicSettings } from "../../settings/schema.ts";
 import { getSettings, updateSettings } from "../../settings/store.ts";
+import { UI_LANGUAGES } from "../../settings/ui-language.ts";
 import { supervisor } from "../../main.ts";
 
 const patchSchema = z.object({
@@ -20,6 +21,7 @@ const patchSchema = z.object({
   channelIndex: z.number().optional(),
   requestedChannelCount: z.number().optional(),
   lanAddress: z.string().nullable().optional(),
+  uiLanguage: z.enum(UI_LANGUAGES).nullable().optional(),
   port: z.number().optional(),
   passthroughLane: z.boolean().optional(),
   offeredLanguages: z.array(z.string()).optional(),

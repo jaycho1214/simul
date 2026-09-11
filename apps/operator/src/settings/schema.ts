@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { BRAND_THEMES, maskSecret, normalizeAccent, type BrandTheme } from "./brand.ts";
+import { isUiLanguage, type UiLanguage } from "./ui-language.ts";
 
 export {
   BRAND_THEMES,
@@ -47,6 +48,12 @@ export interface OperatorSettings {
   requestedChannelCount: number;
   /** Which LAN address the engineer pinned, or null to auto-pick. */
   lanAddress: string | null;
+  /**
+   * The window's own language. null = follow the OS (resolveUiLanguage); the
+   * rail's toggle writes an explicit value. Nothing about the event depends
+   * on it, so buildServerEnv never sees it.
+   */
+  uiLanguage: UiLanguage | null;
 
   port: number;
   offeredLanguages: string[];
@@ -99,6 +106,7 @@ export const DEFAULT_SETTINGS: OperatorSettings = Object.freeze({
   channelIndex: 0,
   requestedChannelCount: 2,
   lanAddress: null,
+  uiLanguage: null,
 
   port: 8080,
   offeredLanguages: ["ko", "en", "es", "ja"],
@@ -176,6 +184,7 @@ export function normalizeSettings(raw: unknown): OperatorSettings {
       MAX_CHANNELS,
     ),
     lanAddress: nullableStr(source.lanAddress),
+    uiLanguage: isUiLanguage(source.uiLanguage) ? source.uiLanguage : null,
 
     port: int(source.port, DEFAULT_SETTINGS.port, 1, 65535),
     offeredLanguages,

@@ -111,6 +111,22 @@ describe("normalizeSettings", () => {
   test("keeps an existing ingest token so a restart does not orphan the socket", () => {
     expect(normalizeSettings({ ingestToken: "abc123" }).ingestToken).toBe("abc123");
   });
+
+  test("uiLanguage is null (follow the OS) unless it is one of the two codes", () => {
+    expect(DEFAULT_SETTINGS.uiLanguage).toBeNull();
+    expect(normalizeSettings({}).uiLanguage).toBeNull();
+    expect(normalizeSettings({ uiLanguage: "en" }).uiLanguage).toBe("en");
+    expect(normalizeSettings({ uiLanguage: "ko" }).uiLanguage).toBe("ko");
+    expect(normalizeSettings({ uiLanguage: "fr" }).uiLanguage).toBeNull();
+    expect(normalizeSettings({ uiLanguage: 3 }).uiLanguage).toBeNull();
+  });
+
+  test("uiLanguage never reaches the server environment", () => {
+    const env = buildServerEnv({ ...DEFAULT_SETTINGS, uiLanguage: "en" });
+    expect(Object.keys(env).some((k) => /LANG|UI_/.test(k) && k !== "OFFERED_LANGUAGES")).toBe(
+      false,
+    );
+  });
 });
 
 describe("generateIngestToken", () => {
