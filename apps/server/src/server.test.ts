@@ -34,14 +34,21 @@ const config = {
   geminiApiKey: "unused",
   ingestToken: "t",
   port: 0,
-  sourceLanguage: "ko",
+  passthroughLane: false,
   offeredLanguages: ["ko", "en"] as const,
   maxConcurrentLanes: 6,
   laneGraceMs: 60000,
   transcriptHistoryLines: 200,
   transcriptDelayMs: 0,
   opusBitrate: 24000,
+  streamPrimeMs: 0,
   webRoot: "",
+  brand: {
+    name: "",
+    accent: "#3e8fd0",
+    logoPath: "",
+    theme: "dark" as const,
+  },
 };
 
 test("audio flows from ingest to a streaming client", async () => {
@@ -62,7 +69,9 @@ test("audio flows from ingest to a streaming client", async () => {
 
   const ingest = new WebSocket(`ws://127.0.0.1:${port}/ingest?token=t`);
   await new Promise((r) => ingest.once("open", r));
-  for (let i = 0; i < 20; i++) ingest.send(Buffer.alloc(640));
+  // Every lane is a translation now, so the fake session has to hear a whole
+  // utterance (25 frames) before it produces any audio to encode.
+  for (let i = 0; i < 30; i++) ingest.send(Buffer.alloc(640));
 
   const cluster = await reader.read();
   assert.ok(cluster.value!.length > 0, "a cluster reached the client");
@@ -272,4 +281,293 @@ test("without a webRoot, an unknown path still 404s exactly as before", async ()
   assert.equal(res.status, 404);
 
   await server.close();
+});
+
+
+test("/config publishes the brand alongside the language list", async (t) => {
+  const server = createServer({
+    config: {
+      ...config,
+      brand: {
+        name: "주일 예배",
+        accent: "#7a3e9d",
+        logoPath: "/srv/event/logo.svg",
+        theme: "auto" as const,
+      },
+    },
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const body = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.deepEqual(body.brand, {
+    name: "주일 예배",
+    accent: "#7a3e9d",
+    logoUrl: "/brand/logo",
+    theme: "auto",
+  });
+});
+
+// The client distinguishes "no logo" from "a logo that failed to load", and
+// only the first should stop it ever making the request.
+test("/config reports no logo url when none is configured", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const body = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.equal(body.brand.logoUrl, null);
+  assert.equal(body.brand.name, null);
+});
+
+test("the configured logo is served at /brand/logo", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "brand-server-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const logo = join(dir, "mark.svg");
+  await writeFile(logo, "<svg xmlns='http://www.w3.org/2000/svg'/>");
+
+  const server = createServer({
+    config: { ...config, brand: { ...config.brand, logoPath: logo } },
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const res = await fetch(`http://127.0.0.1:${port}/brand/logo`);
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get("content-type"), "image/svg+xml");
+  assert.match(await res.text(), /<svg/);
+});
+
+test("/brand/logo is a 404 when no logo is configured", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  assert.equal((await fetch(`http://127.0.0.1:${port}/brand/logo`)).status, 404);
+});
+
+// Same hazard as /config and /listen: with a webRoot configured, the SPA
+// fallback would otherwise answer /brand/logo with index.html.
+test("a webRoot does not shadow /brand/logo", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "brand-web-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(join(root, "index.html"), "<!doctype html><title>spa</title>");
+
+  const server = createServer({
+    config: { ...config, webRoot: root },
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const res = await fetch(`http://127.0.0.1:${port}/brand/logo`);
+  assert.equal(res.status, 404);
+  assert.doesNotMatch(await res.text(), /spa/);
+});
+
+/**
+ * Brand used to be frozen at boot, which meant every change to an event's
+ * name or colour cost a server restart — and a restart mid-service drops
+ * every phone in the room. It is mutable state now: the operator pushes a new
+ * brand down the parent port and the next /config carries it.
+ *
+ * Pages already open keep the brand they loaded with until they refresh;
+ * nothing here pushes to a connected phone.
+ */
+test("a brand pushed at runtime reaches /config without a restart", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const before = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.equal(before.brand.name, null);
+
+  server.setBrand({
+    name: "새문안 주일예배",
+    accent: "#e8b64c",
+    logoPath: "",
+    theme: "light",
+  });
+
+  const after = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.deepEqual(after.brand, {
+    name: "새문안 주일예배",
+    accent: "#e8b64c",
+    logoUrl: null,
+    theme: "light",
+  });
+});
+
+test("a logo pushed at runtime is served without a restart", async (t) => {
+  const dir = await mkdtemp(join(tmpdir(), "brand-live-"));
+  t.after(() => rm(dir, { recursive: true, force: true }));
+  const logo = join(dir, "mark.svg");
+  await writeFile(logo, "<svg xmlns='http://www.w3.org/2000/svg'/>");
+
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  assert.equal((await fetch(`http://127.0.0.1:${port}/brand/logo`)).status, 404);
+
+  server.setBrand({ ...config.brand, logoPath: logo });
+
+  const res = await fetch(`http://127.0.0.1:${port}/brand/logo`);
+  assert.equal(res.status, 200);
+  assert.match(await res.text(), /<svg/);
+});
+
+// The only way to measure a listener's real lag. `buffered.end` in the browser
+// is the demuxer's read-ahead, not the live edge, so client-side readings
+// cannot tell you how far behind the room someone is. Comparing this media
+// clock against `audio.currentTime` can.
+test("/stats reports each open lane's media clock", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const before = await (await fetch(`http://127.0.0.1:${port}/stats`)).json();
+  assert.deepEqual(before.lanes, {}, "no lanes open until somebody listens");
+
+  // Opening the stream opens the lane; the response is endless, so abort it.
+  const ac = new AbortController();
+  t.after(() => ac.abort());
+  await fetch(`http://127.0.0.1:${port}/stream/ko.webm`, { signal: ac.signal });
+
+  const after = await (await fetch(`http://127.0.0.1:${port}/stats`)).json();
+  assert.equal(typeof after.lanes.ko.mediaMs, "number");
+  assert.equal(typeof after.now, "number");
+});
+
+// If the event loop cannot keep pace with 50 ingest frames/s, PCM backs up in
+// the socket until TCP backpressure and the operator's send cap fill, and the
+// queue then SITS there — a constant delay that survives restarting capture and
+// shows up nowhere in the UI. These two numbers are how you tell that apart
+// from a streaming-side problem: framesReceived must climb at 50/s and the
+// loop delay must stay in single-digit ms.
+test("/stats reports ingest throughput and event loop health", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const body = await (await fetch(`http://127.0.0.1:${port}/stats`)).json();
+  assert.equal(typeof body.ingest.framesReceived, "number");
+  assert.equal(typeof body.ingest.framesDropped, "number");
+  assert.equal(typeof body.eventLoopDelayP99Ms, "number");
+});
+
+// The attendee app's plain-<audio> fallback restarts its stream when playback
+// falls further behind the lane clock than it expects, and "expects" has to
+// mean the prime this server actually sends: a hardcoded 8 s was fine for a
+// 3 s prime and became a restart every 5 s once a 24 kbps default derived a
+// 16 s one. So the prime travels to the phone with the rest of /config.
+test("/config publishes streamPrimeMs so the attendee app can size its drift threshold", async (t) => {
+  const server = createServer({
+    config: { ...config, streamPrimeMs: 3072 },
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const body = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.equal(body.streamPrimeMs, 3072);
+});
+
+/**
+ * Whether the room has started.
+ *
+ * The ingest socket opens when the operator presses 시작 and closes when they
+ * press 중지, so its connection state is exactly "is there a speaker to
+ * listen to". The attendee app needs it for two reasons: telling an early
+ * arrival that nothing has begun is kinder than handing them silence, and a
+ * language row that cannot be tapped yet cannot open a Gemini session that
+ * would bill for translating an empty room.
+ */
+test("/config reports the room as not live before the operator connects", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const body = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.equal(body.live, false);
+});
+
+test("/config reports the room as live once ingest is connected", async () => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+
+  const ingest = new WebSocket(`ws://127.0.0.1:${port}/ingest?token=t`);
+  await new Promise((r) => ingest.once("open", r));
+
+  const live = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.equal(live.live, true);
+
+  // Closed in order, and awaited: an ingest socket left open holds the event
+  // loop and the whole test file hangs rather than failing.
+  ingest.close();
+  await new Promise((r) => ingest.once("close", r));
+  await server.close();
+
+  const after = await createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const afterPort = await after.listen(0);
+  const body = await (await fetch(`http://127.0.0.1:${afterPort}/config`)).json();
+  assert.equal(body.live, false, "a fresh server with no operator is not live");
+  await after.close();
+});
+
+// The attendee app polls this while it waits, so it must never be answered
+// from a cache that predates the operator pressing start.
+test("/config is never cached", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const res = await fetch(`http://127.0.0.1:${port}/config`);
+  assert.match(res.headers.get("cache-control") ?? "", /no-store/);
 });

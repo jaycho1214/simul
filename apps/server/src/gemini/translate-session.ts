@@ -3,6 +3,16 @@ import type { LangCode, LaneState } from "@tongyeok/protocol";
 export interface TranslateSessionEvents {
   /** Translated speech, 16-bit PCM mono at 24 kHz. */
   audio: (pcm24k: Buffer) => void;
+  /**
+   * `text` is the whole line so far, never the piece that just arrived.
+   *
+   * This is the contract every consumer downstream already relies on:
+   * TranscriptBus stores a final line verbatim as history, the wire protocol
+   * carries whole lines, and the attendee app replaces its interim line
+   * wholesale on each message. An implementation whose upstream streams
+   * fragments — Gemini's does — must reassemble them before emitting, or a
+   * reader sees one word at a time and no line ever scrolls up.
+   */
   transcript: (text: string, isFinal: boolean) => void;
   state: (state: LaneState) => void;
   closed: (reason: string) => void;

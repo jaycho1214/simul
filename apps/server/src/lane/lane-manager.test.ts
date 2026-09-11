@@ -4,7 +4,7 @@ import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
 import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
-import { LaneManager, LaneCapError, UnknownLanguageError } from "./lane-manager.ts";
+import { LaneManager, LaneCapError, PASSTHROUGH_LANG, UnknownLanguageError } from "./lane-manager.ts";
 
 /**
  * A session factory the test controls by hand: the returned promise only
@@ -22,7 +22,7 @@ function deferredSessionFactory(): {
   return { factory, resolve: (session) => resolve(session) };
 }
 
-function makeManager(overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number }> = {}) {
+function makeManager(overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number; passthroughLane: boolean }> = {}) {
   return makeManagerWithFactory(createFakeTranslateSessionFactory(), overrides);
 }
 
@@ -33,7 +33,7 @@ function makeManager(overrides: Partial<{ maxConcurrentLanes: number; laneGraceM
  */
 function makeManagerWithFactory(
   sessionFactory: TranslateSessionFactory,
-  overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number }> = {},
+  overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number; passthroughLane: boolean }> = {},
 ) {
   const clock = new FakeClock();
   const hub = new AudioHub();
@@ -41,12 +41,13 @@ function makeManagerWithFactory(
     clock,
     hub,
     sessionFactory,
-    sourceLanguage: "ko",
+    passthroughLane: overrides.passthroughLane ?? false,
     offeredLanguages: ["ko", "en", "es", "ja", "fr", "de", "zh"],
     maxConcurrentLanes: overrides.maxConcurrentLanes ?? 6,
     laneGraceMs: overrides.laneGraceMs ?? 60000,
     transcriptHistoryLines: 200,
     opusBitrate: 24000,
+    streamPrimeMs: 12000,
   });
   return { clock, hub, manager };
 }
@@ -97,10 +98,19 @@ test("re-acquiring within the grace period cancels teardown", async () => {
   assert.equal(hub.laneCount, 1);
 });
 
-test("the source language lane costs no session", async () => {
+test("every offered language is a translated lane, the room's own included", async () => {
   const { manager } = makeManager();
   const lane = await manager.acquire("ko", {}, "transcript");
+  assert.equal(lane.constructor.name, "TranslatedLane");
+});
+
+test("the passthrough lane costs no session, but only exists when turned on", async () => {
+  const on = makeManager({ passthroughLane: true });
+  const lane = await on.manager.acquire(PASSTHROUGH_LANG, {}, "transcript");
   assert.equal(lane.constructor.name, "SourceLane");
+
+  const off = makeManager();
+  await assert.rejects(() => off.manager.acquire(PASSTHROUGH_LANG, {}, "transcript"), UnknownLanguageError);
 });
 
 test("rejects a language beyond the cap", async () => {
@@ -169,14 +179,19 @@ test("closeAll cancels pending grace timers, not just closes lanes", async (t) =
   const { clock, hub, manager } = makeManager({ laneGraceMs: 60000 });
   const sub = {};
   await manager.acquire("en", sub, "transcript");
+  // The lane keeps its own housekeeping timers on this clock too (see
+  // TranslatedLane.scheduleFill), so the grace timer is identified by its
+  // handle rather than by counting cancellations.
+  const setTimeoutSpy = t.mock.method(clock, "setTimeout");
   manager.release("en", sub); // schedules a grace timer due at t=60000
+  const graceTimer = setTimeoutSpy.mock.calls.find((call) => call.arguments[1] === 60000);
+  assert.ok(graceTimer, "release() scheduled the grace timer");
 
   const clearTimeoutSpy = t.mock.method(clock, "clearTimeout");
   manager.closeAll();
 
-  assert.equal(
-    clearTimeoutSpy.mock.callCount(),
-    1,
+  assert.ok(
+    clearTimeoutSpy.mock.calls.some((call) => call.arguments[0] === graceTimer.result),
     "the pending grace timer must be cancelled, not left dangling once its lane is gone",
   );
   assert.equal(hub.laneCount, 0);

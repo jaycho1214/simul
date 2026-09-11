@@ -161,6 +161,24 @@ export class ServerSupervisor {
     this.spawn();
   }
 
+  /**
+   * Hands a new brand to the running server, which applies it to the next
+   * /config a phone asks for — no restart, so an operator fixing a misspelled
+   * event name does not drop every listener in the room to do it.
+   *
+   * A no-op when nothing is running. That is not a failure: the value is
+   * already in settings, and buildServerEnv puts it in the environment of the
+   * next spawn.
+   */
+  setBrand(brand: {
+    name: string;
+    accent: string;
+    logoPath: string;
+    theme: "dark" | "light" | "auto";
+  }): void {
+    this.child?.postMessage({ type: "brand", brand });
+  }
+
   restart(): void {
     this.cancelRestart?.();
     this.cancelRestart = undefined;

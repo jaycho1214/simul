@@ -74,9 +74,11 @@ doors open, and watch for a lane that never appears in 레인 현황 at all**
 
 ## Development checklist — macOS, run once after Task 11
 
-Run on this machine, `pnpm start` from the repo root, with a real
-`GEMINI_API_KEY`/`INGEST_TOKEN` in `.env` (gitignored, loaded via `set -a; .
-./.env; set +a`).
+Run on this machine, `pnpm start` from the repo root. The app's own settings
+are the server's only configuration: put the real Gemini key in the 제어
+panel. (Until 2026-09-11 `pnpm start` also sourced `.env` and the app let an
+inherited key stand in for an empty stored one; it no longer reads `.env` at
+all — that file is for `pnpm serve`, the headless server.)
 
 - [x] **U1 — the five panels are present and Korean.** Start the app.
   Confirm the headings read exactly 입력 장치, 레벨 미터, 접속 정보, 레인 현황, 제어,
@@ -147,6 +149,18 @@ Run on this machine, `pnpm start` from the repo root, with a real
   `echoCancellation`/`noiseSuppression`/`autoGainControl` reporting `true`
   in `track.getSettings()` triggers it.
 
+- [ ] **U3b — no phone or speaker can reach the operator mic.** Echo
+  cancellation is off by design (U3), and the model parrots speech already
+  in a lane's language. So a phone playing a lane within earshot of the
+  mic, or the operator monitoring on speakers, makes every lane repeat its
+  last sentence forever: reproduced 2026-09-11 with a digital loopback of
+  one sentence, which the model repeated verbatim every 2 s for 32 s without
+  decaying, and which any attendee would hear as "the translator is stuck".
+  Pass: with the room quiet, a sentence spoken into the mic is translated
+  once and the lane goes silent within a few seconds. Fail: it repeats.
+  Fix: earphones on every phone near the stage mic, and never monitor a
+  lane on speakers in the same room as that mic.
+
 - [x] **U4 — requested vs achieved is real.** Set requested channels higher
   than the device supports; confirm 요청 N채널 · 실제 M채널 and the
   믹서에서 라우팅하세요 warning.
@@ -209,11 +223,11 @@ Run on this machine, `pnpm start` from the repo root, with a real
   from your shell environment (defaulting to `"t"`), but when the server is
   forked by the operator app (not run via `pnpm serve`), the *actual*
   ingest token in effect is whichever one `electron-store` generated and
-  is holding — `buildServerEnv` always sets `INGEST_TOKEN` from the stored
-  settings, unconditionally overriding whatever is in `.env`
-  (`settings/schema.ts`: `if (settings.ingestToken) env.INGEST_TOKEN =
-  settings.ingestToken`, and `ingestToken` is never blank — it
-  self-generates on first read). The mismatch fails **silently**: `pnpm
+  is holding — the app's settings are the server's only configuration, and
+  `serverEnv` (`settings/schema.ts`) strips every server variable from the
+  inherited environment before laying the settings on, so nothing in `.env`
+  reaches it (`ingestToken` is never blank — it self-generates on first
+  read). The mismatch fails **silently**: `pnpm
   tone` connects without printing any error (the WS technically "opens"),
   but every frame lands nowhere, and `/stream/ko.webm` returns 0 bytes.
   **If `pnpm tone` looks like it worked but nothing streams, this token
@@ -281,13 +295,14 @@ Run on this machine, `pnpm start` from the repo root, with a real
   `server-supervisor.ts`'s external-server branch has shipped since Task 7.
 
 - [x] **S5 — a missing API key is visible, not silent.** Clear the stored
-  key and restart the server with no `GEMINI_API_KEY` reachable at all
-  (important: clear it from **both** electron-store *and* the shell
-  environment the app was launched from — `buildServerEnv` only omits the
-  key from the child's env when the stored value is empty, but the child
-  still inherits `process.env` otherwise, so a `GEMINI_API_KEY` merely
-  exported in your terminal will paper over a "cleared" stored key and this
-  check will falsely appear to pass).
+  key and restart the server. (Since 2026-09-11 the stored key is the only
+  one the server can see: `serverEnv` strips `GEMINI_API_KEY` and every
+  other server variable from the inherited environment, so a key exported
+  in your terminal or written in `.env` can no longer paper over a cleared
+  stored one. Before that change this check could falsely pass for exactly
+  that reason. Also since then, an *invalid* stored key fails within about
+  half a second with Google's own reason in 서버 로그 — "API key not valid" —
+  instead of a 10 s "first connect did not complete" timeout.)
   **Result: PASS**, with one precision correction. Relaunched the whole app
   from a shell with `GEMINI_API_KEY` explicitly `unset` and nothing stored.
   제어 showed the detail line `GEMINI_API_KEY is required` exactly as
@@ -479,6 +494,21 @@ criteria so it can actually be executed rather than assumed passing.
   all** when the first attendee picks it — not just one that appears and
   later shows 오류 — since that is the failure mode actually observed, not
   the one originally documented.
+
+- [ ] **W6 — latency, on the phones people will actually hold.**
+  **UNVERIFIED on real phones.** Measured only in desktop Chromium on
+  2026-09-11: 0.6 s behind the lane clock on the MediaSource path, 3.1 s on
+  the plain `<audio>` path at 128 kbps. Use the 원음 (passthrough) lane for
+  this — switch it on in 언어 for the rehearsal, off again for the event —
+  since a translated lane adds the model's own delay on top. Clap once near
+  the mic and count to the clap in the earpiece: an Android Chrome phone
+  should be under a second behind; an iPhone (plain path) about three. **An iPhone that is
+  ~16 s behind, or whose audio restarts every 5 s, means the operator app is
+  still running with the old 24 kbps setting** — quit and relaunch it (the
+  setting migrates on start; see `apps/operator/src/settings/schema.ts`).
+  The 서버 로그 panel does not show the bitrate, but the wire does:
+  `curl -sN --max-time 3 http://<lan-ip>:8080/stream/ko.webm | wc -c`
+  is about 100 KB at 128 kbps and about 70 KB at 24 kbps.
 
 ### Before you leave for the venue
 

@@ -5,12 +5,12 @@ import { FrameBus } from "../frame-bus.ts";
 import { TranscriptBus } from "../transcript-bus.ts";
 import type { Clock } from "../clock.ts";
 import type { Lane } from "./lane.ts";
-import { pumpPackets } from "./pump-packets.ts";
+import { primeSilence, pumpPackets } from "./pump-packets.ts";
 
 /**
- * Passthrough of the speaker's own language. No Gemini session, no API cost.
- * Its TranscriptBus exists so the HTTP layer is uniform, and stays empty —
- * a source-language transcript would need a dedicated session.
+ * The room's own audio, untranslated: the debug lane (`PASSTHROUGH_LANG`),
+ * offered only when `passthroughLane` is on. No Gemini session, no API cost.
+ * Its TranscriptBus exists so the HTTP layer is uniform, and stays empty.
  */
 export class SourceLane implements Lane {
   readonly frames = new FrameBus();
@@ -22,12 +22,13 @@ export class SourceLane implements Lane {
   private elapsedMs = 0;
   private closed = false;
 
-  constructor(readonly lang: LangCode, opusBitrate: number, clock: Clock) {
+  constructor(readonly lang: LangCode, opusBitrate: number, clock: Clock, streamPrimeMs = 0) {
     // The source is relayed straight through at ingest rate: 16 kHz.
     this.encoder = new LaneOpusEncoder(16000, opusBitrate);
-    this.sink = new WebMSink({ inputSampleRate: 16000 });
+    this.sink = new WebMSink({ inputSampleRate: 16000, backlogMs: streamPrimeMs });
     this.transcripts = new TranscriptBus(clock, 1);
     this.frames.subscribe((frame) => this.sink.writeOpus(frame));
+    this.elapsedMs = primeSilence(this.encoder, this.frames, streamPrimeMs, this.elapsedMs);
   }
 
   readonly laneDrops = 0;
@@ -38,6 +39,14 @@ export class SourceLane implements Lane {
 
   get initSegment(): Buffer {
     return this.sink.initSegment;
+  }
+
+  get backlog(): Buffer {
+    return this.sink.backlog;
+  }
+
+  get mediaMs(): number {
+    return this.elapsedMs;
   }
 
   subscribeClusters(fn: (cluster: Buffer) => void): () => void {

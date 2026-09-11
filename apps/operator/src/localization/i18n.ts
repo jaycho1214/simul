@@ -15,6 +15,64 @@ export const KO_STRINGS = {
     join: "접속 정보",
     lanes: "레인 현황",
     control: "제어",
+    brand: "행사 브랜드",
+  },
+
+  section: {
+    live: "라이브",
+    device: "입력 장치",
+    join: "접속 정보",
+    brand: "행사 브랜드",
+    server: "서버 · 로그",
+  },
+
+  rail: {
+    sub_live: "{{n}}개 레인",
+    sub_noDevice: "장치를 선택하세요",
+    sub_noAddress: "주소 없음",
+    sub_unbranded: "설정 안 함",
+    sub_server: "{{port}} 포트",
+    sub_serverDown: "중지됨",
+  },
+
+  lang: {
+    title: "언어",
+    autoDetect:
+      "원음 언어는 따로 정하지 않습니다. Gemini가 말하는 언어를 자동으로 인식해 선택한 각 언어로 통역하고, 이미 그 언어로 말하고 있으면 그대로 다시 들려줍니다.",
+    offered: "제공할 언어",
+    count: "{{n}}개 선택됨",
+    passthrough: "원음 레인 (디버그)",
+    passthroughHint:
+      "켜면 참석자 목록 맨 아래에 번역하지 않은 현장 소리를 그대로 내보내는 레인이 추가됩니다. 오디오 경로 점검용이며 API 비용은 들지 않습니다.",
+    remove: "{{code}} 제거",
+    addCode: "목록에 없는 언어 코드",
+    add: "추가",
+    addHint:
+      "위 목록은 자주 쓰는 언어만 추린 것입니다. Gemini가 지원하는 70여 개 언어 중 목록에 없는 것은 BCP-47 코드로 직접 넣으세요.",
+    restartNeeded: "언어 변경은 서버를 다시 시작해야 적용됩니다. 진행 중에 다시 시작하면 듣고 있는 참석자의 소리가 잠시 끊깁니다.",
+  },
+
+  brand: {
+    name: "행사 이름",
+    namePlaceholder: "예: 새문안 주일예배",
+    nameHint: "참석자 화면 상단에 표시됩니다. 비워 두면 앱 이름이 대신 표시됩니다.",
+    accent: "강조 색",
+    accentPlaceholder: "#3e8fd0",
+    accentInvalid: "#3e8fd0 같은 색상 코드를 입력하세요.",
+    accentHint: "참석자 화면 배경에서 읽히도록 자동으로 밝기를 조정합니다. 초록·노랑·빨강 상태 색은 바뀌지 않습니다.",
+    logo: "로고",
+    logoHint: "이미지를 끌어다 놓거나 파일을 선택하세요. 앱 안에 복사되므로 원본 파일을 지워도 됩니다.",
+    logoPick: "파일 선택",
+    logoClear: "로고 제거",
+    logoNone: "선택된 파일 없음",
+    theme: "화면 모드",
+    themeDefault: "기본값 (어두운 화면)",
+    themeDark: "어두운 화면",
+    themeLight: "밝은 화면",
+    themeAuto: "참석자 기기 설정에 맞춤",
+    themeHint: "어두운 예배당에서는 어두운 화면이, 낮 행사에서는 밝은 화면이 읽기 좋습니다.",
+    appliesOnRefresh: "변경 사항은 바로 적용됩니다. 이미 듣고 있는 참석자는 화면을 새로 고쳐야 보입니다.",
+    restart: "서버 다시 시작",
   },
 
   device: {
@@ -30,6 +88,8 @@ export const KO_STRINGS = {
     // a number there because of it.
     sampleRate: "샘플레이트 — 장치 {{device}} Hz · 처리 {{processed}} Hz",
     dspOff: "DSP 꺼짐 확인됨 — 에코 제거 · 잡음 억제 · 자동 게인",
+    feedbackWarning:
+      "에코 제거가 꺼져 있으므로, 한 대의 노트북에서 스피커로 번역 음성을 들으며 테스트하면 마이크가 그 소리를 다시 잡아 번역이 끝없이 반복됩니다. 테스트할 때는 이어폰을 쓰거나 참석자 화면을 음소거하세요.",
     permissionNeeded: "마이크 권한이 필요합니다. 권한을 허용하면 장치 이름이 표시됩니다.",
   },
 
@@ -127,6 +187,7 @@ export const KO_STRINGS = {
     server_external: "외부 서버 사용 중 (--external-server)",
     restart: "서버 재시작",
     apiKey: "Gemini API 키",
+    apiKeyReplace: "새 키를 붙여넣어 교체",
     apiKeySet: "설정됨",
     apiKeyMissing: "설정되지 않음 — 번역 레인이 열리지 않습니다",
     save: "저장",
@@ -136,6 +197,7 @@ export const KO_STRINGS = {
   // and — only while there is one — a count of lanes in error. `n` rather
   // than `count` so i18next does not go looking for plural-suffixed keys.
   strip: {
+    listenersLabel: "청취자",
     capturing: "캡처 중",
     captureStopped: "캡처 정지됨",
     listeners: "청취자 {{n}}",

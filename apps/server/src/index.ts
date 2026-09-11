@@ -4,15 +4,16 @@ import { createServer } from "./server.ts";
 import { createGeminiTranslateSessionFactory } from "./gemini/gemini-translate-session.ts";
 
 const config = loadConfig();
+const clock = new SystemClock();
 const server = createServer({
   config,
-  clock: new SystemClock(),
-  sessionFactory: createGeminiTranslateSessionFactory({ apiKey: config.geminiApiKey }),
+  clock,
+  sessionFactory: createGeminiTranslateSessionFactory({ apiKey: config.geminiApiKey, clock }),
 });
 
 const port = await server.listen(config.port);
 console.log(`tongyeok server on :${port}`);
-console.log(`languages: ${config.offeredLanguages.join(", ")} (source ${config.sourceLanguage})`);
+console.log(`languages: ${config.offeredLanguages.join(", ")}${config.passthroughLane ? " + passthrough lane (debug)" : ""}`);
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, () => {

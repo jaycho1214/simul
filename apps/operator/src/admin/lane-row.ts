@@ -9,6 +9,7 @@ const ENDONYM: Record<string, string> = {
   en: "English",
   es: "Español",
   ja: "日本語",
+  original: "원음",
   zh: "中文",
   fr: "Français",
   de: "Deutsch",

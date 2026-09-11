@@ -1,0 +1,23 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>tongyeok — design preview</title>
+<style>
+  :root{color-scheme:dark}
+  body{margin:0;background:#3f3f47;font:13px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;color:#fff;padding:20px}
+  h1{font-size:15px;font-weight:600;margin:0 0 4px}
+  p{margin:0 0 18px;opacity:.7}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(390px,390px));gap:18px;justify-content:start}
+  figure{margin:0;display:flex;flex-direction:column;gap:8px}
+  iframe{width:390px;height:800px;border:0;border-radius:26px;background:#000;
+         box-shadow:0 10px 34px rgba(0,0,0,.4)}
+  figcaption{opacity:.85}
+</style></head><body>
+  <h1>Attendee app — design preview</h1>
+  <p>Real renders at iPhone width. Sample brand: gold accent, a logo, an event name.</p>
+  <div class="grid">
+    <figure><iframe src="/design-preview.html?s=picker&t=dark&b=1&w=1"></iframe><figcaption>Picker · before the room starts</figcaption></figure>
+    <figure><iframe src="/design-preview.html?s=picker&t=dark&b=1"></iframe><figcaption>Picker · live</figcaption></figure>
+    <figure><iframe src="/design-preview.html?s=picker&t=light&b=1"></iframe><figcaption>Picker · live · light</figcaption></figure>
+    <figure><iframe src="/design-preview.html?s=listen&t=dark&b=1"></iframe><figcaption>Listen · dark (watch the tally ring)</figcaption></figure>
+    <figure><iframe src="/design-preview.html?s=listen&t=light&b=1"></iframe><figcaption>Listen · light</figcaption></figure>
+  </div>
+</body></html>

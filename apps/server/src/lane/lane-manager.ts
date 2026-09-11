@@ -6,6 +6,15 @@ import type { Lane } from "./lane.ts";
 import { SourceLane } from "./source-lane.ts";
 import { TranslatedLane } from "./translated-lane.ts";
 
+/**
+ * The lane that carries the room's own audio untranslated. Not a language:
+ * it exists only while `passthroughLane` is on, as a way to check the capture
+ * chain without a model in the path, and the attendee app lists it last,
+ * tagged as debug. Every real language lane goes through the model, which
+ * detects what is spoken and parrots speech already in the target language.
+ */
+export const PASSTHROUGH_LANG = "original";
+
 export class LaneCapError extends Error {
   constructor(max: number) {
     super(`lane cap of ${max} reached`);
@@ -24,12 +33,20 @@ export interface LaneManagerOptions {
   clock: Clock;
   hub: AudioHub;
   sessionFactory: TranslateSessionFactory;
-  sourceLanguage: LangCode;
+  /** Offer PASSTHROUGH_LANG alongside the languages. */
+  passthroughLane: boolean;
   offeredLanguages: readonly LangCode[];
   maxConcurrentLanes: number;
   laneGraceMs: number;
   transcriptHistoryLines: number;
   opusBitrate: number;
+  /**
+   * How much recent audio a joining listener is handed up front. See
+   * `WebMSink.backlog` — a media element decodes nothing until it has
+   * analysed several seconds of timestamped audio, so without this every
+   * listener waits out that gate in silence.
+   */
+  streamPrimeMs: number;
 }
 
 /**
@@ -80,7 +97,7 @@ export class LaneManager {
     if (this.closed) {
       throw new Error("LaneManager is closed");
     }
-    if (!this.opts.offeredLanguages.includes(lang)) {
+    if (!this.isOffered(lang)) {
       throw new UnknownLanguageError(lang);
     }
 
@@ -175,15 +192,21 @@ export class LaneManager {
     }
   }
 
+  private isOffered(lang: LangCode): boolean {
+    if (lang === PASSTHROUGH_LANG) return this.opts.passthroughLane;
+    return this.opts.offeredLanguages.includes(lang);
+  }
+
   private async openLane(lang: LangCode): Promise<Lane> {
-    if (lang === this.opts.sourceLanguage) {
-      return new SourceLane(lang, this.opts.opusBitrate, this.opts.clock);
+    if (lang === PASSTHROUGH_LANG) {
+      return new SourceLane(lang, this.opts.opusBitrate, this.opts.clock, this.opts.streamPrimeMs);
     }
     return TranslatedLane.create({
       lang,
       clock: this.opts.clock,
       opusBitrate: this.opts.opusBitrate,
       historyLines: this.opts.transcriptHistoryLines,
+      streamPrimeMs: this.opts.streamPrimeMs,
       sessionFactory: this.opts.sessionFactory,
     });
   }

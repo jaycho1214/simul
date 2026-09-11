@@ -8,7 +8,7 @@ import {
   FakeTranslateSession,
 } from "../gemini/fake-translate-session.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
-import { LaneManager } from "../lane/lane-manager.ts";
+import { LaneManager, PASSTHROUGH_LANG } from "../lane/lane-manager.ts";
 import { StreamRoute } from "./stream-route.ts";
 import { AdminSocket, type AdminWebSocket } from "./admin-socket.ts";
 
@@ -99,12 +99,13 @@ function setup(sessionFactory: TranslateSessionFactory = createFakeTranslateSess
     clock,
     hub,
     sessionFactory,
-    sourceLanguage: "ko",
+    passthroughLane: true,
     offeredLanguages: ["ko", "en"],
     maxConcurrentLanes: 6,
     laneGraceMs: 60000,
     transcriptHistoryLines: 200,
     opusBitrate: 24000,
+    streamPrimeMs: 12000,
   });
   // A zero-byte buffer ceiling makes any pending write count as a backed-up
   // client, so listener drops can be produced without shovelling megabytes.
@@ -130,8 +131,8 @@ test("reports listener counts, lane age and per-language listener drops", async 
   const { clock, hub, manager, route, socket } = setup();
 
   const res = new FakeStreamResponse();
-  await route.handle(res as any, "ko");
-  await manager.acquire("ko", {}, "transcript");
+  await route.handle(res as any, PASSTHROUGH_LANG);
+  await manager.acquire(PASSTHROUGH_LANG, {}, "transcript");
 
   // A client too backed up to take clusters: the route drops rather than
   // buffers, and that count is the operator's signal for "this listener's
@@ -143,7 +144,7 @@ test("reports listener counts, lane age and per-language listener drops", async 
   const ws = new FakeAdminWs();
   socket.handleConnection(ws);
 
-  const ko = ws.lane("ko");
+  const ko = ws.lane(PASSTHROUGH_LANG);
   assert.equal(ko.listeners, 1, "one attendee holding both transports is one listener");
   assert.equal(ko.audioListeners, 1);
   assert.ok(ko.listenerDrops > 0, "the stream route's drops reached the table");
@@ -215,16 +216,16 @@ test("a lane with nowhere to put audio reports rising drops, not silent green", 
   assert.equal(en.laneDrops, 30, "every frame that went nowhere was counted");
 });
 
-test("the source lane needs no session and reads live throughout", async () => {
+test("the passthrough lane needs no session and reads live throughout", async () => {
   const { clock, hub, manager, socket } = setup();
-  await manager.acquire("ko", {}, "transcript");
+  await manager.acquire(PASSTHROUGH_LANG, {}, "transcript");
 
   const ws = new FakeAdminWs();
   socket.handleConnection(ws);
   for (let i = 0; i < 10; i++) hub.push(tone(640));
   clock.advance(PUSH_INTERVAL_MS);
 
-  const ko = ws.lane("ko");
+  const ko = ws.lane(PASSTHROUGH_LANG);
   assert.equal(ko.state, "live");
   assert.equal(ko.laneDrops, 0);
 });

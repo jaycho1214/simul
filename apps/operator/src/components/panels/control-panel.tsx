@@ -61,37 +61,7 @@ export function ControlPanel() {
   const hasKey = settings.data?.hasGeminiApiKey ?? false;
 
   return (
-    <Panel title={t("panel.control")}>
-      {/* The transport. Start is the one filled green control in the app;
-          stop is outlined so it is findable without shouting, and neither is
-          ever ambiguous about which one is available right now. */}
-      <div className="flex gap-2">
-        <Button
-          className="h-11 flex-1 bg-live text-base font-semibold text-[oklch(0.2_0.03_155)] hover:bg-live/90"
-          disabled={capture.running || !settings.data?.deviceId}
-          onClick={() => void start()}
-        >
-          {t("control.start")}
-        </Button>
-        <Button
-          variant="outline"
-          className="h-11 flex-1 text-base font-semibold"
-          disabled={!capture.running}
-          onClick={() => void captureController.stop()}
-        >
-          {t("control.stop")}
-        </Button>
-      </div>
-
-      {capture.error ? (
-        <Notice tone="error">
-          {t(`error.${capture.error.code}`, capture.error as Record<string, string>)}
-        </Notice>
-      ) : null}
-      {capture.running && capture.ingestState !== "open" ? (
-        <Notice tone="warn">{t("error.ingestDisconnected")}</Notice>
-      ) : null}
-
+    <Panel>
       <Group
         label={t("control.serverTitle")}
         aside={
@@ -114,13 +84,27 @@ export function ControlPanel() {
       </Group>
 
       <Group label={t("control.apiKey")}>
+        {/* The key itself never crosses IPC. The mask is enough to answer
+            "is one saved, and is it the one I meant" at a sound desk that
+            people walk past. */}
         <StatusLine tone={hasKey ? "live" : "warn"}>
-          {hasKey ? t("control.apiKeySet") : t("control.apiKeyMissing")}
+          {hasKey ? (
+            <span className="inline-flex items-center gap-2">
+              {t("control.apiKeySet")}
+              <span className="font-mono text-sm text-muted-foreground">
+                {settings.data?.geminiApiKeyMask}
+              </span>
+            </span>
+          ) : (
+            t("control.apiKeyMissing")
+          )}
         </StatusLine>
-        <div className="flex gap-2">
+        <div className="flex max-w-md gap-2">
           <Input
             type="password"
             autoComplete="off"
+            className="min-w-0 flex-1"
+            placeholder={hasKey ? t("control.apiKeyReplace") : undefined}
             value={apiKey}
             onChange={(e) => setApiKey(e.target.value)}
           />

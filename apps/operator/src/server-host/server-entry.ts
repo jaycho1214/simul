@@ -10,16 +10,24 @@ import { createServer } from "@tongyeok/server/server";
  */
 async function main(): Promise<void> {
   const config = loadConfig(process.env);
+  const clock = new SystemClock();
   const server = createServer({
     config,
-    clock: new SystemClock(),
-    sessionFactory: createGeminiTranslateSessionFactory({ apiKey: config.geminiApiKey }),
+    clock,
+    sessionFactory: createGeminiTranslateSessionFactory({ apiKey: config.geminiApiKey, clock }),
   });
 
   // Registered before the listen() await settles, so a shutdown request that
   // arrives while the server is still binding is not lost.
   process.parentPort.on("message", (event) => {
-    const message = event.data as { type?: string } | undefined;
+    const message = event.data as { type?: string; brand?: unknown } | undefined;
+    // Brand is the only config the running server will accept a change to.
+    // Everything else shapes a live lane and cannot be swapped underneath one.
+    if (message?.type === "brand" && message.brand) {
+      server.setBrand(message.brand as Parameters<typeof server.setBrand>[0]);
+      return;
+    }
+
     if (message?.type === "shutdown") {
       // Must go through server.close(), never a bare process.exit(): close()
       // reaches LaneManager.closeAll() -> lane.close() -> LaneOpusEncoder.close(),
@@ -37,7 +45,7 @@ async function main(): Promise<void> {
   // lines for the 서버 로그 panel and echo them to its own console, instead of
   // the server's boot state being invisible outside its status.
   console.log(`tongyeok server on :${port}`);
-  console.log(`languages: ${config.offeredLanguages.join(", ")} (source ${config.sourceLanguage})`);
+  console.log(`languages: ${config.offeredLanguages.join(", ")}${config.passthroughLane ? " + passthrough lane (debug)" : ""}`);
   process.parentPort.postMessage({ type: "listening", port });
 }
 

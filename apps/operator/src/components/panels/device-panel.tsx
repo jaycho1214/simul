@@ -37,7 +37,6 @@ export function DevicePanel() {
 
   return (
     <Panel
-      title={t("panel.device")}
       aside={
         <Button variant="ghost" size="sm" onClick={() => void devices.refetch()}>
           <RefreshCw data-icon="inline-start" />
@@ -118,7 +117,23 @@ export function DevicePanel() {
             processed: report?.contextSampleRate ?? 0,
           })}
         </div>
-        {report?.dspConfirmedOff ? <div className="text-live">{t("device.dspOff")}</div> : null}
+        {report?.dspConfirmedOff ? (
+          <>
+            <div className="text-live">{t("device.dspOff")}</div>
+            {/*
+              Sits with the DSP line rather than anywhere else because it is a
+              direct consequence of it: echo cancellation is deliberately off
+              for translation quality, which is right for a board feed and is
+              exactly what makes a laptop mic plus laptop speakers loop
+              forever. Gemini re-translates its own output, the wording drifts
+              each pass, and no turn ever completes — so the transcript never
+              commits a line either.
+            */}
+            <div className="text-xs leading-snug text-muted-foreground">
+              {t("device.feedbackWarning")}
+            </div>
+          </>
+        ) : null}
       </div>
 
       {/* Every warning code maps to a Korean sentence in the string table; the

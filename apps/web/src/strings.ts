@@ -8,6 +8,9 @@ export const S = {
   appTitle: "실시간 통역 / Live Translation",
   pickLanguage: "언어를 선택하세요 / Choose your language",
   changeLanguage: "언어 변경 / Change language",
+  /** The compact form, for the listen screen's bar where the full label does
+   *  not fit beside the event's name. */
+  changeShort: "변경 / Change",
 
   mute: "음소거 / Mute",
   unmute: "소리 켜기 / Unmute",
@@ -28,13 +31,42 @@ export const S = {
     "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now",
   unknownLanguage: "알 수 없는 언어입니다 / Unknown language",
 
+  notStarted: "아직 시작 전입니다 / Not started yet",
+  notStartedBody:
+    "행사가 시작되면 언어를 고를 수 있습니다 / You can choose a language once the event begins",
+
+  themeAuto: "화면 자동 / Match device",
+  themeLight: "밝게 / Light",
+  themeDark: "어둡게 / Dark",
+
   waitingForSpeech: "말씀을 기다리는 중 / Waiting for the speaker",
   configError: "서버에 연결할 수 없습니다 / Cannot reach the server",
   retry: "다시 시도 / Retry",
 } as const;
 
 /**
- * The picker's tag for the speaker's own language, written exactly as the spec
- * shows it: `한국어  (원음 · Original)`. A middle dot, not a slash.
+ * The picker's tag on the untranslated passthrough lane, which the operator
+ * turns on only to check the audio chain. A middle dot rather than the " / "
+ * divider on purpose: it is one label, not a Korean/English pair.
  */
-export const ORIGINAL_TAG = "원음 · Original";
+export const PASSTHROUGH_TAG = "Original · debug";
+
+export interface Bilingual {
+  ko: string;
+  en: string;
+}
+
+/**
+ * Splits a table entry on the documented " / " divider. The table itself stays
+ * the single source of truth — this only changes how a string is set, never
+ * what it says — so a caller that needs the two halves on separate lines does
+ * not become a reason to keep the same sentence written down twice.
+ *
+ * A string with no divider comes back whole in `ko`, which is the safe way to
+ * fail: the reader sees the full text rather than half of it.
+ */
+export function bilingual(text: string): Bilingual {
+  const at = text.indexOf(" / ");
+  if (at === -1) return { ko: text, en: "" };
+  return { ko: text.slice(0, at), en: text.slice(at + 3) };
+}

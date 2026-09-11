@@ -32,11 +32,12 @@ test("SourceLane encodes ingest PCM and emits clusters", () => {
   const clusters: Buffer[] = [];
   lane.subscribeClusters((c) => clusters.push(c));
 
-  // 100 ms cluster size, 20 ms frames: five frames complete one cluster.
+  // 40 ms clusters, 20 ms frames: five frames complete two clusters and
+  // leave the fifth waiting for a partner.
   for (let i = 0; i < 5; i++) lane.pushPcm(tone(640));
 
   assert.equal(lane.state, "live");
-  assert.equal(clusters.length, 1);
+  assert.equal(clusters.length, 2);
   assert.ok(lane.initSegment.includes(Buffer.from("OpusHead")));
 
   lane.close();
@@ -290,4 +291,87 @@ test("a lane-state subscriber that throws cannot break close()", async (t) => {
   translated.close();
 
   assert.equal(errorMock.mock.callCount(), 2, "both throws were logged, not swallowed");
+});
+
+// The model sends nothing until it first speaks, then a continuous real-time
+// stream, silence included. The attendee's player holds 0.6 s of runway and
+// reads any gap as a network stall, so the lane keeps its own stream
+// continuous from the moment it exists. See TranslatedLane.scheduleFill.
+test("TranslatedLane keeps its media clock on the wall clock until the session first speaks", async () => {
+  const clock = new FakeClock(5_000);
+  const lane = await TranslatedLane.create({
+    lang: "en",
+    clock,
+    opusBitrate: 24000,
+    historyLines: 200,
+    sessionFactory: createFakeTranslateSessionFactory(),
+    streamPrimeMs: 400,
+  });
+  const clusters: Buffer[] = [];
+  lane.subscribeClusters((c) => clusters.push(c));
+  assert.equal(lane.mediaMs, 400, "the prime is written at once, as before");
+
+  clock.advance(1_000);
+  assert.equal(lane.mediaMs, 1_400, "one second of wall clock is one second of silence");
+  assert.ok(clusters.length > 0, "and it reaches listeners as clusters, not just the backlog");
+
+  lane.close();
+});
+
+test("TranslatedLane follows the session's own pacing once it has spoken, filling only a real gap", async () => {
+  const clock = new FakeClock();
+  const lane = await TranslatedLane.create({
+    lang: "en",
+    clock,
+    opusBitrate: 24000,
+    historyLines: 200,
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  clock.advance(1_000);
+  assert.equal(lane.mediaMs, 1_000);
+
+  // 25 frames make the fake session emit 500 ms of audio: the lane is now
+  // ahead of the wall clock, as the real model runs a chunk or so ahead.
+  for (let i = 0; i < 25; i++) lane.pushPcm(silence());
+  assert.equal(lane.mediaMs, 1_500);
+
+  // A deficit under FILL_AFTER_MS is the model's ordinary jitter: not filled,
+  // or the filler would paste silence into speech.
+  clock.advance(1_300);
+  assert.equal(lane.mediaMs, 1_500, `deficit of ${2_300 - 1_500} ms is left alone`);
+
+  // At FILL_AFTER_MS the gap is judged real and the timeline is brought up to
+  // the wall clock — and then kept there every tick, not in one-second steps
+  // that would have every phone run dry between them.
+  clock.advance(200);
+  assert.equal(lane.mediaMs, 2_500);
+  clock.advance(200);
+  assert.equal(lane.mediaMs, 2_700);
+
+  // The session speaking again ends the fill: its audio lands where the
+  // timeline stands, and a small deficit is once more left alone.
+  for (let i = 0; i < 25; i++) lane.pushPcm(silence());
+  assert.equal(lane.mediaMs, 3_200);
+  clock.advance(1_000);
+  assert.equal(lane.mediaMs, 3_200, `deficit of ${3_700 - 3_200} ms is left alone`);
+
+  lane.close();
+});
+
+test("TranslatedLane.close() stops the filler before disposing the encoder", async () => {
+  const clock = new FakeClock();
+  const lane = await TranslatedLane.create({
+    lang: "en",
+    clock,
+    opusBitrate: 24000,
+    historyLines: 200,
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  clock.advance(500);
+  const before = lane.mediaMs;
+
+  lane.close();
+  // A tick that survived close() would encode on a disposed encoder and throw.
+  assert.doesNotThrow(() => clock.advance(5_000));
+  assert.equal(lane.mediaMs, before);
 });

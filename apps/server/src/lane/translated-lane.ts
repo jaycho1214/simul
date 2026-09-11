@@ -1,13 +1,31 @@
 import type { LangCode, LaneState } from "@tongyeok/protocol";
-import { LaneOpusEncoder } from "../audio/opus-encoder.ts";
+import { frameBytesFor, LaneOpusEncoder } from "../audio/opus-encoder.ts";
 import { WebMSink } from "../audio/webm-sink.ts";
 import { FrameBus } from "../frame-bus.ts";
 import { TranscriptBus } from "../transcript-bus.ts";
-import type { Clock } from "../clock.ts";
+import type { Clock, TimerHandle } from "../clock.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
 import { SessionRotator } from "../gemini/session-rotator.ts";
 import type { Lane } from "./lane.ts";
-import { pumpPackets } from "./pump-packets.ts";
+import { FRAME_MS, primeSilence, pumpPackets } from "./pump-packets.ts";
+
+/** How often the lane checks that its media clock has kept pace with the wall clock. */
+export const FILL_TICK_MS = 100;
+
+/**
+ * Once the session has spoken, how far its audio may fall behind the wall
+ * clock before the gap is filled with silence.
+ *
+ * Measured 2026-09-11: the model delivers exactly one second of audio per
+ * second and runs a chunk or so ahead, so while it is streaming this deficit
+ * never goes positive. A whole second of it is either the connection gone
+ * (SessionRotator is already opening a replacement, and the room hears
+ * nothing either way) or a stall long enough that the attendee's player has
+ * already run dry; filling then costs nothing that was not lost already.
+ * Anything much tighter would risk pasting silence into speech on a late
+ * chunk, which is audible, and which stays in the timeline for good.
+ */
+export const FILL_AFTER_MS = 1_000;
 
 export interface TranslatedLaneOptions {
   lang: LangCode;
@@ -15,6 +33,7 @@ export interface TranslatedLaneOptions {
   opusBitrate: number;
   historyLines: number;
   sessionFactory: TranslateSessionFactory;
+  streamPrimeMs?: number;
 }
 
 export class TranslatedLane implements Lane {
@@ -23,11 +42,26 @@ export class TranslatedLane implements Lane {
 
   private readonly encoder: LaneOpusEncoder;
   private readonly sink: WebMSink;
+  private readonly clock: Clock;
   private readonly stateListeners = new Set<(state: LaneState) => void>();
   private elapsedMs = 0;
   private drops = 0;
   private laneState: LaneState = "starting";
   private closed = false;
+
+  /** Wall-clock time and media clock at construction: the filler's origin. */
+  private readonly startedAt: number;
+  private readonly startedElapsedMs: number;
+  private readonly silenceFrame = Buffer.alloc(frameBytesFor(24000));
+  /**
+   * True while silence is being written at wall-clock rate: from birth until
+   * the session first speaks, and again from FILL_AFTER_MS into any later gap
+   * until it speaks again. Sticky on purpose — once a gap has been judged
+   * real, the timeline is kept up every tick, not in FILL_AFTER_MS steps that
+   * would have every phone run dry between them.
+   */
+  private filling = true;
+  private fillTimer: TimerHandle | undefined;
 
   private constructor(
     readonly lang: LangCode,
@@ -36,11 +70,16 @@ export class TranslatedLane implements Lane {
   ) {
     // Gemini returns 24 kHz audio, so this lane encodes at 24 kHz.
     this.encoder = new LaneOpusEncoder(24000, opts.opusBitrate);
-    this.sink = new WebMSink({ inputSampleRate: 24000 });
+    this.sink = new WebMSink({ inputSampleRate: 24000, backlogMs: opts.streamPrimeMs ?? 0 });
+    this.clock = opts.clock;
     this.transcripts = new TranscriptBus(opts.clock, opts.historyLines);
     this.frames.subscribe((frame) => this.sink.writeOpus(frame));
+    this.elapsedMs = primeSilence(this.encoder, this.frames, opts.streamPrimeMs ?? 0, this.elapsedMs);
+    this.startedAt = opts.clock.now();
+    this.startedElapsedMs = this.elapsedMs;
 
     session.on("audio", (pcm24k) => {
+      this.filling = false;
       this.elapsedMs = pumpPackets(this.encoder, this.frames, pcm24k, this.elapsedMs);
     });
     session.on("transcript", (text, isFinal) => {
@@ -54,6 +93,50 @@ export class TranslatedLane implements Lane {
     // Unsolicited reconnection is absorbed entirely inside the rotator and
     // surfaced to us only through "state" (e.g. "reconnecting"), so there is
     // nothing left for a "closed" handler to do.
+
+    this.scheduleFill();
+  }
+
+  /**
+   * Keeps this lane's stream continuous in real time even when the session
+   * has nothing to say.
+   *
+   * The model sends no audio at all until it first speaks — about a second
+   * after the first utterance begins — and from then on a continuous stream
+   * at exactly real time, silence included (measured 2026-09-11 over 76 s,
+   * 45 of them silent). The attendee's player is built for that continuous
+   * stream and reads any gap in it as a network stall: it holds the playhead
+   * 0.6 s behind the newest audio, so a cold lane's silence prime drained in
+   * 0.6 s and the app showed "Reconnecting audio" until the speaker's first
+   * sentence had been translated, on a connection that had not stalled. A
+   * plain `<audio>` fires `stalled` on the same gap. So until the session has
+   * spoken, silence is written at wall-clock rate, and after that a gap of
+   * more than FILL_AFTER_MS is covered the same way (a dead connection, while
+   * SessionRotator replaces it). The session's own audio always appends
+   * where the timeline stands, so nothing it sends is delayed or dropped.
+   *
+   * Driven by the lane's `Clock` rather than by ingest frames on purpose:
+   * the stream has to stay continuous for the phones even while the
+   * operator's capture is down, or every one of them would report a stall
+   * that is really the speaker's laptop rebooting.
+   */
+  private scheduleFill(): void {
+    this.fillTimer = this.clock.setTimeout(() => {
+      this.fillTimer = undefined;
+      if (this.closed) return;
+      this.fillToWallClock();
+      this.scheduleFill();
+    }, FILL_TICK_MS);
+  }
+
+  private fillToWallClock(): void {
+    const target = this.startedElapsedMs + (this.clock.now() - this.startedAt);
+    const deficit = target - this.elapsedMs;
+    if (!this.filling && deficit < FILL_AFTER_MS) return;
+    this.filling = true;
+    for (let filled = 0; filled + FRAME_MS <= deficit; filled += FRAME_MS) {
+      this.elapsedMs = pumpPackets(this.encoder, this.frames, this.silenceFrame, this.elapsedMs);
+    }
   }
 
   /**
@@ -135,6 +218,14 @@ export class TranslatedLane implements Lane {
     return this.sink.initSegment;
   }
 
+  get backlog(): Buffer {
+    return this.sink.backlog;
+  }
+
+  get mediaMs(): number {
+    return this.elapsedMs;
+  }
+
   subscribeClusters(fn: (cluster: Buffer) => void): () => void {
     return this.sink.subscribe(fn);
   }
@@ -150,6 +241,12 @@ export class TranslatedLane implements Lane {
   close(): void {
     if (this.closed) return;
     this.closed = true;
+    // Before the encoder goes: a tick that fired after close() would encode
+    // silence on a disposed encoder, which throws.
+    if (this.fillTimer) {
+      this.clock.clearTimeout(this.fillTimer);
+      this.fillTimer = undefined;
+    }
     this.setState("error");
     this.session.close();
     this.encoder.close();

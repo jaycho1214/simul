@@ -5,19 +5,20 @@ import {
   generateIngestToken,
   normalizeSettings,
   redactSettings,
+  serverEnv,
 } from "./schema.ts";
 
 describe("DEFAULT_SETTINGS", () => {
   test("carries the spec's configuration defaults", () => {
     expect(DEFAULT_SETTINGS).toMatchObject({
       port: 8080,
-      sourceLanguage: "ko",
       offeredLanguages: ["ko", "en", "es", "ja"],
+      passthroughLane: false,
       maxConcurrentLanes: 6,
       laneGraceMs: 60000,
       transcriptHistoryLines: 200,
       transcriptDelayMs: 0,
-      opusBitrate: 24000,
+      opusBitrate: 128000,
     });
   });
 
@@ -85,12 +86,21 @@ describe("normalizeSettings", () => {
     );
   });
 
-  test("forces the source language into the offered list", () => {
+  // There is no source language any more. A file from an older build still
+  // carries one; it is ignored, and the list is taken exactly as saved.
+  test("keeps the offered list as saved and ignores a stale sourceLanguage", () => {
     const settings = normalizeSettings({
       sourceLanguage: "ko",
       offeredLanguages: ["en", "es"],
     });
-    expect(settings.offeredLanguages).toEqual(["ko", "en", "es"]);
+    expect(settings.offeredLanguages).toEqual(["en", "es"]);
+    expect(settings).not.toHaveProperty("sourceLanguage");
+  });
+
+  test("reads the passthrough lane as on only for a literal true", () => {
+    expect(normalizeSettings({ passthroughLane: true }).passthroughLane).toBe(true);
+    expect(normalizeSettings({ passthroughLane: "true" }).passthroughLane).toBe(false);
+    expect(normalizeSettings({}).passthroughLane).toBe(false);
   });
 
   test("generates an ingest token when the store has none", () => {
@@ -145,13 +155,13 @@ describe("buildServerEnv", () => {
       GEMINI_API_KEY: "sk-1",
       INGEST_TOKEN: "tok-1",
       PORT: "8080",
-      SOURCE_LANGUAGE: "ko",
       OFFERED_LANGUAGES: '["ko","en","es","ja"]',
+      PASSTHROUGH_LANE: "false",
       MAX_CONCURRENT_LANES: "6",
       LANE_GRACE_MS: "60000",
       TRANSCRIPT_HISTORY_LINES: "200",
       TRANSCRIPT_DELAY_MS: "0",
-      OPUS_BITRATE: "24000",
+      OPUS_BITRATE: "128000",
     });
   });
 
@@ -165,48 +175,196 @@ describe("buildServerEnv", () => {
     expect(JSON.parse(env.OFFERED_LANGUAGES!)).toEqual(["ko", "fr"]);
   });
 
-  // main.ts merges this over process.env: { ...process.env, ...buildServerEnv(...) }.
-  // An unset secret must be absent from the returned object, not present as
-  // "", or the spread erases a key the engineer already exported in the shell
-  // or a .env file — the server would then refuse to start on a fresh install
-  // even though a perfectly good GEMINI_API_KEY was inherited.
-  test("an empty geminiApiKey leaves an inherited process.env value intact", () => {
+  // The settings store is the server's only configuration source inside this
+  // app. An unset key is passed as empty — the server then refuses to start
+  // with a message the control panel shows — rather than omitted, which once
+  // let an inherited .env value stand in for it without anyone knowing.
+  test("passes the secrets through as they are, empty included", () => {
     const env = buildServerEnv({ ...DEFAULT_SETTINGS, geminiApiKey: "", ingestToken: "tok" });
-    expect(env).not.toHaveProperty("GEMINI_API_KEY");
+    expect(env.GEMINI_API_KEY).toBe("");
+    expect(env.INGEST_TOKEN).toBe("tok");
+  });
+});
 
-    const merged = { ...{ GEMINI_API_KEY: "sk-from-shell" }, ...env };
-    expect(merged.GEMINI_API_KEY).toBe("sk-from-shell");
+/**
+ * Brand is the one part of the server's config an engineer sets from inside
+ * this app rather than from a .env file, so it travels the same settings ->
+ * buildServerEnv -> server env path as everything else.
+ */
+describe("brand settings", () => {
+  test("start out unset, so an unbranded event needs no decisions", () => {
+    expect(DEFAULT_SETTINGS).toMatchObject({
+      brandName: null,
+      brandAccent: null,
+      brandLogoPath: null,
+      brandTheme: null,
+    });
   });
 
-  test("a non-empty geminiApiKey overrides an inherited process.env value", () => {
-    const env = buildServerEnv({
-      ...DEFAULT_SETTINGS,
-      geminiApiKey: "sk-from-settings",
-      ingestToken: "tok",
+  test("keeps what the engineer typed", () => {
+    const s = normalizeSettings({
+      brandName: "새문안 주일예배",
+      brandAccent: "#E8B64C",
+      brandLogoPath: "/Users/av/logo.png",
+      brandTheme: "light",
     });
+    expect(s.brandName).toBe("새문안 주일예배");
+    expect(s.brandAccent).toBe("#e8b64c");
+    expect(s.brandLogoPath).toBe("/Users/av/logo.png");
+    expect(s.brandTheme).toBe("light");
+  });
+
+  test.each([
+    ["#f80", "#ff8800"],
+    ["e8b64c", "#e8b64c"],
+    ["  #E8B64C  ", "#e8b64c"],
+  ])("normalises the accent %j to %j", (input, expected) => {
+    expect(normalizeSettings({ brandAccent: input }).brandAccent).toBe(expected);
+  });
+
+  // normalizeSettings reads a file a previous build wrote or an engineer
+  // hand-edited an hour before doors, so it degrades rather than throwing —
+  // the panel is what refuses a bad value at the point it is typed.
+  test.each(["puce", "#12345", "", "   ", 42, null])(
+    "drops an unusable accent %j",
+    (bad) => {
+      expect(normalizeSettings({ brandAccent: bad }).brandAccent).toBeNull();
+    },
+  );
+
+  test("drops an unknown theme", () => {
+    expect(normalizeSettings({ brandTheme: "sepia" }).brandTheme).toBeNull();
+  });
+
+  test("treats a blank event name as unset", () => {
+    expect(normalizeSettings({ brandName: "   " }).brandName).toBeNull();
+  });
+});
+
+describe("buildServerEnv brand keys", () => {
+  test("passes everything the engineer set", () => {
+    const env = buildServerEnv(
+      normalizeSettings({
+        brandName: "새문안 주일예배",
+        brandAccent: "#e8b64c",
+        brandLogoPath: "/Users/av/logo.png",
+        brandTheme: "auto",
+      }),
+    );
+    expect(env.BRAND_NAME).toBe("새문안 주일예배");
+    expect(env.BRAND_ACCENT).toBe("#e8b64c");
+    expect(env.BRAND_LOGO).toBe("/Users/av/logo.png");
+    expect(env.BRAND_THEME).toBe("auto");
+  });
+
+  // Omitted rather than sent empty, so the server applies its own defaults
+  // for a brand the engineer never touched.
+  test("omits every brand key the engineer has not set", () => {
+    const env = buildServerEnv(normalizeSettings({}));
+    for (const key of ["BRAND_NAME", "BRAND_ACCENT", "BRAND_LOGO", "BRAND_THEME"]) {
+      expect(env, key).not.toHaveProperty(key);
+    }
+  });
+});
+
+describe("redactSettings", () => {
+  // The key itself must never cross into the renderer, but "is a key saved,
+  // and is it the right one" is a question an engineer asks at setup — so the
+  // last four characters come across and nothing else does.
+  test("sends a mask instead of the key", () => {
+    const s = redactSettings(
+      normalizeSettings({ geminiApiKey: "AIzaSyD-abcdefghijklmnop3f9a" }),
+    );
+    expect(s.geminiApiKeyMask).toBe("••••••••3f9a");
+    expect(s.hasGeminiApiKey).toBe(true);
+    expect(JSON.stringify(s)).not.toContain("AIzaSyD");
+  });
+
+  test("has no mask when no key is saved", () => {
+    const s = redactSettings(normalizeSettings({}));
+    expect(s.geminiApiKeyMask).toBeNull();
+    expect(s.hasGeminiApiKey).toBe(false);
+  });
+
+  test("never carries the ingest token", () => {
+    const s = redactSettings(normalizeSettings({ ingestToken: "secret-token-value" }));
+    expect(JSON.stringify(s)).not.toContain("secret-token-value");
+  });
+});
+
+/**
+ * The bitrate is not a choice the engineer can make from the panels — no UI
+ * sets it — so a stored value is always whatever DEFAULT_SETTINGS was when
+ * getSettings() first wrote the file back. The default used to be 24 kbps,
+ * which makes the server derive a ~16 s stream prime and puts every phone 16 s
+ * behind the room; the server and the spec moved to 128 kbps for exactly that
+ * reason (see apps/server/src/config.ts). A venue laptop that ran the old build
+ * keeps the old number on disk forever unless it is read as "the old default".
+ */
+describe("opusBitrate", () => {
+  test("defaults to the server's 128 kbps, not the old 24 kbps", () => {
+    expect(DEFAULT_SETTINGS.opusBitrate).toBe(128_000);
+    expect(normalizeSettings({}).opusBitrate).toBe(128_000);
+  });
+
+  test("migrates a stored copy of the old 24 kbps default to the new default", () => {
+    expect(normalizeSettings({ opusBitrate: 24_000 }).opusBitrate).toBe(128_000);
+  });
+
+  test("keeps any other in-range value an engineer put in the file by hand", () => {
+    expect(normalizeSettings({ opusBitrate: 96_000 }).opusBitrate).toBe(96_000);
+    expect(normalizeSettings({ opusBitrate: 32_000 }).opusBitrate).toBe(32_000);
+  });
+
+  test("still falls back on an out-of-range value", () => {
+    expect(normalizeSettings({ opusBitrate: 1_000 }).opusBitrate).toBe(128_000);
+  });
+});
+
+/**
+ * Either the panels or .env, never both: inside this app the settings store is
+ * the server's only source, so whatever the shell or a .env file carries about
+ * the event is stripped before the settings are laid on. The bug this guards
+ * against is not hypothetical — an invalid key saved here sat on top of a
+ * valid one in .env for a whole rehearsal, and nothing on screen said which
+ * the server was using.
+ */
+describe("serverEnv", () => {
+  const settings = normalizeSettings({
+    geminiApiKey: "sk-from-settings",
+    ingestToken: "tok-from-settings",
+  });
+
+  test("drops every server variable the process inherited, secrets first", () => {
+    const env = serverEnv(
+      {
+        GEMINI_API_KEY: "sk-from-dotenv",
+        INGEST_TOKEN: "tok-from-dotenv",
+        OPUS_BITRATE: "24000",
+        SOURCE_LANGUAGE: "ko",
+        BRAND_NAME: "from .env",
+        PATH: "/usr/bin",
+      },
+      settings,
+    );
     expect(env.GEMINI_API_KEY).toBe("sk-from-settings");
-
-    const merged = { ...{ GEMINI_API_KEY: "sk-from-shell" }, ...env };
-    expect(merged.GEMINI_API_KEY).toBe("sk-from-settings");
-  });
-
-  test("an empty ingestToken leaves an inherited process.env value intact", () => {
-    const env = buildServerEnv({ ...DEFAULT_SETTINGS, geminiApiKey: "k", ingestToken: "" });
-    expect(env).not.toHaveProperty("INGEST_TOKEN");
-
-    const merged = { ...{ INGEST_TOKEN: "tok-from-shell" }, ...env };
-    expect(merged.INGEST_TOKEN).toBe("tok-from-shell");
-  });
-
-  test("a non-empty ingestToken overrides an inherited process.env value", () => {
-    const env = buildServerEnv({
-      ...DEFAULT_SETTINGS,
-      geminiApiKey: "k",
-      ingestToken: "tok-from-settings",
-    });
     expect(env.INGEST_TOKEN).toBe("tok-from-settings");
+    expect(env.OPUS_BITRATE).toBe("128000");
+    expect(env).not.toHaveProperty("SOURCE_LANGUAGE");
+    expect(env).not.toHaveProperty("BRAND_NAME");
+    expect(env.PATH).toBe("/usr/bin");
+  });
 
-    const merged = { ...{ INGEST_TOKEN: "tok-from-shell" }, ...env };
-    expect(merged.INGEST_TOKEN).toBe("tok-from-settings");
+  test("skips inherited variables that are undefined", () => {
+    const env = serverEnv({ HOME: undefined }, settings);
+    expect(env).not.toHaveProperty("HOME");
+  });
+
+  test("an empty saved key is not rescued by an inherited one", () => {
+    const env = serverEnv(
+      { GEMINI_API_KEY: "sk-from-dotenv" },
+      normalizeSettings({ ingestToken: "t" }),
+    );
+    expect(env.GEMINI_API_KEY).toBe("");
   });
 });

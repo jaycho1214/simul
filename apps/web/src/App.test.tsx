@@ -1,7 +1,7 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { App } from "./App.tsx";
-import { S } from "./strings.ts";
+import { S, bilingual } from "./strings.ts";
 
 class StubSocket {
   readyState = 1;
@@ -55,7 +55,7 @@ describe("App", () => {
   test("shows the picker once /config resolves", async () => {
     stubConfig({
       offeredLanguages: ["ko", "en", "es"],
-      sourceLanguage: "ko",
+      live: true,
       transcriptDelayMs: 0,
     });
 
@@ -63,14 +63,14 @@ describe("App", () => {
 
     expect(await screen.findByText("한국어")).toBeTruthy();
     expect(screen.getByText("English")).toBeTruthy();
-    expect(screen.getByText(S.pickLanguage)).toBeTruthy();
+    expect(screen.getByText(bilingual(S.pickLanguage).ko)).toBeTruthy();
     expect(play).not.toHaveBeenCalled();
   });
 
   test("picking a language starts playback and shows the listen screen", async () => {
     stubConfig({
       offeredLanguages: ["ko", "es"],
-      sourceLanguage: "ko",
+      live: true,
       transcriptDelayMs: 0,
     });
 
@@ -87,7 +87,7 @@ describe("App", () => {
   test("mute pauses and unmute re-requests a fresh URL", async () => {
     stubConfig({
       offeredLanguages: ["ko", "es"],
-      sourceLanguage: "ko",
+      live: true,
       transcriptDelayMs: 0,
     });
 
@@ -109,7 +109,90 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(await screen.findByText(S.configError)).toBeTruthy();
+    // Both halves, each on its own line — the point of the test's name is that
+    // a reader of either language can read it.
+    expect(await screen.findByText(bilingual(S.configError).ko)).toBeTruthy();
+    expect(screen.getByText(bilingual(S.configError).en)).toBeTruthy();
     expect(screen.getByText(S.retry)).toBeTruthy();
   });
+});
+
+/**
+ * Picking a language is a navigation as far as the reader is concerned, so the
+ * phone's own back gesture has to honour it. Without a history entry an iOS
+ * edge-swipe leaves the app entirely — off the venue's page, mid-service, with
+ * no obvious way back other than re-scanning the QR code.
+ */
+describe("the back gesture", () => {
+  test("returns to the picker instead of leaving the page", async () => {
+    stubConfig({
+      offeredLanguages: ["ko", "en", "es"],
+      live: true,
+      transcriptDelayMs: 0,
+    });
+    render(<App />);
+
+    fireEvent.click(await screen.findByText("English"));
+    expect(screen.queryByText(bilingual(S.pickLanguage).ko)).toBeNull();
+
+    // What Safari dispatches when the reader swipes from the left edge.
+    fireEvent.popState(window);
+
+    expect(await screen.findByText(bilingual(S.pickLanguage).ko)).toBeTruthy();
+  });
+
+  test("pushes exactly one entry, so one swipe is enough", async () => {
+    stubConfig({
+      offeredLanguages: ["ko", "en", "es"],
+      live: true,
+      transcriptDelayMs: 0,
+    });
+    const pushSpy = vi.spyOn(window.history, "pushState");
+    render(<App />);
+
+    fireEvent.click(await screen.findByText("English"));
+
+    expect(pushSpy).toHaveBeenCalledTimes(1);
+  });
+});
+
+/**
+ * The moment the operator presses 시작, a hall full of phones already sitting
+ * on the picker has to come alive on its own. Nobody is going to think to
+ * pull-to-refresh, and an app that must be reloaded to become usable is one
+ * the ushers spend the first ten minutes explaining.
+ */
+test("wakes the picker up when the room goes live, without a reload", async () => {
+  vi.useFakeTimers({ shouldAdvanceTime: true });
+  const room = {
+    offeredLanguages: ["ko", "en"],
+    passthroughLanguage: null,
+    transcriptDelayMs: 0,
+    streamPrimeMs: 0,
+  };
+  let live = false;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(
+      async () =>
+        new Response(JSON.stringify({ ...room, live }), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        }),
+    ),
+  );
+
+  render(<App />);
+  const row = (await screen.findByText("English")).closest("button")!;
+  expect(row.hasAttribute("disabled")).toBe(true);
+
+  live = true;
+  await vi.advanceTimersByTimeAsync(4000);
+
+  await waitFor(() =>
+    expect(
+      screen.getByText("English").closest("button")!.hasAttribute("disabled"),
+    ).toBe(false),
+  );
+  vi.useRealTimers();
 });

@@ -63,7 +63,7 @@ export function StatusChip({ tone, children }: { tone: Tone; children: ReactNode
   return (
     <span
       className={cn(
-        "inline-flex h-7 items-center gap-2 whitespace-nowrap rounded-full border px-2.5 text-xs font-medium",
+        "inline-flex h-8 items-center gap-2 whitespace-nowrap rounded-full border px-3 text-xs font-medium",
         CHIP[tone],
       )}
     >

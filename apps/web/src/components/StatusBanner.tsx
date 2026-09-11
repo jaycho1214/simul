@@ -55,15 +55,45 @@ export function bannerText(input: BannerInput): Banner {
   return { text: S.live, tone: "ok" };
 }
 
-export interface StatusBannerProps {
+/**
+ * The tally lamp, read the way a broadcast one is: colour is the state and
+ * nothing else. It lives inside the channel chip, so the reader's eye finds
+ * "which language, and is it running" in one place.
+ */
+export function TallyLamp({ tone }: { tone: BannerTone }) {
+  return <span className={`tally tally--${tone}`} aria-hidden="true" />;
+}
+
+export interface StatusBandProps {
   banner: Banner;
   onRetry?: (() => void) | undefined;
 }
 
-export function StatusBanner({ banner, onRetry }: StatusBannerProps) {
+/**
+ * Words, for when the lamp is not enough.
+ *
+ * A healthy session says so in one quiet green line — "실시간 / Live" — and
+ * nothing else. Only warn and error earn a band with a sentence in it. The
+ * lamp alone was tried first and the reader could not tell a session that
+ * was live from one that had simply gone quiet, so the words stay; they are
+ * kept to a single small line so the transcript loses as little height as
+ * possible. The `role="status"` node stays mounted in every state so a
+ * screen reader hears the transitions either way.
+ */
+export function StatusBand({ banner, onRetry }: StatusBandProps) {
+  if (banner.tone === "ok") {
+    return (
+      <p className="status status--ok" role="status">
+        {/* The ping: a steady dot sending a ring out once a second, so a
+            reader glancing over can see the feed is running, not frozen. */}
+        <span className="live-dot" aria-hidden="true" />
+        <span className="status-text">{banner.text}</span>
+      </p>
+    );
+  }
+
   return (
     <div className={`status status--${banner.tone}`} role="status">
-      <span className="status-dot" aria-hidden="true" />
       <span className="status-text">{banner.text}</span>
       {onRetry ? (
         <button type="button" className="status-retry" onClick={onRetry}>

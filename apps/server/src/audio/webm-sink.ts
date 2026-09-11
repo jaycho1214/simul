@@ -4,6 +4,16 @@ export const CLUSTER_ID = Buffer.from([0x1f, 0x43, 0xb6, 0x75]);
 
 const FRAME_MS = 20;
 
+/**
+ * How much audio each cluster carries before it is written to every listener.
+ * A cluster leaves the server only when full, so this is a direct latency cost
+ * — half of it on average — for every path, and on the MediaSource path the
+ * demuxer sees nothing until the cluster is complete. Two frames: the cluster
+ * header is 9 bytes, so the overhead is noise, and 25 writes a second per
+ * listener is nothing to Node. 100 ms was the earlier value and cost ~50 ms.
+ */
+const DEFAULT_CLUSTER_MS = 40;
+
 // SimpleBlock's per-block timestamp is a signed 16-bit big-endian int
 // (see simpleBlock below), so a cluster-relative timestamp can never reach
 // 32768. clusterMs bounds that timestamp, so it must stay under the same
@@ -73,14 +83,19 @@ export class WebMSink {
   readonly initSegment: Buffer;
 
   private readonly clusterMs: number;
+  private readonly backlogMs: number;
   private readonly listeners = new Set<(cluster: Buffer) => void>();
   private blocks: Buffer[] = [];
   private clusterStartMs = 0;
   private elapsedMs = 0;
+  /** Recent clusters, oldest first, spanning at most `backlogMs`. */
+  private recent: Array<{ cluster: Buffer; durationMs: number }> = [];
+  private recentSpanMs = 0;
 
-  constructor(opts: { inputSampleRate: number; clusterMs?: number }) {
+  constructor(opts: { inputSampleRate: number; clusterMs?: number; backlogMs?: number }) {
     this.initSegment = buildInitSegment(opts.inputSampleRate);
-    this.clusterMs = opts.clusterMs ?? 100;
+    this.clusterMs = opts.clusterMs ?? DEFAULT_CLUSTER_MS;
+    this.backlogMs = opts.backlogMs ?? 0;
 
     if (this.clusterMs > MAX_CLUSTER_MS) {
       throw new Error(`clusterMs must be <= ${MAX_CLUSTER_MS} (SimpleBlock timestamps are a signed 16-bit int)`);
@@ -105,6 +120,18 @@ export class WebMSink {
     }
   }
 
+  /**
+   * Recent clusters as one buffer, ready to write straight after the init
+   * segment. A joining client needs this because Chrome's `<audio>` exposes
+   * network data to the demuxer only in whole 32 KiB blocks: nothing plays
+   * until the first block is full, which at 24 kbps took 9.4 s (measured, and
+   * the stream then stalled once per block for as long as it ran). Filling
+   * that block from history instead removes the wait.
+   */
+  get backlog(): Buffer {
+    return Buffer.concat(this.recent.map((e) => e.cluster));
+  }
+
   private flushCluster(): void {
     if (this.blocks.length === 0) return;
 
@@ -112,9 +139,18 @@ export class WebMSink {
       elem(id(0xe7), uint(this.clusterStartMs)),
       ...this.blocks,
     ]));
+    const durationMs = this.elapsedMs - this.clusterStartMs;
 
     this.blocks = [];
     this.clusterStartMs = this.elapsedMs;
+
+    if (this.backlogMs > 0) {
+      this.recent.push({ cluster, durationMs });
+      this.recentSpanMs += durationMs;
+      while (this.recentSpanMs > this.backlogMs) {
+        this.recentSpanMs -= this.recent.shift()!.durationMs;
+      }
+    }
 
     for (const fn of this.listeners) {
       try {

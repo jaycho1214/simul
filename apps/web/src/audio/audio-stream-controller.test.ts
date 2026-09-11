@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test, vi } from "vitest";
 import {
   AudioStreamController,
+  maxDriftSecFor,
   streamUrl,
   type AudioElementLike,
 } from "./audio-stream-controller.ts";
@@ -8,6 +9,7 @@ import {
 class FakeAudioElement implements AudioElementLike {
   src = "";
   paused = true;
+  currentTime = 0;
   loadCalls = 0;
   pauseCalls = 0;
   failNextPlay = false;
@@ -140,7 +142,13 @@ describe("AudioStreamController", () => {
     expect(element.src).not.toBe(first);
   });
 
-  test("a stalled event rejoins the live edge after the recovery delay", async () => {
+  // `stalled` is a network-progress heuristic, and rejoining on it is actively
+  // harmful here: the server answers every new connection with the same primed
+  // backlog, so a pause in ingest — or one WebSocket blip on the operator's
+  // reconnect ladder, which backs off to 8 s — replays the last few seconds of
+  // the speaker into every earpiece in the room, on repeat, until audio
+  // resumes. Report it so the UI can say something, and wait.
+  test("a stalled event reports status but does not re-request the stream", async () => {
     vi.useFakeTimers();
     const { element, controller } = setup();
     await controller.start();
@@ -148,15 +156,14 @@ describe("AudioStreamController", () => {
 
     element.emit("stalled");
     expect(controller.status).toBe("stalled");
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
     expect(element.src).toBe(first);
-
-    await vi.advanceTimersByTimeAsync(1_000);
-
-    expect(element.src).not.toBe(first);
-    expect(element.loadCalls).toBe(1);
+    expect(element.loadCalls).toBe(0);
   });
 
-  test("a playing event before the deadline cancels the rejoin", async () => {
+  test("recovering from a stall on its own returns to playing", async () => {
     vi.useFakeTimers();
     const { element, controller } = setup();
     await controller.start();
@@ -192,7 +199,7 @@ describe("AudioStreamController", () => {
     expect(controller.status).toBe("failed");
   });
 
-  test("mute while stalled cancels the pending rejoin", async () => {
+  test("mute while stalled leaves nothing pending", async () => {
     vi.useFakeTimers();
     const { element, controller } = setup();
     await controller.start();
@@ -229,5 +236,81 @@ describe("AudioStreamController", () => {
     expect(element.handlerCount).toBe(0);
     expect(element.pauseCalls).toBe(1);
     expect(controller.status).toBe("idle");
+  });
+});
+
+// Playback runs at exactly 1.0x and can never catch up, so every stall adds its
+// own duration to the listener's lag permanently. Left alone, a stream that
+// starves occasionally drifts further behind the room all event. The ONLY
+// reliable signal is the lane's own media clock from the server: `buffered.end`
+// is the demuxer's read-ahead and tracks the playhead, so it can never reveal
+// this.
+describe("drift correction", () => {
+  function driftSetup(liveSeconds: () => Promise<number | null>) {
+    const element = new FakeAudioElement();
+    let tick = 1_000;
+    const controller = new AudioStreamController({
+      element,
+      httpBaseUrl: "http://192.168.1.4:8080",
+      lang: "es",
+      now: () => ++tick,
+      recoveryDelayMs: 1_000,
+      liveMediaSeconds: liveSeconds,
+      driftCheckMs: 5_000,
+      maxDriftSec: 8,
+    });
+    return { element, controller };
+  }
+
+  test("re-requests the stream when it has drifted far behind the lane's clock", async () => {
+    vi.useFakeTimers();
+    const { element, controller } = driftSetup(async () => 100);
+    await controller.start();
+    const first = element.src;
+    element.currentTime = 85; // 15s behind live
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(element.src).not.toBe(first);
+    expect(element.loadCalls).toBe(1);
+  });
+
+  test("leaves a normally-lagging listener alone", async () => {
+    vi.useFakeTimers();
+    const { element, controller } = driftSetup(async () => 100);
+    await controller.start();
+    const first = element.src;
+    element.currentTime = 96.5; // 3.5s behind: the prime, working as intended
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(element.src).toBe(first);
+    expect(element.loadCalls).toBe(0);
+  });
+
+  test("stops checking once destroyed", async () => {
+    vi.useFakeTimers();
+    const { element, controller } = driftSetup(async () => 100);
+    await controller.start();
+    element.currentTime = 0;
+    controller.destroy();
+
+    await vi.advanceTimersByTimeAsync(30_000);
+
+    expect(element.loadCalls).toBe(0);
+  });
+});
+
+// The threshold used to be a constant written for a 3 s prime. The prime is
+// derived from the bitrate on the server, and a 24 kbps default made it 16 s
+// — past the constant — so every listener was restarted every 5 s, forever.
+describe("maxDriftSecFor", () => {
+  test("keeps the 8 s floor for a short or unknown prime", () => {
+    expect(maxDriftSecFor(0)).toBe(8);
+    expect(maxDriftSecFor(2_000)).toBe(8);
+  });
+
+  test("sits a fixed headroom above a long prime", () => {
+    expect(maxDriftSecFor(16_384)).toBeCloseTo(21.384, 3);
   });
 });

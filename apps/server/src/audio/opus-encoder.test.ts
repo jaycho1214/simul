@@ -53,3 +53,24 @@ test("encode() after close() throws instead of touching freed WASM memory", () =
   enc.close();
   assert.throws(() => enc.encode(Buffer.alloc(960)), /close/);
 });
+
+// Chrome's <audio> MultiBufferDataSource exposes network data to the demuxer
+// only in whole 32 KiB blocks, so the WIRE BYTE RATE — not the audio content —
+// decides how long a listener waits before hearing anything. Under VBR a
+// silent room emits tiny packets, the byte rate collapses, and the block takes
+// even longer to fill. CBR makes that timing deterministic.
+test("encodes at a constant bitrate, so silence costs the same bytes as speech", () => {
+  const enc = new LaneOpusEncoder(16000, 128000);
+
+  const silence = enc.encode(Buffer.alloc(640))[0]!;
+
+  const tone = Buffer.alloc(640);
+  for (let i = 0; i < 320; i++) {
+    tone.writeInt16LE(Math.round(9000 * Math.sin((2 * Math.PI * 440 * i) / 16000)), i * 2);
+  }
+  const speech = enc.encode(tone)[0]!;
+
+  assert.equal(silence.length, speech.length,
+    `silence ${silence.length}B vs speech ${speech.length}B — VBR would make block timing depend on whether anyone is talking`);
+  enc.close();
+});

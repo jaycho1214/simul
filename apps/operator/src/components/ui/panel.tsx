@@ -2,9 +2,16 @@ import type { ReactNode } from "react";
 import { cn } from "@/utils/tailwind";
 
 /**
- * The one surface every panel shares. The title is deliberately quieter than
- * the data under it: the engineer knows where each panel lives after the first
- * minute, and from then on the headings are wayfinding, not content.
+ * A block inside a section page.
+ *
+ * There is no card chrome here any more. In the sidebar layout the section
+ * itself is the container — the rail says where you are and the page header
+ * names it — so wrapping every block in a bordered, filled box drew five
+ * rectangles to say something the navigation had already said. What is left
+ * is a heading and its content, separated by space rather than by a border.
+ *
+ * `title` is optional: a page holding one block does not need to name it
+ * twice.
  */
 export function Panel({
   title,
@@ -12,24 +19,21 @@ export function Panel({
   className,
   children,
 }: {
-  title: ReactNode;
+  title?: ReactNode;
   /** Sits opposite the title — a readout, a small action, a count. */
   aside?: ReactNode;
   className?: string;
   children: ReactNode;
 }) {
   return (
-    <section
-      className={cn(
-        "flex min-w-0 flex-col rounded-lg border border-border bg-card",
-        className,
-      )}
-    >
-      <header className="flex min-h-11 items-center justify-between gap-3 px-4 pt-2.5 pb-1">
-        <h2 className="text-[13px] font-semibold text-muted-foreground">{title}</h2>
-        {aside}
-      </header>
-      <div className="flex min-h-0 flex-1 flex-col gap-3 px-4 pb-4">{children}</div>
+    <section className={cn("flex min-w-0 flex-col", className)}>
+      {title ? (
+        <header className="mb-3 flex min-h-7 items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold tracking-tight">{title}</h2>
+          {aside}
+        </header>
+      ) : null}
+      <div className="flex min-h-0 flex-1 flex-col gap-4">{children}</div>
     </section>
   );
 }
@@ -45,14 +49,50 @@ export function Field({
   className?: string;
 }) {
   return (
-    <label className={cn("grid gap-1", className)}>
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+    <label className={cn("grid gap-1.5", className)}>
+      <span className="text-sm font-medium">{label}</span>
       {children}
     </label>
   );
 }
 
-/** A thin rule with a small heading, separating groups inside a panel. */
+/**
+ * A row in a spec sheet: the label on the left, its control on the right, a
+ * hairline between rows and none above the first — the page header already
+ * draws that line, and a second one three pixels under it is noise.
+ */
+export function SpecRow({
+  label,
+  hint,
+  children,
+}: {
+  label: ReactNode;
+  hint?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="grid grid-cols-[180px_minmax(0,1fr)] items-start gap-6 py-3.5">
+      <div className="pt-1.5">
+        <div className="text-sm font-medium">{label}</div>
+        {hint ? (
+          <div className="mt-0.5 text-xs leading-snug text-muted-foreground">{hint}</div>
+        ) : null}
+      </div>
+      <div className="min-w-0">{children}</div>
+    </div>
+  );
+}
+
+/** The container for a run of SpecRows. No top border on the first row. */
+export function SpecRows({ children, className }: { children: ReactNode; className?: string }) {
+  return (
+    <div className={cn("max-w-3xl divide-y divide-border border-b border-border", className)}>
+      {children}
+    </div>
+  );
+}
+
+/** A thin rule with a small heading, separating groups inside a page. */
 export function Group({
   label,
   aside,
@@ -63,9 +103,9 @@ export function Group({
   children: ReactNode;
 }) {
   return (
-    <div className="grid gap-1.5 border-t border-border pt-3">
+    <div className="grid gap-2 border-t border-border pt-3.5">
       <div className="flex min-h-6 items-center justify-between gap-2">
-        <span className="text-xs font-medium text-muted-foreground">{label}</span>
+        <span className="text-sm font-medium">{label}</span>
         {aside}
       </div>
       {children}
@@ -85,7 +125,7 @@ export function Notice({ tone, children }: { tone: NoticeTone; children: ReactNo
     <p
       role={tone === "error" ? "alert" : "status"}
       className={cn(
-        "rounded-md px-3 py-2 text-sm leading-snug",
+        "max-w-3xl rounded-lg px-3 py-2.5 text-sm leading-snug",
         tone === "error" ? "bg-error/12 text-error" : "bg-warn/12 text-warn",
       )}
     >

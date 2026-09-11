@@ -1,10 +1,12 @@
 import { createServer as createHttpServer, type Server } from "node:http";
+import { monitorEventLoopDelay } from "node:perf_hooks";
 import { WebSocketServer } from "ws";
-import type { Config } from "./config.ts";
+import type { Brand, Config } from "./config.ts";
 import type { Clock } from "./clock.ts";
 import { AudioHub } from "./audio-hub.ts";
-import { LaneManager } from "./lane/lane-manager.ts";
+import { LaneManager, PASSTHROUGH_LANG } from "./lane/lane-manager.ts";
 import { IngestGateway } from "./http/ingest-gateway.ts";
+import { BrandRoute } from "./http/brand-route.ts";
 import { StreamRoute } from "./http/stream-route.ts";
 import { ListenSocket } from "./http/listen-socket.ts";
 import { AdminSocket } from "./http/admin-socket.ts";
@@ -47,6 +49,8 @@ function parseRequestTarget(target: string | undefined): URL | undefined {
 function isReservedApiPath(pathname: string): boolean {
   return (
     pathname === "/config" ||
+    pathname === "/stats" ||
+    pathname === "/brand/logo" ||
     pathname === "/listen" ||
     pathname === "/admin" ||
     pathname === "/ingest" ||
@@ -70,21 +74,46 @@ export interface ServerDeps {
 export function createServer(deps: ServerDeps) {
   const { config, clock, sessionFactory } = deps;
 
+  /**
+   * Ingest arrives at a fixed 50 frames/s and every frame is encoded for the
+   * source lane plus, per translated lane, base64-encoded and pushed at Gemini.
+   * If that work ever outpaces the loop, PCM queues in the socket rather than
+   * failing loudly: TCP backpressure fills, then the operator's 128 KB send cap
+   * fills, and audio simply arrives seconds late for the rest of the event
+   * while every lane still reports healthy. This is cheap (a histogram updated
+   * by libuv, not per-request work) and it is the only thing that tells that
+   * apart from latency in the streaming path.
+   */
+  const loopDelay = monitorEventLoopDelay({ resolution: 10 });
+  loopDelay.enable();
+
   const hub = new AudioHub();
   const manager = new LaneManager({
     clock,
     hub,
     sessionFactory,
-    sourceLanguage: config.sourceLanguage,
+    passthroughLane: config.passthroughLane,
     offeredLanguages: config.offeredLanguages,
     maxConcurrentLanes: config.maxConcurrentLanes,
     laneGraceMs: config.laneGraceMs,
     transcriptHistoryLines: config.transcriptHistoryLines,
     opusBitrate: config.opusBitrate,
+    streamPrimeMs: config.streamPrimeMs,
   });
 
   const ingest = new IngestGateway({ hub, token: config.ingestToken });
   const streamRoute = new StreamRoute({ manager });
+
+  /**
+   * The one piece of config that is not frozen at boot. Everything else here
+   * shapes how audio is captured and encoded and cannot change under a
+   * running lane, but the brand is only ever read when a phone asks for
+   * /config or /brand/logo — so it can be replaced live, and an operator
+   * fixing a misspelled event name does not have to drop every phone in the
+   * room to do it. Pushed in over the parent port; see server-entry.ts.
+   */
+  let brand: Brand = config.brand;
+  let brandRoute = new BrandRoute(brand.logoPath);
   const listenSocket = new ListenSocket({ manager });
   const adminSocket = new AdminSocket({ manager, streamRoute, clock });
   const staticRoute = config.webRoot ? new StaticRoute({ root: config.webRoot }) : null;
@@ -111,13 +140,77 @@ export function createServer(deps: ServerDeps) {
     }
 
     if (url.pathname === "/config") {
-      // Only these three fields: never GEMINI_API_KEY or INGEST_TOKEN.
-      res.writeHead(200, { "content-type": "application/json" });
+      // Only these fields: never GEMINI_API_KEY or INGEST_TOKEN.
+      //
+      // Polled by the attendee app while it waits for the room to start, so
+      // it must never be answered from a cache that predates the operator
+      // pressing 시작.
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
       res.end(JSON.stringify({
         offeredLanguages: config.offeredLanguages,
-        sourceLanguage: config.sourceLanguage,
+        // The ingest socket opens on 시작 and closes on 중지, so its state is
+        // exactly "is there a speaker to listen to". The attendee app uses it
+        // to keep an early arrival from tapping a language — which would open
+        // a Gemini session, and bill for translating an empty room.
+        live: ingest.connected,
+        // The debug passthrough lane's code, or null when it is not offered.
+        passthroughLanguage: config.passthroughLane ? PASSTHROUGH_LANG : null,
         transcriptDelayMs: config.transcriptDelayMs,
+        // How far behind live a plain-<audio> listener starts (see StreamRoute
+        // and WebMSink.backlog). The phone sizes its drift threshold from it.
+        streamPrimeMs: config.streamPrimeMs,
+        // Null rather than "" for the two optional fields: the client tells
+        // "unset" from "set to something empty", and only the former should
+        // stop it laying out a slot for them at all.
+        brand: {
+          name: brand.name || null,
+          accent: brand.accent,
+          logoUrl: brand.logoPath ? "/brand/logo" : null,
+          theme: brand.theme,
+        },
       }));
+      return;
+    }
+
+    // Diagnostic. A listener's TRUE lag is `mediaMs / 1000 - audio.currentTime`
+    // — nothing measurable in the browser gives it, because `buffered.end` is
+    // only the demuxer's read-ahead and can itself trail the source badly.
+    // This matters because lag is not fixed: at 1.0x playback every stall adds
+    // its own duration permanently, so a stream that starves occasionally
+    // drifts further behind the room all event and never recovers.
+    if (url.pathname === "/stats") {
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "cache-control": "no-store",
+      });
+      res.end(JSON.stringify({
+        now: Date.now(),
+        // Nanoseconds from the histogram; ms is what a human reads.
+        eventLoopDelayP99Ms: Number((loopDelay.percentile(99) / 1e6).toFixed(2)),
+        ingest: {
+          framesReceived: ingest.framesReceived,
+          framesDropped: ingest.framesDropped,
+        },
+        lanes: Object.fromEntries(
+          manager.statuses().map((status) => [status.lang, {
+            mediaMs: manager.get(status.lang)?.mediaMs ?? null,
+            state: status.state,
+            listeners: status.listeners,
+            laneDrops: status.laneDrops,
+            listenerDrops: streamRoute.listenerDrops(status.lang),
+          }]),
+        ),
+      }));
+      return;
+    }
+
+    if (url.pathname === "/brand/logo") {
+      void brandRoute.handle(res).then((served) => {
+        if (!served) res.writeHead(404).end();
+      });
       return;
     }
 
@@ -157,6 +250,16 @@ export function createServer(deps: ServerDeps) {
   });
 
   return {
+    /**
+     * Replaces the brand for every subsequent /config and /brand/logo. Takes
+     * effect on the next page load; phones already listening keep what they
+     * loaded with.
+     */
+    setBrand(next: Brand): void {
+      brand = next;
+      brandRoute = new BrandRoute(next.logoPath);
+    },
+
     async listen(port: number): Promise<number> {
       // `http.listen()`'s callback only ever fires on success; a bind
       // failure (EADDRINUSE from a stale port on a quick restart, or two
@@ -185,6 +288,7 @@ export function createServer(deps: ServerDeps) {
       return typeof address === "object" && address ? address.port : port;
     },
     async close(): Promise<void> {
+      loopDelay.disable();
       adminSocket.stop();
       manager.closeAll();
 

@@ -104,6 +104,31 @@ describe("ServerSupervisor", () => {
     expect(supervisor.status).toMatchObject({ state: "listening", port: 8080, restarts: 0 });
   });
 
+  /**
+   * Brand is the one setting that reaches a running server. Everything else
+   * shapes a live lane, so it only ever arrives through the environment on the
+   * next spawn.
+   */
+  test("pushes a brand to the running server", () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+    spawned[0]!.emit("message", { type: "listening", port: 8080 });
+
+    const brand = { name: "새문안", accent: "#e8b64c", logoPath: "", theme: "dark" as const };
+    supervisor.setBrand(brand);
+
+    expect(spawned[0]!.received.at(-1)).toEqual({ type: "brand", brand });
+  });
+
+  // An operator typing an event name with the server stopped is not an error,
+  // and the value reaches the next spawn through the environment anyway.
+  test("drops a brand push when nothing is running", () => {
+    const { supervisor } = harness();
+    expect(() =>
+      supervisor.setBrand({ name: "x", accent: "#000000", logoPath: "", theme: "dark" }),
+    ).not.toThrow();
+  });
+
   test("restarts after a crash and counts it", () => {
     const { supervisor, spawned, advance } = harness();
     supervisor.start();

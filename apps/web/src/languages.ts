@@ -1,5 +1,5 @@
 import type { WebConfig } from "./config.ts";
-import { ORIGINAL_TAG } from "./strings.ts";
+import { PASSTHROUGH_TAG } from "./strings.ts";
 
 /**
  * Each language is named in its own script, so the picker is readable by
@@ -22,6 +22,8 @@ const ENDONYMS: Record<string, string> = {
   th: "ไทย",
   mn: "Монгол",
   uz: "Oʻzbekcha",
+  /** The server's debug passthrough lane: the room's own audio, untranslated. */
+  original: "원음",
 };
 
 /**
@@ -37,49 +39,40 @@ export function endonym(lang: string): string {
 export interface LanguageRow {
   lang: string;
   endonym: string;
-  /** ORIGINAL_TAG for the speaker's own language, null for translations. */
+  /** PASSTHROUGH_TAG on the debug lane, null on every translation. */
   tag: string | null;
-  isSource: boolean;
+  isPassthrough: boolean;
 }
 
 /**
- * Assumes `sourceLanguage` is a member of `offeredLanguages` — the server's
- * own config loader (`apps/server/src/config.ts`) refuses to start unless
- * `OFFERED_LANGUAGES` includes `SOURCE_LANGUAGE`, so every `/config` response
- * this client will ever see already satisfies it. `parseConfig` deliberately
- * does not re-check this: it is not part of the wire contract, just an
- * invariant the server enforces on itself. If it were ever violated anyway,
- * this function degrades safely rather than throwing — no row is tagged
- * `ORIGINAL_TAG`/`isSource: true`, but the list still renders in the server's
- * given order.
+ * The offered languages in the server's configured order, then — only when
+ * the operator has turned it on — the untranslated passthrough lane, last and
+ * tagged as debug. There is no "speaker's own language" row: every language
+ * is a translation, and the model works out what is being spoken. Duplicate
+ * codes are dropped so a doubled entry in the server's list cannot produce two
+ * identical rows.
  */
 export function languageRows(
-  config: Pick<WebConfig, "offeredLanguages" | "sourceLanguage">,
+  config: Pick<WebConfig, "offeredLanguages" | "passthroughLanguage">,
 ): LanguageRow[] {
   const seen = new Set<string>();
-  const ordered: string[] = [];
+  const rows: LanguageRow[] = [];
 
   for (const lang of config.offeredLanguages) {
     if (seen.has(lang)) continue;
     seen.add(lang);
-    ordered.push(lang);
+    rows.push({ lang, endonym: endonym(lang), tag: null, isPassthrough: false });
   }
 
-  // The speaker's own language leads the list; everything else keeps the
-  // server's configured order.
-  ordered.sort((a, b) => {
-    if (a === config.sourceLanguage) return -1;
-    if (b === config.sourceLanguage) return 1;
-    return 0;
-  });
+  const passthrough = config.passthroughLanguage;
+  if (passthrough && !seen.has(passthrough)) {
+    rows.push({
+      lang: passthrough,
+      endonym: endonym(passthrough),
+      tag: PASSTHROUGH_TAG,
+      isPassthrough: true,
+    });
+  }
 
-  return ordered.map((lang) => {
-    const isSource = lang === config.sourceLanguage;
-    return {
-      lang,
-      endonym: endonym(lang),
-      tag: isSource ? ORIGINAL_TAG : null,
-      isSource,
-    };
-  });
+  return rows;
 }

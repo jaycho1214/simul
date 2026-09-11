@@ -60,3 +60,15 @@ test("unsubscribe stops cluster delivery", () => {
   assert.equal(count, 1);
   assert.equal(sink.subscriberCount, 0);
 });
+
+test("backlog holds only the most recent backlogMs of clusters", () => {
+  const sink = new WebMSink({ inputSampleRate: 24000, clusterMs: 100, backlogMs: 300 });
+  const clusters: Buffer[] = [];
+  sink.subscribe((c) => clusters.push(c));
+
+  // 25 frames = 5 clusters of 100 ms; only the last 3 fit in 300 ms.
+  for (let i = 0; i < 25; i++) sink.writeOpus(frame());
+  assert.equal(clusters.length, 5);
+
+  assert.deepEqual(sink.backlog, Buffer.concat(clusters.slice(-3)));
+});

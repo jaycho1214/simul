@@ -59,7 +59,7 @@ See "Operator app" for how channel selection is handled within that limit.
 ┌──────────────────────────────────────────────────────┐
 │  Server  (Node + TS)          holds GEMINI_API_KEY   │
 │                                                      │
-│  IngestGateway ──► AudioHub ──┬─► Lane "ko" (source) │  passthrough, no API
+│  IngestGateway ──► AudioHub ──┬─► Lane "ko" ─────────┼─► Gemini session
 │                               │      └─► Opus 16k    │
 │                               ├─► Lane "es" ─────────┼─► Gemini session
 │                               │      └─► Opus 24k    │
@@ -208,14 +208,137 @@ Validates frame size.
 
 **AudioHub** — pure fan-out to open lanes. A lane that throws is isolated: the
 exception is caught and logged, and every sibling still receives the frame.
-No replay buffer — a cold lane starts
-from now.
+
+**Stream priming and bitrate.** This reverses an earlier line in this spec,
+which said there was no replay buffer and a cold lane started from now. That
+turned out to cause a ~15 s delay before an attendee heard anything, so it is
+now wrong on purpose.
+
+Chrome's `<audio>` (`MultiBufferDataSource`) hands the demuxer network data
+only in whole **32 KiB blocks**. Nothing plays — not even `loadedmetadata` —
+until the first block is full, so the **wire byte rate sets the latency
+floor**, and the low bitrate this spec chose for bandwidth was the direct cause
+of the delay. Measured at 24 kbps: `loadedmetadata` at 9485 ms, matching
+32768 B ÷ 3475 B/s = 9.43 s, and the stream then stalled every ~9.5 s — one
+block period — for as long as it ran.
+
+Two consequences drive the design:
+
+1. **`OPUS_BITRATE` is now 128 kbps CBR, chosen for timing rather than
+   quality.** A block fills in ~2.0 s instead of 9.4 s, and staying under
+   Chrome's 3 s `stalled` timer also stops the attendee app tearing the stream
+   down between blocks. CBR matters independently: under VBR a 20 ms frame of
+   silence encodes to *three bytes*, so a quiet room slows the byte rate to a
+   crawl and startup would depend on whether anyone happened to be talking.
+   The cost is ~16 KB/s per phone — 60 phones is ~8 Mbps of venue wifi against
+   1.5 Mbps before. Lower it if the AP cannot take that and expect the delay to
+   rise in proportion.
+2. **`STREAM_PRIME_MS` (default 4 s)** pre-fills that first block from a
+   rolling backlog of recent clusters, so a joining listener does not wait for
+   it in real time. A cold lane primes the same backlog with encoded silence at
+   construction. Every new `/stream/<lang>.webm` gets the init segment, then
+   the backlog, then live clusters.
+
+**The prime is not free, and its duration is latency.** A plain `<audio src>`
+starts at the *oldest* cluster it receives and never skips forward, and plays
+at exactly 1.0×, so whatever backlog is sent up front is a permanent offset
+behind the room. Keep `STREAM_PRIME_MS` just above one block's worth. An
+earlier 12 s default made this worse, not better — startup was fast but every
+listener sat 12 s behind. The attendee app's plain path also rejoins if it
+ever finds itself further behind the lane clock than the prime explains
+(`maxDriftSecFor` in `audio-stream-controller.ts`; the server publishes the
+prime on `/config` as `streamPrimeMs`), which catches drift after a stall
+rather than being the primary mechanism.
+
+**Playback path (measured 2026-09-11).** Two things were found on the
+passthrough lane, both on the phone side of the wire:
+
+1. The operator app still shipped `opusBitrate: 24000` as its default and had
+   written it into its settings file, while the server had moved to 128 kbps.
+   At 24 kbps the derived prime is 16.4 s, so every listener sat 16.4 s
+   behind — the "17–20 s" an attendee reported. The operator default is now
+   128 kbps, and a stored 24000 is read as the old default rather than a
+   choice (nothing in the panels sets it).
+2. The plain path's drift check compared the lane clock against the playhead
+   with a fixed 8 s threshold. With a 16 s prime that is true from the first
+   second, so the stream was restarted every 5 s, forever. The threshold is
+   now the prime plus 5 s, floor 8 s.
+
+Fixing both leaves the plain path 3.1 s behind the room at 128 kbps — the
+1.5-block prime plus startup — and that is the floor of that design, because
+Chrome hands the demuxer bytes only in whole 32 KiB blocks and the wire rate
+sets it. So the attendee app now has a second, preferred path: where
+`MediaSource.isTypeSupported('audio/webm; codecs="opus"')` is true, the page
+downloads the same `/stream/<lang>.webm` with `fetch()` and appends it to a
+SourceBuffer (`mse-stream-controller.ts`). The demuxer then sees every 40 ms
+cluster as it lands (`WebMSink` flushed every 100 ms until 2026-09-11; the
+smaller cluster costs 9 bytes of header and saves ~60 ms), the buffered range
+carries the lane's own timestamps, and the playhead is held a fixed target
+behind the newest audio: 0.6 s, widened by 0.5 s per underrun up to 3 s. Small
+drift past the target — the ~250 ms between placing the playhead and `play()`
+actually starting, or a stall Chrome recovered from on its own — is played
+out at 1.05× with the pitch preserved until the target is back; only a drift
+past 1.5 s is skipped over with a seek. Measured on the passthrough lane in
+Chromium: 0.6 s behind the lane clock, at 24 kbps and at 128 kbps alike, no
+restarts (1.1–1.5 s with the earlier 1 s target and 100 ms clusters). Decode and output
+still belong to the media element, so background playback is unchanged. A
+browser without that support (iPhone Safari has no `MediaSource` before 17.1,
+and its Opus-in-WebM support through it is unverified) gets the plain path and
+its ~3 s. The bitrate therefore buys latency only for the plain path now; it
+stays at 128 kbps for those phones.
+
+**Where the latency actually is (measured 2026-09-11).** Speech-in to
+speech-out on a translated lane, synthesized Korean into the real API,
+default config, two runs:
+
+| Stage | Measured |
+|---|---|
+| Speech starts → first audio message from the model | 1.0–1.3 s, and it is silence |
+| Speech starts → first translated word heard | 3.2–3.7 s |
+| Source sentence ends → translated sentence ends | ~4.0 s |
+| Speech starts → first transcript text | ~2.8 s (text leads its audio by ~0.5 s) |
+| Model output cadence | 250 ms chunks; gaps 250 ms median, 327 ms p99, 331 ms max over 68 s |
+| Server (encode, 40 ms cluster, write) | tens of ms |
+| MediaSource player runway | 0.6 s target |
+
+VAD tuning (`realtimeInputConfig.automaticActivityDetection` at high
+sensitivity, 200 ms silence) and 100 ms input chunks instead of 20 ms changed
+nothing outside run-to-run noise. So of roughly four seconds from mouth to
+ear, the model owns well over three, and the part this system controls is the
+player's runway. That runway cannot go much below 0.6 s: playback sits on a
+250 ms sawtooth as the model's chunks land, and its bottom must clear the
+worst chunk gap plus wifi jitter, or the phone stalls and widens the target
+by 0.5 s anyway. What has changed is the ratchet: the target used to widen on
+every underrun and never narrow, so one hiccup at the door cost half a second
+for the rest of the event and five put a phone three seconds behind. It now
+narrows by 0.25 s for every 90 s without an underrun, back to the initial
+target and no further; each underrun restarts that clock, so a phone in a
+bad spot settles at the runway that actually holds there.
+
+Two levers remain, both trade-offs rather than fixes: the plain-path prime
+halves if `OPUS_BITRATE` doubles to 256 kbps (32 KB/s per such phone), and a
+different model or API mode might translate sooner than this one, at a
+quality cost nobody has measured.
 
 **Lane** — one per active language:
-- `SourceLane` (Korean): ingest PCM 16k → Opus → FrameBus. No API call, no cost,
-  no transcript in v1.
-- `TranslatedLane`: `SessionRotator` → 24 kHz PCM → Opus → FrameBus, and
-  `outputTranscription` → TranscriptBus.
+- `TranslatedLane`, for every offered language: `SessionRotator` → 24 kHz PCM
+  → Opus → FrameBus, and `outputTranscription` → TranscriptBus.
+- `SourceLane`, the `original` lane: ingest PCM 16k → Opus → FrameBus. No API
+  call, no cost, no transcript. Exists only while `PASSTHROUGH_LANE` is on.
+
+**No source language (2026-09-11).** The Live Translate API takes only a
+target language per session and detects what is spoken; with
+`echoTargetLanguage: true` it parrots speech that is already in the target
+language rather than going silent. So the earlier "source language =
+passthrough lane" model is gone: a speaker who switches from Korean to
+English mid-talk is still translated into Korean for the 한국어 lane, and an
+English listener hears English either way. The untranslated room audio is
+now the `original` lane, a debugging aid the operator switches on from the
+language panel; it is listed last in the picker, tagged as debug, and costs
+nothing. The cost of the change is that a Korean listener on the 한국어 lane
+hears the model's re-voicing of a Korean speaker, a few seconds late, rather
+than the room — the price of not knowing in advance what language the next
+sentence will be in.
 
 **Opus encoding happens once per lane** and the resulting buffer is shared by
 every subscriber. VOIP mode, ~24 kbps mono, 20 ms frames. If rebuilding the native
@@ -250,10 +373,11 @@ AudioHub lane-queue drop; the dashboard shows both, as 레인 드롭 and 청취�
 endonym in its own script:
 
 ```
-한국어  (원음 · Original)
+한국어
 English
 Español
 日本語
+원음  (Original · debug)      ← only while PASSTHROUGH_LANE is on
 ```
 
 The tap that picks a language also satisfies iOS's user-gesture requirement for
@@ -261,9 +385,14 @@ audio. There is no auto-start path.
 
 **One mode only:** audio and transcript together.
 
-- Audio is an `<audio src="/stream/es.webm">` element. Decode, jitter buffering
-  and loss concealment all live in the OS media stack — no WASM, no scheduler,
-  no jitter buffer in our code, and it works on old hardware.
+- Audio is one `<audio>` element fed one of two ways, chosen per tap in
+  `createAudioController`: through MediaSource Extensions where the browser
+  can demux Opus/WebM that way (about a second behind the room), otherwise as
+  a plain `<audio src="/stream/es.webm">` (behind by the server's prime, ~3 s).
+  Decode, jitter buffering and loss concealment all live in the OS media stack
+  either way — no WASM, no scheduler, no jitter buffer in our code, and it
+  works on old hardware. See "Playback path" under Stream priming for the
+  measurements.
 - **음소거 / Mute** pauses the element, which stops the HTTP stream entirely, so
   a reader costs no audio bandwidth. Unmute re-requests with a cache-buster to
   rejoin the live edge rather than resuming a stale buffer.
@@ -339,6 +468,41 @@ hear no gap.
 If spike 1 shows a naive reconnect produces a sub-second seam, delete
 `SessionRotator` and just reconnect. Simpler is better here.
 
+**What the translate model actually sends (measured 2026-09-11).** Against
+the real API, fed a synthesized Korean sentence, 45 s of mic-level noise,
+and a second sentence:
+
+- **Audio is a continuous real-time stream once it starts, silence
+  included.** Nothing arrives until the model first speaks (~1 s after the
+  first utterance begins); from then on exactly 1000 ms of 24 kHz PCM per
+  wall second, at -90 dBFS through the whole pause. The attendee's player
+  holds only 0.6 s of runway and reads any gap as a network stall, so a
+  cold lane's silence prime drained and every first listener saw
+  "오디오 재연결 중 / Reconnecting audio" until the first sentence had been
+  translated. `TranslatedLane` therefore writes silence at wall-clock rate
+  until the session first speaks, and again if its audio ever falls more
+  than a second behind (a dead connection while `SessionRotator` replaces
+  it), so the stream is continuous from the moment the lane exists.
+- **`outputTranscription` never carries `finished`, and `turnComplete`
+  never arrives.** The model "translates as the speaker talks without
+  waiting for turns" (its docs), so there is no turn to close: the
+  transcription is text fragments about a second apart, and during silence
+  an empty `outputTranscription` every ~2 s. Waiting for those flags made
+  the transcript one line that grew for the whole event. Lines are now cut
+  by `GeminiTranslateSession` itself: at a sentence terminator followed by
+  whitespace (or a full-width one), and otherwise once no fragment has
+  arrived for `TRANSCRIPT_IDLE_MS` (2 s). See `segment-lines.ts`.
+- **A speaker heard through a phone loops forever.** With
+  `echoTargetLanguage: true`, speech already in the target language is
+  parroted. Feed the model's own output back in — a laptop mic that can hear
+  the phone, or the operator listening on speakers — and it parrots the last
+  sentence verbatim every two seconds for as long as the path exists (a
+  digital loopback of one sentence ran 32 s without decaying). This is not
+  a pipeline bug and no server-side change fixes it: the same path also
+  loops across two lanes without echo, each translating the other. Test on
+  earphones, or with the attendee page muted while speaking; the operator's
+  device panel says so beside the DSP-off line.
+
 ## Failure handling
 
 | Failure | Response |
@@ -383,6 +547,23 @@ Each answers a question that changes what gets built.
 2. **End-to-end latency.** Speak, stopwatch to translated audio. This number
    decides whether the deferred low-latency WS audio path is ever worth
    building, and sets the transcript delay default.
+
+   Partly answered without a stopwatch, on 2026-09-11, by measuring the
+   Korean passthrough lane — which has no Gemini in its path, so whatever it
+   shows is pure transport cost. The server was blameless: init segment at
+   +6 ms, then one cluster every ~96 ms, 3475 B/s, dead on real time. The
+   ~15 s an attendee actually experienced was the media element's duration
+   gate; see "Stream priming" above. What remains unmeasured is the part
+   this spike was really for: Gemini's own speech-in-to-speech-out latency
+   on a translated lane, which still needs a real stopwatch and a human
+   voice.
+
+   Answered for the transport later the same day with the MediaSource path
+   (see "Playback path" under Stream priming): 0.6 s behind the lane
+   clock in Chromium, against 3.1 s for the plain element at 128 kbps and
+   16.4 s at the operator app's old 24 kbps default. The deferred WS audio
+   path is not needed for latency. Gemini's own speech-to-speech latency on
+   a translated lane is still unmeasured.
 3. **`<audio>` chunked WebM/Opus playback** on iOS Safari and Android Chrome,
    including a late joiner receiving the init segment then clusters from the
    live edge. If iOS balks, fall back to a CAF container for Safari.
@@ -413,7 +594,8 @@ Each has a seam. None gets built now.
   target, so this would be a separate React Native or Capacitor effort rather
   than shared code. Blocked by distribution regardless: walk-in attendees scan
   QR codes, they do not install apps. Viable only for a recurring audience.
-- Low-latency WS audio path — pending spike 2.
+- Low-latency WS audio path — no longer needed: the MediaSource path in
+  `apps/web` (2026-09-11) sits ~1–1.5 s behind the room over plain HTTP.
 - AAC-ADTS path for pre-18.4 iOS — needs a real encoder; build only if those
   devices actually show up.
 - Recording, archive, transcript export.
@@ -463,10 +645,15 @@ Each has a seam. None gets built now.
 | `GEMINI_API_KEY` | — | Server only, never sent to clients |
 | `INGEST_TOKEN` | — | Shared secret for `/ingest` |
 | `PORT` | 8080 | |
-| `SOURCE_LANGUAGE` | `ko` | Passthrough lane, no API cost |
+| `PASSTHROUGH_LANE` | `false` | Offer the untranslated `original` lane (debug, no API cost) |
 | `OFFERED_LANGUAGES` | `["ko","en","es","ja"]` | Shown on the picker |
 | `MAX_CONCURRENT_LANES` | 6 | Bounds worst-case spend |
 | `LANE_GRACE_MS` | 60000 | Delay before teardown at refcount 0 |
 | `TRANSCRIPT_HISTORY_LINES` | 200 | Per lane |
 | `TRANSCRIPT_DELAY_MS` | 0 | Tune after spike 2 |
-| `OPUS_BITRATE` | 24000 | Per lane |
+| `OPUS_BITRATE` | 128000 | Per lane, CBR. Sets the latency floor, not just quality |
+| `STREAM_PRIME_MS` | 4000 | Recent audio handed to a joining listener; also added to their latency; 0 disables |
+| `BRAND_NAME` | *unset* | Event name in the attendee app's bar |
+| `BRAND_ACCENT` | `#3e8fd0` | Hex; rejected at startup if unparseable |
+| `BRAND_LOGO` | *unset* | Path to an image, served at `/brand/logo` |
+| `BRAND_THEME` | `dark` | `dark` \| `light` \| `auto` |

@@ -47,12 +47,13 @@ function setup(
     clock,
     hub,
     sessionFactory,
-    sourceLanguage: "ko",
+    passthroughLane: false,
     offeredLanguages: ["ko", "en"],
     maxConcurrentLanes: 6,
     laneGraceMs: 60000,
     transcriptHistoryLines: 200,
     opusBitrate: 24000,
+    streamPrimeMs: 12000,
   });
   return { clock, hub, manager, socket: new ListenSocket({ manager }) };
 }

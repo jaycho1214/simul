@@ -1,5 +1,5 @@
 import path from "node:path";
-import { app, BrowserWindow, session, systemPreferences } from "electron";
+import { app, BrowserWindow, dialog, session, systemPreferences } from "electron";
 import { ipcMain } from "electron/main";
 import {
   installExtension,
@@ -9,7 +9,7 @@ import squirrelStartup from "electron-squirrel-startup";
 import { ipcContext } from "@/ipc/context";
 import { ServerSupervisor, electronForkFn } from "@/server-host/server-supervisor";
 import { IPC_CHANNELS, inDevelopment } from "./constants";
-import { buildServerEnv } from "./settings/schema.ts";
+import { serverEnv } from "./settings/schema.ts";
 import { getSettings } from "./settings/store.ts";
 import { getBasePath, resolveWebRoot } from "./utils/path";
 
@@ -44,13 +44,13 @@ const webRoot = resolveWebRoot(getBasePath(), app.isPackaged, process.resourcesP
 export const supervisor = new ServerSupervisor({
   entryPath: serverEntryPath,
   // Evaluated on every spawn, so a key saved in 제어 is picked up by the next
-  // 서버 재시작 without reconstructing the supervisor.
-  env: () =>
-    ({
-      ...process.env,
-      ...buildServerEnv(getSettings()),
-      WEB_ROOT: process.env.WEB_ROOT ?? webRoot,
-    }) as Record<string, string>,
+  // 서버 재시작 without reconstructing the supervisor. The settings store is the
+  // only source of the event's configuration: serverEnv() drops every server
+  // variable the shell or a .env file may carry before laying the settings on.
+  env: () => ({
+    ...serverEnv(process.env, getSettings()),
+    WEB_ROOT: process.env.WEB_ROOT ?? webRoot,
+  }),
   external: externalServer,
   fork: electronForkFn(),
 });
@@ -81,6 +81,37 @@ function createWindow() {
     width: 1200,
   });
   ipcContext.setMainWindow(mainWindow);
+
+  // Closing the window quits the app (see "window-all-closed" below), and
+  // quitting stops translation for everyone in the room — so ask first, but
+  // only when there is actually something to lose. During setup, or after the
+  // server has already stopped, closing is just closing and a prompt would be
+  // noise. `showMessageBoxSync` blocks the main process, which is what we want
+  // here: the close cannot proceed until the engineer has answered.
+  let closeConfirmed = false;
+  mainWindow.on("close", (event) => {
+    if (closeConfirmed || supervisor.status.state !== "listening") return;
+
+    event.preventDefault();
+    const quit = dialog.showMessageBoxSync(mainWindow, {
+      type: "warning",
+      buttons: ["취소 / Cancel", "종료 / Quit"],
+      defaultId: 0,
+      cancelId: 0,
+      title: "통역 종료 / Stop translation",
+      message: "지금 종료하면 통역이 중단됩니다.",
+      detail:
+        "듣고 있는 사람들의 소리가 모두 끊깁니다.\n\n" +
+        "Quitting now stops translation. Everyone currently listening loses audio.",
+    }) === 1;
+
+    if (quit) {
+      // Re-entrant: this same handler runs again for the close below, and the
+      // flag is what lets it through instead of asking a second time.
+      closeConfirmed = true;
+      mainWindow.close();
+    }
+  });
 
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
@@ -144,11 +175,14 @@ app.whenReady().then(async () => {
   }
 });
 
-//osX only
+// Deliberately not the macOS convention of staying resident with no windows.
+// This app is a piece of event equipment, not a document editor: an operator
+// who closes the window means "stop", and a headless Electron process still
+// holding port 8080 and a billing Gemini session is exactly the state that
+// breaks the next launch with EADDRINUSE. The close handler in createWindow()
+// is what makes sure this is never an accident.
 app.on("window-all-closed", () => {
-  if (process.platform !== "darwin") {
-    app.quit();
-  }
+  app.quit();
 });
 
 app.on("activate", () => {

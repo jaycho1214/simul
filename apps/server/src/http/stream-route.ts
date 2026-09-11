@@ -2,8 +2,20 @@ import type { ServerResponse } from "node:http";
 import type { LangCode } from "@tongyeok/protocol";
 import { LaneCapError, UnknownLanguageError, type LaneManager } from "../lane/lane-manager.ts";
 
-/** Roughly 2.5 s of Opus. Past this a client is dropped from, not buffered for. */
-const DEFAULT_MAX_BUFFERED = 64 * 1024;
+/**
+ * Past this much unsent data a client is dropped from rather than buffered for.
+ *
+ * Generous on purpose. A dropped cluster is a *hole* in that listener's
+ * timeline, and a plain `<audio src>` cannot skip forward past it — it plays
+ * everything it receives, in order, at 1.0x. So for this client, arriving late
+ * is strictly better than arriving never, and the old 64 KB (4 s at 128 kbps,
+ * and only 2 s if the bitrate is raised) punished a phone for a few seconds in
+ * a dead spot by permanently corrupting its audio.
+ *
+ * This still bounds memory, which is what the check is actually for: 256 KB
+ * per listener, so even 60 phones all stalled at once is ~15 MB.
+ */
+const DEFAULT_MAX_BUFFERED = 256 * 1024;
 
 /**
  * Serves `GET /stream/<lang>.webm`: the init segment once, then live
@@ -104,6 +116,21 @@ export class StreamRoute {
         "x-accel-buffering": "no",
       });
       res.write(lane.initSegment);
+
+      // Recent audio, written before the live subscription so this client's
+      // bytes stay in timestamp order. Chrome's `<audio>` hands the demuxer
+      // network data only in whole 32 KiB blocks, so nothing plays until the
+      // first block is full; this fills it from history rather than making the
+      // listener wait out that fill in real time. Note the cost: the client
+      // begins at the OLDEST cluster written and never skips forward, so this
+      // backlog's duration is added to every listener's latency — keep it
+      // just above one block's worth, no more.
+      // Deliberately one unconditional write rather than a loop
+      // through the drop check below: this is a bounded, one-off priming
+      // write, not the unbounded growth that check exists to prevent, and
+      // dropping part of it would leave a hole mid-timeline.
+      const backlog = lane.backlog;
+      if (backlog.length > 0) res.write(backlog);
 
       unsubscribe = lane.subscribeClusters((cluster) => {
         if (res.writableLength > this.maxBuffered) {

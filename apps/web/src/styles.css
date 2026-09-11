@@ -2,34 +2,115 @@
  * One stylesheet, system fonts only. The page is served over plain HTTP on a
  * venue LAN that may have no route to the internet, so there is nothing to
  * load a webfont or a CSS framework from — personality has to come from
- * scale, weight and spacing.
+ * scale, weight and spacing, and from the one colour the operator sets.
  *
- * The room is dim and the phone is at arm's length. The background is OLED
- * black on purpose: a bright screen in a dark hall lights up the neighbours,
- * and a black one does not. Text is off-white rather than pure white to keep
- * halation down at that contrast.
+ * The governing idea is a simultaneous-interpretation receiver: the plastic
+ * bodypack with a channel dial that an usher hands you at the door. That is
+ * why the listen screen's language control is a channel chip with a tally
+ * lamp in it rather than a title and a back button, and why the accent is
+ * used as an indicator colour rather than as decoration.
+ *
+ * Four rules hold the whole thing together:
+ *
+ *   1. When everything works, the interface gets out of the way. A healthy
+ *      session is one lamp, one quiet green line saying "live", and the
+ *      words; only `warn` and `error` earn a band with a sentence in it.
+ *   2. The transcript is the only thing allowed to be large.
+ *   3. Radius and fill mean "you can touch this". At rest the page is type
+ *      and hairlines; a fill appears under your thumb, on the one primary
+ *      control, and on the notice that must not be missed.
+ *   4. Two motions: the live dot's ping, which says the feed is running, and
+ *      a line committing from interim to final, which answers an event.
  */
+
 :root {
-  --bg: #050608;
-  --surface: #14181e;
-  --surface-press: #222831;
-  --line: #262d36;
-  --fg: #f1f4f7;
-  --dim: #929cab;
-  --ok: #3ddc84;
+  color-scheme: dark;
+
+  /*
+   * Near-black on purpose. A bright screen in a dark hall lights up the
+   * people either side of you, and this is a room full of them. Text is
+   * off-white rather than pure white to keep halation down at that contrast.
+   */
+  --ground: #05070a;
+  --raise: #0e1218;
+  --rule: #1b2129;
+  --rule-strong: #2a323d;
+  --ink: #eef2f7;
+  --ink-mid: #b9c1cb;
+  --ink-quiet: #8d97a5;
+  --ink-faint: #5d6673;
+
+  /*
+   * Meaning, shared with the operator app: green is live, amber is working
+   * and normal, red is the one thing that needs a hand on it. These are not
+   * brand colours and the operator cannot change them — a fault has to look
+   * like a fault whatever the event's palette is.
+   */
+  --live: #3ddc84;
   --warn: #ffb020;
-  --error: #ff5d5d;
-  --error-wash: rgba(255, 93, 93, 0.12);
-  --notice-bg: #ffd400;
-  --notice-fg: #111111;
+  --fault: #ff5d5d;
+  --fault-wash: rgba(255, 93, 93, 0.12);
+  --notice: #ffd400;
+  --notice-ink: #0d0f12;
+
+  /*
+   * Overwritten at runtime from the operator's accent (see brand.ts). These
+   * defaults are that module's own output for DEFAULT_ACCENT, so the page is
+   * fully painted and correct before /config has been read.
+   */
+  --accent: #3e8fd0;
+  --accent-text: #3e8fd0;
+  --accent-wash: rgba(62, 143, 208, 0.16);
+
+  --t-xs: 0.8125rem;
+  --t-sm: 0.9375rem;
+  --t-md: 1.0625rem;
+  --t-lg: 1.375rem;
+
+  --gap-2: 0.625rem;
+  --gap-3: 1rem;
+  --gap-4: 1.5rem;
+  --gap-5: 2.25rem;
+  --gutter: 1.25rem;
+
+  --r-sm: 10px;
+  --r-md: 14px;
+  --r-lg: 20px;
+  --r-pill: 999px;
 
   /* Minimum height of anything meant to be hit with a thumb. */
-  --tap: 4.25rem;
-  /* Big tappable surfaces get the larger radius; the notice the smaller one;
-     status lines none. Radius is part of the hierarchy, not a house style. */
-  --radius-tap: 14px;
-  --radius-note: 10px;
-  --gutter: 1.125rem;
+  --tap: 3.25rem;
+  --bar: 3.5rem;
+}
+
+/*
+ * Not an inversion of the dark theme. Light is for a bright daytime hall,
+ * where the problem is glare rather than halation, so the ground is a cool
+ * paper rather than white and every tally colour is darkened until it
+ * survives on it — the same green at #3ddc84 is nearly invisible here.
+ */
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --ground: #f7f8fa;
+  --raise: #ffffff;
+  --rule: #e3e7ed;
+  --rule-strong: #cbd3de;
+  --ink: #10151c;
+  --ink-mid: #39424e;
+  --ink-quiet: #5b6675;
+  --ink-faint: #737e8c;
+
+  --live: #128a4c;
+  --warn: #8a5a00;
+  --fault: #c42a2a;
+  --fault-wash: rgba(196, 42, 42, 0.1);
+  --notice: #ffd400;
+  --notice-ink: #251d00;
+
+  --accent: #3e8fd0;
+  --accent-text: #2176b6;
+  --accent-wash: rgba(62, 143, 208, 0.16);
 }
 
 * {
@@ -44,13 +125,14 @@ body,
 }
 
 body {
-  background: var(--bg);
-  color: var(--fg);
+  background: var(--ground);
+  color: var(--ink);
   font-family:
-    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Noto Sans KR",
-    "Noto Sans CJK KR", "Malgun Gothic", "Segoe UI", Roboto, sans-serif;
-  font-size: 18px;
-  line-height: 1.4;
+    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
+    "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", "Segoe UI", Roboto,
+    sans-serif;
+  font-size: var(--t-md);
+  line-height: 1.45;
   -webkit-text-size-adjust: 100%;
   -webkit-tap-highlight-color: transparent;
   -webkit-font-smoothing: antialiased;
@@ -66,12 +148,31 @@ button {
 }
 
 :focus-visible {
-  outline: 2px solid var(--fg);
-  outline-offset: 2px;
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 svg {
   display: block;
+}
+
+/*
+ * Present to assistive technology, absent to the eye. Used where the design
+ * deliberately drops a label the screen reader still needs: the channel chip's
+ * purpose, and the status line during a healthy session.
+ */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 
 /* The element is real and always mounted so its ref exists before the tap that
@@ -84,85 +185,306 @@ svg {
   pointer-events: none;
 }
 
+/* ---------- brand bar ---------- */
+
+/*
+ * The one piece of chrome on both screens. It carries the event's identity
+ * and, on the listen screen, the channel chip — merged into this single bar
+ * rather than stacked as a second row, because the transcript is worth more
+ * than the 56px a separate header would cost it over ninety minutes.
+ */
+.brand-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--gap-3);
+  min-height: var(--bar);
+  padding: var(--gap-2) var(--gutter);
+  border-bottom: 1px solid var(--rule);
+}
+
+.brand-mark {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  min-width: 0;
+}
+
+/*
+ * An operator-supplied file of unknown proportions: a wide wordmark and a
+ * square badge both have to survive. Height is pinned and width is free, so
+ * the bar's rhythm holds whatever they upload.
+ */
+.brand-logo {
+  flex: none;
+  width: auto;
+  height: 1.625rem;
+  max-width: 8.5rem;
+  object-fit: contain;
+}
+
+.brand-name {
+  min-width: 0;
+  overflow: hidden;
+  font-size: var(--t-md);
+  font-weight: 600;
+  letter-spacing: -0.011em;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* Unbranded, the bilingual app title stands in — quieter, because a generic
+   name has earned less of the reader's attention than a real one. */
+.brand-trailing {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--gap-2);
+}
+
+/*
+ * Icon-only: the bar already carries the event's name, and the glyph is the
+ * state — a sun on a light page, a moon on a dark one, a half-filled disc
+ * when it is following whatever the operator set. The words live in the
+ * accessible name, so nothing is lost to a reader who cannot see it.
+ */
+.theme-toggle {
+  display: grid;
+  flex: none;
+  place-content: center;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: var(--r-pill);
+  color: var(--ink-quiet);
+  transition: background-color 120ms ease;
+}
+
+.theme-toggle:active {
+  background: var(--raise);
+  color: var(--ink);
+  transition: none;
+}
+
+.theme-toggle-icon {
+  width: 1.125rem;
+  height: 1.125rem;
+}
+
+.brand-name--fallback {
+  font-size: var(--t-sm);
+  font-weight: 500;
+  color: var(--ink-quiet);
+}
+
+/* ---------- channel chip ---------- */
+
+/*
+ * The receiver's channel readout: which lane you are on, and its tally lamp.
+ * Not a control — it carries no border and no radius, because in this app
+ * those mean "you can touch this" and the button beside it is what you touch.
+ */
+.channel {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--gap-2);
+  min-height: 2.5rem;
+}
+
+.channel-lang {
+  font-size: var(--t-md);
+  font-weight: 600;
+  letter-spacing: -0.011em;
+}
+
+/*
+ * The way back to the picker. Written out rather than drawn as a chevron: an
+ * attendee on the wrong language is reading a script they cannot follow, and
+ * a glyph is a poor thing to make them guess at. Bordered and pill-shaped so
+ * it reads as the one tappable object in the bar.
+ */
+.channel-change {
+  flex: none;
+  min-height: 2.5rem;
+  padding: 0 0.875rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-pill);
+  color: var(--ink-quiet);
+  font-size: var(--t-sm);
+  font-weight: 500;
+  white-space: nowrap;
+  transition: background-color 120ms ease;
+}
+
+.channel-change:active {
+  background: var(--raise);
+  color: var(--ink);
+  transition: none;
+}
+
+/* ---------- tally lamp ---------- */
+
+.tally {
+  flex: none;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+/*
+ * Live: a steady green. The motion that says "running, not frozen" lives in
+ * the status line's live dot (see `.live-dot`), so the lamp here stays still
+ * rather than pulsing against it.
+ */
+.tally--ok {
+  color: var(--live);
+}
+
+/* "reconnecting" during a routine session rotation is normal traffic, not an
+   incident. The pulse says "in progress", not "alarm". */
+.tally--warn {
+  color: var(--warn);
+  animation: tally-pulse 1.6s ease-in-out infinite;
+}
+
+.tally--error {
+  color: var(--fault);
+}
+
+@keyframes tally-pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.3;
+  }
+}
+
 /* ---------- picker ---------- */
 
 .picker {
   display: flex;
   flex-direction: column;
   min-height: 100%;
-  padding: max(1.5rem, env(safe-area-inset-top)) var(--gutter)
-    max(1.5rem, env(safe-area-inset-bottom));
+  padding-bottom: max(var(--gap-4), env(safe-area-inset-bottom));
 }
 
-/* The app's name is the least important thing on this screen; the instruction
-   is what a first-time reader needs, so the two swap the weight a default
-   title/subtitle pairing would give them. */
-.picker-title {
-  margin: 0 0 1.75rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: var(--dim);
+.picker .brand-bar {
+  padding-top: max(var(--gap-2), env(safe-area-inset-top));
 }
 
+.picker-head {
+  padding: var(--gap-4) var(--gutter) var(--gap-2);
+}
+
+/*
+ * The instruction, not the hero. It has one job — tell a first-time reader
+ * what this screen wants — and then get out of the way of the only content
+ * that matters. Korean leads, English sits under it, neither joined by a
+ * slash.
+ */
 .picker-prompt {
-  margin: 0 0 1rem;
-  font-size: 1.45rem;
-  font-weight: 650;
-  line-height: 1.25;
-  letter-spacing: -0.01em;
+  margin: 0;
+  font-size: var(--t-lg);
+  font-weight: 600;
+  line-height: 1.2;
+  letter-spacing: -0.014em;
   text-wrap: balance;
+}
+
+.picker-prompt-en {
+  display: block;
+  font-size: var(--t-md);
+  font-weight: 450;
+  color: var(--ink-quiet);
+}
+
+/* The second language always starts its own line. */
+.bilingual-en {
+  display: block;
+}
+
+.picker-waiting {
+  margin: var(--gap-2) 0 0;
+  max-width: 34ch;
+  font-size: var(--t-md);
+  line-height: 1.4;
+  color: var(--ink-quiet);
+  text-wrap: pretty;
 }
 
 .picker-rows {
   list-style: none;
   margin: 0;
-  padding: 0;
-  display: grid;
-  gap: 0.5rem;
+  padding: var(--gap-2) 0 0;
 }
 
-/* Each row is a whole-width button: the endonym leads, the source-language
-   tag and a chevron sit at the far end so the row reads as a choice even to
-   someone who cannot read any of the scripts on it. */
+/*
+ * Waiting for the room to start. The languages stay legible — a reader who
+ * arrived early should be able to see theirs is coming — but nothing here
+ * responds to a thumb yet.
+ */
+.picker-row:disabled {
+  color: var(--ink-quiet);
+  cursor: default;
+}
+
+.picker-row:disabled .picker-endonym {
+  box-shadow: none;
+}
+
+/*
+ * No hairlines, no disclosure arrows, no fills at rest. The endonyms are
+ * large enough to be their own structure, and anything drawn between them
+ * only makes the screen look like a settings list again. The whole row is
+ * the target and the press fill is the feedback.
+ */
 .picker-row {
   display: flex;
-  align-items: center;
-  gap: 0.75rem;
+  align-items: baseline;
+  gap: 0.7rem;
   width: 100%;
-  min-height: var(--tap);
-  padding: 1rem 1rem 1rem 1.25rem;
-  border-radius: var(--radius-tap);
-  background: var(--surface);
+  padding: 0.45rem var(--gutter);
   text-align: left;
   transition: background-color 120ms ease;
 }
 
 .picker-row:active {
-  background: var(--surface-press);
+  background: var(--raise);
   transition: none;
 }
 
+/* Shrinks a little on the narrowest phones so a long endonym still holds one
+   line, and never grows past the point where six languages stop fitting. */
 .picker-endonym {
-  flex: 1;
-  min-width: 0;
-  font-size: 1.7rem;
-  font-weight: 600;
-  line-height: 1.2;
-  letter-spacing: -0.01em;
+  font-size: clamp(2.125rem, 9.5vw, 2.875rem);
+  font-weight: 700;
+  line-height: 1.16;
+  letter-spacing: -0.035em;
   overflow-wrap: anywhere;
 }
 
-.picker-tag {
-  font-size: 0.95rem;
-  color: var(--dim);
-  white-space: nowrap;
+/*
+ * The speaker's own language is the room's actual audio rather than a
+ * translation. The chip says so to anyone who reads Korean or English; the
+ * rule under the endonym says so to everyone else, which is the half of the
+ * audience the chip cannot reach.
+ */
+.picker-row--passthrough .picker-endonym {
+  box-shadow: inset 0 -3px 0 var(--accent);
 }
 
-.picker-chevron {
+.picker-tag {
   flex: none;
-  width: 1.1rem;
-  height: 1.1rem;
-  color: var(--dim);
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--r-sm);
+  background: var(--accent-wash);
+  color: var(--accent-text);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  white-space: nowrap;
 }
 
 /* ---------- listen ---------- */
@@ -171,59 +493,47 @@ svg {
   display: flex;
   flex-direction: column;
   height: 100%;
-  gap: 0.75rem;
-  padding: max(0.75rem, env(safe-area-inset-top)) var(--gutter)
-    max(0.75rem, env(safe-area-inset-bottom));
 }
 
-.listen-header {
+.listen .brand-bar {
+  padding-top: max(var(--gap-2), env(safe-area-inset-top));
+}
+
+.listen-body {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem 0.75rem;
-  min-height: 2.75rem;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  gap: var(--gap-2);
+  padding: var(--gap-2) var(--gutter)
+    max(var(--gap-3), env(safe-area-inset-bottom));
 }
 
-.listen-lang {
-  font-size: 1.35rem;
-  font-weight: 700;
-  letter-spacing: -0.01em;
-}
-
-.listen-back {
-  min-height: 2.75rem;
-  padding: 0 0.9rem;
-  border-radius: 999px;
-  background: var(--surface);
-  color: var(--dim);
-  font-size: 0.85rem;
-  font-weight: 500;
-  white-space: nowrap;
-}
-
-.listen-back:active {
-  background: var(--surface-press);
-}
+/* ---------- silent switch notice ---------- */
 
 /*
  * The single most likely way a working system looks broken at an event: the
- * iOS silent switch mutes <audio> outright, silently. This notice is the
- * mitigation, so it is loud on purpose — full-width, high-contrast, always
- * the first thing under the header, and never dismissible. It is also the
- * only yellow object in the app, so nothing else competes with it. Do not
- * tone this down to match the rest of the chrome.
+ * iOS silent switch mutes <audio> outright, silently, and the attendee has no
+ * reason to suspect their phone rather than the event's rig.
+ *
+ * So it opens loud — full width, the only yellow object in the app — and
+ * stays that way until audio has actually been heard. Once the element
+ * reports it is playing, the person it is aimed at is provably not in the
+ * room any more, and it folds down to one quiet tappable line so the
+ * transcript gets the space back for the other eighty-nine minutes. Any
+ * stall or failure re-opens it immediately. Do not make it dismissible: the
+ * reader who needs it is exactly the reader who cannot tell it worked.
  */
 .silent-notice {
   display: grid;
   grid-template-columns: auto 1fr;
-  column-gap: 0.75rem;
-  row-gap: 0.1rem;
+  column-gap: var(--gap-3);
+  row-gap: 0.15rem;
   align-items: start;
-  padding: 0.85rem 1rem;
-  border-radius: var(--radius-note);
-  background: var(--notice-bg);
-  color: var(--notice-fg);
+  padding: var(--gap-3);
+  border-radius: var(--r-md);
+  background: var(--notice);
+  color: var(--notice-ink);
 }
 
 .silent-notice-icon {
@@ -234,37 +544,118 @@ svg {
 }
 
 .silent-notice-title {
-  font-size: 1.05rem;
+  font-size: var(--t-md);
   font-weight: 700;
   line-height: 1.3;
 }
 
 .silent-notice-body {
-  font-size: 0.95rem;
-  line-height: 1.35;
+  font-size: var(--t-sm);
+  line-height: 1.4;
 }
 
+.silent-notice-en {
+  display: block;
+  opacity: 0.72;
+}
+
+/* Folded: still present, still one tap from the full instruction, but no
+   longer competing with the words it exists to make audible. */
+.silent-folded {
+  display: flex;
+  align-items: center;
+  gap: var(--gap-2);
+  width: 100%;
+  min-height: 2.25rem;
+  padding: 0.25rem 0;
+  color: var(--ink-quiet);
+  font-size: var(--t-sm);
+  text-align: left;
+}
+
+.silent-folded-icon {
+  flex: none;
+  width: 1.0625rem;
+  height: 1.0625rem;
+}
+
+.silent-folded-text {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* ---------- status band ---------- */
+
 /*
- * One line of truth, read like a tally light: a dot whose colour is the
- * state, and the words beside it. Not a box — a bordered banner sat between
- * the yellow notice and the transcript and competed with both.
+ * One line of state under the bar, in every state. Healthy is the quietest
+ * of them: a short green "실시간 / Live" and nothing else, sized so the
+ * transcript gives up as little height as it can. Warn and error get room
+ * for a sentence, and error a wash behind it.
  */
 .status {
   display: flex;
   align-items: center;
-  gap: 0.6rem;
-  min-height: 2rem;
-  padding: 0.15rem 0.25rem;
-  font-size: 0.95rem;
-  color: var(--dim);
+  gap: var(--gap-2);
+  min-height: 2.5rem;
+  margin: 0;
+  padding: var(--gap-2) 0;
+  font-size: var(--t-sm);
 }
 
-.status-dot {
+.status--ok {
+  min-height: 1.75rem;
+  padding: 0;
+  color: var(--live);
+  font-size: var(--t-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+/*
+ * The live dot: a steady core and a ring that leaves it once a second and
+ * fades as it grows — the "ping" of a running feed. This is the app's one
+ * ambient motion; the chip's lamp is a steady colour so the two never pulse
+ * against each other. Off under reduced motion, where the dot alone remains.
+ */
+.live-dot {
+  position: relative;
   flex: none;
-  width: 0.6rem;
-  height: 0.6rem;
+  width: 0.625rem;
+  height: 0.625rem;
   border-radius: 50%;
   background: currentColor;
+}
+
+.live-dot::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0.75;
+  animation: live-ping 1s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+
+@keyframes live-ping {
+  75%,
+  100% {
+    opacity: 0;
+    transform: scale(2.5);
+  }
+}
+
+.status--warn {
+  color: var(--warn);
+}
+
+.status--error {
+  padding: var(--gap-2) var(--gap-3);
+  border-radius: var(--r-sm);
+  background: var(--fault-wash);
+  color: var(--fault);
 }
 
 .status-text {
@@ -272,54 +663,19 @@ svg {
   overflow-wrap: anywhere;
 }
 
-/* Healthy: the dot is green and the words stay quiet. */
-.status--ok .status-dot {
-  color: var(--ok);
-  box-shadow: 0 0 0 3px rgba(61, 220, 132, 0.18);
-}
-
-/* "reconnecting" during a routine session rotation is normal traffic, not an
-   incident — amber, no box, no retry. The pulse says "in progress", not
-   "alarm". */
-.status--warn {
-  color: var(--warn);
-}
-
-.status--warn .status-dot {
-  animation: status-pulse 1.6s ease-in-out infinite;
-}
-
-/* A sustained lane error is the operator's problem and must read as one:
-   the only status that gets a filled band. */
-.status--error {
-  color: var(--error);
-  background: var(--error-wash);
-  padding: 0.6rem 0.9rem;
-  border-radius: var(--radius-note);
-}
-
 .status-retry {
-  min-height: 2.5rem;
-  padding: 0 0.9rem;
-  border: 1.5px solid currentColor;
-  border-radius: 999px;
-  font-size: 0.9rem;
+  flex: none;
+  min-height: 2.25rem;
+  padding: 0 var(--gap-3);
+  border: 1px solid currentColor;
+  border-radius: var(--r-pill);
+  font-size: var(--t-sm);
   font-weight: 600;
   white-space: nowrap;
 }
 
 .status-retry:active {
-  background: var(--error-wash);
-}
-
-@keyframes status-pulse {
-  0%,
-  100% {
-    opacity: 1;
-  }
-  50% {
-    opacity: 0.35;
-  }
+  background: var(--fault-wash);
 }
 
 /* ---------- transcript ---------- */
@@ -330,50 +686,77 @@ svg {
   overflow-y: auto;
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
-  border-top: 1px solid var(--line);
+  /*
+   * Lines dissolve into the chrome above instead of being guillotined by it.
+   * Top only: the mute button is a sibling rather than an overlay, so nothing
+   * ever scrolls under the bottom edge, and a fade there would only eat the
+   * descenders of the newest line — the one line that must stay crisp.
+   * Masking a scroll container is cheap here: the mask is static and the
+   * element is short.
+   */
+  -webkit-mask-image: linear-gradient(to bottom, transparent, #000 1.75rem);
+  mask-image: linear-gradient(to bottom, transparent, #000 1.75rem);
 }
 
-/* Lines are anchored to the bottom like subtitles, so the newest one always
-   lands in the same place — just above the thumb — instead of walking down
-   the screen as the first few arrive. Once the list outgrows the box this is
-   an ordinary scroll region and TranscriptList's pin logic takes over. */
+/* Anchored to the bottom like subtitles, so the newest line always lands in
+   the same place — just above the thumb — instead of walking down the screen
+   as the first few arrive. */
 .transcript-lines {
   list-style: none;
   margin: 0;
-  padding: 0.75rem 0 0.25rem;
+  padding: 1.75rem 0 0.25rem;
   min-height: 100%;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 1rem;
+  gap: var(--gap-4);
 }
 
-/* Read at arm's length in a dim room. */
+/* Read at arm's length in a dim room, by someone who is also watching a
+   stage. This is the largest type in the app by a wide margin, and rule 2
+   says it stays that way. */
 .transcript-line {
-  font-size: clamp(1.5rem, 6vw, 2.25rem);
-  line-height: 1.35;
+  font-size: clamp(1.875rem, 7.5vw, 2.875rem);
+  line-height: 1.28;
   font-weight: 500;
-  letter-spacing: -0.005em;
+  letter-spacing: -0.021em;
+  color: var(--ink-quiet);
   overflow-wrap: anywhere;
   text-wrap: pretty;
 }
 
-/* Still being written: quieter, with a caret so a half-sentence reads as
-   in-progress rather than as the interpreter having stopped mid-thought. */
-.transcript-line--interim {
-  color: var(--dim);
+/*
+ * A recency ramp in three steps. What was just said is what you are trying to
+ * follow; three sentences ago is context you have already had. Fading the
+ * older lines rather than deleting them keeps the thread available without
+ * letting it compete. Every step is a real colour rather than an opacity, so
+ * each one's contrast against the ground can be checked — the faintest still
+ * clears 4.5:1 in both themes.
+ */
+.transcript-line:nth-last-child(-n + 4) {
+  color: var(--ink-mid);
+}
+
+.transcript-line:nth-last-child(-n + 2) {
+  color: var(--ink);
+}
+
+/* Still being written: a caret, so a half-sentence reads as in progress
+   rather than as the interpreter having stopped mid-thought. */
+.transcript-line.transcript-line--interim {
+  color: var(--ink-quiet);
   font-weight: 400;
 }
 
 .transcript-line--interim::after {
   content: "";
   display: inline-block;
-  width: 0.12em;
-  height: 0.9em;
-  margin-left: 0.15em;
-  vertical-align: -0.1em;
+  width: 0.09em;
+  height: 0.88em;
+  margin-left: 0.14em;
+  vertical-align: -0.08em;
   border-radius: 1px;
-  background: currentColor;
+  background: var(--accent);
   animation: caret-blink 1s steps(2, start) infinite;
 }
 
@@ -383,43 +766,78 @@ svg {
   }
 }
 
+/*
+ * The one orchestrated moment in the app: a line committing from interim to
+ * final. It settles the few pixels the dropped caret freed and firms up out
+ * of the provisional grey. Only lines that arrive while you are watching get
+ * it — the fifty lines of history delivered on connect would otherwise all
+ * animate at once.
+ */
+.transcript-line[data-fresh="true"] {
+  animation: line-commit 260ms cubic-bezier(0.2, 0.7, 0.3, 1) both;
+}
+
+@keyframes line-commit {
+  from {
+    opacity: 0;
+    transform: translateY(0.32em);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* Vertically centred while it is the only child, thanks to the flex column. */
 .transcript-empty {
   margin: auto 0;
-  font-size: 1.05rem;
-  color: var(--dim);
+  font-size: var(--t-md);
+  color: var(--ink-quiet);
   text-align: center;
   text-wrap: balance;
 }
 
 /* ---------- mute ---------- */
 
+/*
+ * The one primary control, and the only thing besides the notice that carries
+ * a fill at rest. Muted is a state a reader can forget they are in, so it is
+ * marked in the accent — the app's colour for "a choice you made" — rather
+ * than merely dimmed.
+ */
 .mute {
   display: flex;
+  flex: none;
   align-items: center;
   justify-content: center;
-  gap: 0.6rem;
+  gap: var(--gap-2);
   min-height: var(--tap);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-tap);
-  background: var(--surface);
-  font-size: 1.1rem;
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-lg);
+  background: var(--raise);
+  font-size: var(--t-md);
   font-weight: 600;
-  transition: background-color 120ms ease;
+  letter-spacing: -0.011em;
+  transition:
+    background-color 120ms ease,
+    border-color 120ms ease,
+    color 120ms ease;
 }
 
 .mute:active {
-  background: var(--surface-press);
+  border-color: var(--ink-faint);
   transition: none;
 }
 
 .mute[aria-pressed="true"] {
-  color: var(--dim);
+  border-color: var(--accent);
+  background: var(--accent-wash);
+  color: var(--accent-text);
 }
 
 .mute-icon {
-  width: 1.4rem;
-  height: 1.4rem;
+  width: 1.375rem;
+  height: 1.375rem;
 }
 
 /* ---------- loading and failure ---------- */
@@ -427,40 +845,48 @@ svg {
 .notice-screen {
   display: grid;
   place-content: center;
-  gap: 1.25rem;
+  gap: var(--gap-4);
   min-height: 100%;
-  padding: 2rem 1.5rem;
+  padding: var(--gap-5) var(--gutter);
   text-align: center;
 }
 
 .notice-text {
   margin: 0;
-  font-size: 1.2rem;
-  color: var(--dim);
+  font-size: var(--t-lg);
+  font-weight: 500;
+  line-height: 1.3;
+  letter-spacing: -0.014em;
+  color: var(--ink-quiet);
   text-wrap: balance;
 }
 
 .notice-retry {
+  justify-self: center;
   min-height: var(--tap);
-  padding: 0 1.5rem;
-  border: 1px solid var(--line);
-  border-radius: var(--radius-tap);
-  background: var(--surface);
-  font-size: 1.15rem;
+  padding: 0 var(--gap-5);
+  border: 1px solid var(--rule-strong);
+  border-radius: var(--r-lg);
+  background: var(--raise);
+  font-size: var(--t-md);
   font-weight: 600;
 }
 
 .notice-retry:active {
-  background: var(--surface-press);
+  border-color: var(--ink-faint);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .status--warn .status-dot,
-  .transcript-line--interim::after {
+  .tally--warn,
+  .live-dot::before,
+  .transcript-line--interim::after,
+  .transcript-line[data-fresh="true"] {
     animation: none;
   }
 
   .picker-row,
+  .channel-change,
+  .theme-toggle,
   .mute {
     transition: none;
   }

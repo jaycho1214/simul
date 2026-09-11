@@ -11,13 +11,14 @@ function leaves(node: unknown, prefix = ""): Array<[string, string]> {
 }
 
 describe("Korean string table", () => {
-  test("carries the five panel labels from the spec", () => {
+  test("carries a label for every panel in the window", () => {
     expect(KO_STRINGS.panel).toEqual({
       device: "입력 장치",
       level: "레벨 미터",
       join: "접속 정보",
       lanes: "레인 현황",
       control: "제어",
+      brand: "행사 브랜드",
     });
   });
 
@@ -74,6 +75,11 @@ describe("Korean string table", () => {
       "reach.rule_warn", // TCP
       "control.apiKey", // Gemini API
       "control.server_external", // --external-server
+      "brand.accentPlaceholder", // #3e8fd0 — a colour value, not copy
+      "brand.accentInvalid", // quotes the same colour value back
+      "lang.autoDetect", // Gemini
+      "lang.passthroughHint", // API
+      "lang.addHint", // Gemini, BCP-47
     ];
     expect(offenders.sort()).toEqual(expected.sort());
   });

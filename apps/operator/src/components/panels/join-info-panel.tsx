@@ -40,7 +40,6 @@ export function JoinInfoPanel({ externalListenerSeen }: { externalListenerSeen: 
 
   return (
     <Panel
-      title={t("panel.join")}
       aside={
         <Button variant="ghost" size="sm" onClick={() => void reachability.refetch()}>
           {t("join.recheck")}

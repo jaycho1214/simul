@@ -13,6 +13,17 @@ export interface PcmConsumer {
 export interface Lane extends PcmConsumer {
   readonly state: LaneState;
   readonly initSegment: Buffer;
+  /** Recent clusters to write straight after `initSegment`; see `WebMSink.backlog`. */
+  readonly backlog: Buffer;
+  /**
+   * This lane's media clock in ms — the timestamp of the newest audio it has
+   * produced, on the same timeline as the cluster timestamps a client
+   * receives. Exists to make latency measurable rather than guessed: a
+   * listener's true lag is `mediaMs / 1000 - audio.currentTime`, which no
+   * client-side reading can give, since `buffered.end` is only the demuxer's
+   * read-ahead and says nothing about how far behind the room the audio is.
+   */
+  readonly mediaMs: number;
   readonly transcripts: TranscriptBus;
   subscribeClusters(fn: (cluster: Buffer) => void): () => void;
   /**
