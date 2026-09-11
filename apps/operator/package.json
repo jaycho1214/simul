@@ -1,7 +1,7 @@
 {
   "name": "@simul/operator",
   "productName": "Simul",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Live speech-to-speech translation for a room: the operator app the sound engineer runs.",
   "author": "Jay Cho",
   "main": ".vite/build/main.js",
