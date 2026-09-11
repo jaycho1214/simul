@@ -1,5 +1,6 @@
 import { describe, expect, test } from "vitest";
 import { KO_STRINGS } from "./i18n.ts";
+import { EN_STRINGS } from "./locales/en.ts";
 
 /** Every leaf string in the table, with its dotted key. */
 function leaves(node: unknown, prefix = ""): Array<[string, string]> {
@@ -80,5 +81,32 @@ describe("Korean string table", () => {
       "lang.addHint", // Gemini, BCP-47
     ];
     expect(offenders.sort()).toEqual(expected.sort());
+  });
+});
+
+/** The interpolation names a string carries, sorted, so two locales can be compared. */
+function placeholders(value: string): string[] {
+  return [...value.matchAll(/\{\{(\w+)\}\}/g)].map((m) => m[1]!).sort();
+}
+
+describe("English string table", () => {
+  test("carries exactly the Korean keys", () => {
+    const ko = leaves(KO_STRINGS).map(([key]) => key);
+    const en = leaves(EN_STRINGS).map(([key]) => key);
+    expect(en.sort()).toEqual(ko.sort());
+  });
+
+  test("uses the same placeholders as the Korean string for every key", () => {
+    const en = new Map(leaves(EN_STRINGS));
+    for (const [key, value] of leaves(KO_STRINGS)) {
+      expect(placeholders(en.get(key) ?? ""), key).toEqual(placeholders(value));
+    }
+  });
+
+  test("has no untranslated Hangul", () => {
+    const offenders = leaves(EN_STRINGS)
+      .filter(([, value]) => /[가-힣]/.test(value))
+      .map(([key]) => key);
+    expect(offenders).toEqual([]);
   });
 });
