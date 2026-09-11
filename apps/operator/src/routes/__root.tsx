@@ -1,16 +1,13 @@
 import { createRootRoute, Outlet } from "@tanstack/react-router";
-import { TanStackRouterDevtools } from "@tanstack/react-router-devtools";
-import { Activity } from "react";
-import { inDevelopment } from "@/constants";
 import BaseLayout from "@/layouts/base-layout";
 
+// No router devtools, even in development: the window has one route and no
+// loaders, and the devtools' floating button sat exactly on the rail footer's
+// language toggle in `pnpm start`, hiding it from anyone trying it out.
 function Root() {
   return (
     <BaseLayout>
       <Outlet />
-      <Activity mode={inDevelopment ? "visible" : "hidden"}>
-        <TanStackRouterDevtools />
-      </Activity>
     </BaseLayout>
   );
 }
