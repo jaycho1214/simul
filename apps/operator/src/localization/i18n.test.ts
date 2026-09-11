@@ -78,6 +78,7 @@ describe("Korean string table", () => {
       "brand.accentPlaceholder", // #3e8fd0 — a colour value, not copy
       "brand.accentInvalid", // quotes the same colour value back
       "lang.autoDetect", // Gemini
+      "lang.speakerLanguage", // API
       "lang.passthroughHint", // API
       "lang.addHint", // Gemini, BCP-47
       "update.ready", // v1.2.3

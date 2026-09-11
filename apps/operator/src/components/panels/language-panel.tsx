@@ -65,6 +65,13 @@ export function LanguagePanel() {
   return (
     <Panel title={t("lang.title")}>
       <p className="max-w-3xl text-xs leading-snug text-muted-foreground">{t("lang.autoDetect")}</p>
+      {/*
+       * The default list includes 한국어, and the speaker at most of this app's
+       * events speaks Korean. With echo on, that lane costs a Gemini session
+       * to say nothing new, so the one language worth removing is called out
+       * next to the list rather than left to be discovered on the bill.
+       */}
+      <Notice tone="warn">{t("lang.speakerLanguage")}</Notice>
 
       <div className="grid gap-2.5">
         <div className="flex items-baseline justify-between gap-3">

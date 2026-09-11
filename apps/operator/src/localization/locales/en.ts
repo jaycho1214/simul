@@ -40,6 +40,8 @@ export const EN_STRINGS = {
       "There is no source language to choose. Gemini detects the language being spoken, translates it into each language you offer, and passes speech that is already in that language straight through.",
     offered: "Languages to offer",
     count: "{{n}} selected",
+    speakerLanguage:
+      "Leave the speaker's own language out of the list. Anyone who picks it opens a lane that just repeats the speaker untranslated, and it costs the same API usage as any other lane for as long as someone listens. For a Korean sermon, turn Korean off.",
     passthrough: "Original lane (debug)",
     passthroughHint:
       "Adds a lane at the bottom of the attendee list carrying the room's sound untranslated. For checking the audio path; it costs nothing in API usage.",
