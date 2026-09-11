@@ -392,6 +392,27 @@ aux` confirmed no `NodeService`-type utility process under
 
 ---
 
+## One XR18, OBS and Simul on the same laptop
+
+Both programs read the mixer over the one USB cable, and what the XR18 looks
+like to them depends on the operating system. This is the whole difference;
+nothing in Simul's capture code is platform-specific (`getUserMedia` → Web
+Audio on both, and the server binds dual-stack so `ws://localhost` resolves
+on Windows too). None of it has been run against a real XR18 from this
+development environment — treat every line as the plan to verify, not a
+result.
+
+|                          | Windows (the event laptop)                                                                                                                                                                             | macOS (rehearsals on the dev machine)                                                                                                                |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| How the XR18 appears     | The X-AIR WDM driver shows **separate stereo devices**: `XR18 USB 1-2`, `3-4`, `5-6`, `7-8` (and `1-8`). Channels 9–18 exist only over ASIO, which Chromium cannot open.                               | One class-compliant **18-channel device**, no driver.                                                                                                |
+| 입력 장치 → 요청 채널 수 | **2**, then 채널 picks left or right of that pair.                                                                                                                                                     | **18**, then 채널 picks any of the 18. If 실제 shows fewer than 18, Chromium downmixed — fall back to routing the send to channels 1–2 on the mixer. |
+| Sharing with OBS         | Give OBS and Simul **different USB pairs** (W1). If they must share one, OBS's source must be WASAPI, never `obs-asio`: ASIO takes the endpoint exclusively and Simul's meter goes flat with no error. | CoreAudio shares one device between any number of apps; OBS and Simul can both open it. `obs-asio` does not exist here.                              |
+| Mixer routing            | Aux (pre-fader, speech mics only) → the USB send pair Simul reads.                                                                                                                                     | Same.                                                                                                                                                |
+
+The rest is common to both: a pre-fader send (W2), 입력 게인 in 레벨 미터 if
+the send arrives quiet or hot and the board cannot be touched mid-service,
+and no phone or monitor speaker within earshot of the stage mic (U3b).
+
 ## Pre-event checklist — the venue laptop, Windows, with OBS running
 
 Every item below needs hardware and software this development environment
@@ -469,6 +490,22 @@ criteria so it can actually be executed rather than assumed passing.
       unchanged, so confirm what actually happens to the operator app's meter
       when the vocal channel is muted on the board, not just faded down.
 
+- [ ] **W2b — the input gain is set, and set for the room.**
+      **UNVERIFIED.** With the speaker talking at service level, 레벨 미터's
+      RMS should sit around -20 dBFS with peaks below -6. Move 입력 게인 only
+      if the board cannot be: it applies live, to the meter and to what the
+      model hears alike. **Pass:** 클리핑 never lights during the loudest
+      passage. The value is saved and reopens with the next capture, so a
+      rehearsal setting survives a restart — check it is still right on the
+      day, since a different mic gain on the board silently makes it wrong.
+
+- [ ] **W2c — the port and the firewall rule agree.**
+      **UNVERIFIED.** 제어 → 포트 is 8080 unless there is a reason not to
+      (another program on the laptop already listening there). If it was
+      changed, the W3 firewall rule below must name the new port, the QR
+      shows it, and 서버 재시작 was pressed after the change — the panel warns
+      while the running server is still on the old port.
+
 - [ ] **W3 — reachability, checked three ways.**
       **UNVERIFIED.** In 접속 정보:
   1. 네트워크 프로필 reads 개인(Private). If 공용(Public), fix the network
@@ -523,6 +560,18 @@ reconnecting → live` cycle happens roughly every 10 minutes — this is
       all** when the first attendee picks it — not just one that appears and
       later shows 오류 — since that is the failure mode actually observed, not
       the one originally documented.
+
+- [ ] **W5b — the usage meter moves, and the bill is where it says.**
+      **UNVERIFIED on the venue key.** During W5, 제어 → API 사용량 (추정)
+      shows one row per language that has opened and a total that rises
+      about **$0.037 per lane-minute** (25 audio tokens per second each way,
+      at $3.50 in / $21.00 out per million — measured 2026-09-11 against the
+      real model). It resets on 서버 재시작. After the run, open the AI Studio
+      usage dashboard from the panel's link and compare: the Gemini API has
+      no way to report a key's real spend, so the panel is the estimate and
+      the dashboard is the bill. A meter that stays at $0.00 with a lane
+      open and live means `usageMetadata` stopped arriving — note it, it
+      does not affect the translation.
 
 - [ ] **W6 — latency, on the phones people will actually hold.**
       **UNVERIFIED on real phones.** Measured only in desktop Chromium on
