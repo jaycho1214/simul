@@ -3,12 +3,14 @@ import type { UsageReport } from "@simul/protocol";
 import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Group, Notice, Panel } from "@/components/ui/panel";
 import { StatusLine, type Tone } from "@/components/ui/status-dot";
 import type { ServerHostState } from "@/server-host/server-supervisor";
 import { estimateUsd, formatUsd, sumUsage } from "../../admin/usage-cost.ts";
+import { appLog } from "../../hooks/use-app-log.ts";
 import { captureController, useCapture } from "../../hooks/use-capture.ts";
 import { ipc } from "../../ipc/manager.ts";
 import { languageLabel } from "../../settings/languages.ts";
@@ -153,7 +155,18 @@ export function ControlPanel({ usage }: { usage?: UsageReport | undefined }) {
 
   async function start() {
     const current = settings.data;
-    if (!current?.deviceId) return;
+    if (!current?.deviceId) {
+      appLog.error(t("error.noDevice"));
+      toast.warning(t("error.noDevice"));
+      return;
+    }
+    appLog.info(
+      t("log.startPressed", {
+        label: current.deviceLabel ?? current.deviceId,
+        channel: current.channelIndex + 1,
+        requested: current.requestedChannelCount,
+      }),
+    );
     const token = await ipc.client.settings.ingestToken();
     await captureController.start({
       deviceId: current.deviceId,

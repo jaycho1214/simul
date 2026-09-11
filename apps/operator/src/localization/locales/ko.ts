@@ -109,10 +109,42 @@ export const KO_STRINGS = {
 
   error: {
     deviceLost: "오디오 장치 연결이 끊겼습니다. 캡처를 중지했습니다. 장치를 다시 선택하세요.",
-    deviceOpenFailed:
-      "선택한 장치를 열 수 없습니다: {{reason}}. 다른 장치를 고르거나 케이블을 확인하세요.",
-    workletFailed: "오디오 처리 모듈을 불러오지 못했습니다: {{reason}}. 앱을 다시 시작하세요.",
+    // The name is the DOMException's (NotAllowedError, NotReadableError…):
+    // the message Chromium attaches is often the same for different causes,
+    // and the name is what the hint below is chosen by.
+    deviceOpenFailed: "선택한 장치를 열 수 없습니다 — {{name}}: {{reason}}",
+    workletFailed:
+      "오디오 처리 모듈을 불러오지 못했습니다 — {{name}}: {{reason}}. 앱을 다시 시작하세요.",
     ingestDisconnected: "서버 연결이 끊겼습니다. 재연결 중입니다. 캡처는 계속됩니다.",
+    noDevice: "시작할 수 없습니다 — 입력 장치를 먼저 선택하세요.",
+  },
+
+  // What to do about a deviceOpenFailed, by its DOMException name. See
+  // capture/capture-errors.ts for which names map to which.
+  hint: {
+    notAllowed:
+      "시스템이 마이크 접근을 막았습니다. 윈도우: 설정 → 개인 정보 및 보안 → 마이크에서 '마이크 액세스'와 '데스크톱 앱이 마이크에 액세스하도록 허용'을 켜세요. 맥: 시스템 설정 → 개인정보 보호 및 보안 → 마이크에서 Simul을 허용하세요.",
+    notReadable:
+      "장치는 있지만 열리지 않습니다. 다른 프로그램이 이 장치를 독점하고 있을 가능성이 큽니다 — X-AIR/XR18이면 ASIO를 쓰는 프로그램(obs-asio, DAW, X-AIR 제어판)을 닫거나 OBS를 WASAPI로 바꾸고, 다른 USB 페어를 쓰세요. 그래도 안 되면 USB를 뽑았다 꽂고 장치 목록을 새로 고치세요.",
+    notFound:
+      "저장된 장치를 찾지 못했거나 요청한 채널 수를 낼 수 없습니다. 장치 목록을 새로 고쳐 다시 고르고, 요청 채널 수를 장치에 맞게 줄이세요.",
+  },
+
+  // The 앱 tab of 서버 · 로그: what this window did, in the order it did it.
+  log: {
+    captureStarted:
+      "캡처 시작 — 요청 {{requested}}채널 · 실제 {{achieved}}채널, {{channel}}번 채널, 장치 {{device}} Hz → 처리 {{processed}} Hz",
+    captureStartedNoReport: "캡처 시작",
+    captureStopped: "캡처 중지",
+    captureError: "캡처 오류 — {{message}}",
+    ingest_connecting: "서버 /ingest 연결 중",
+    ingest_open: "서버 /ingest 연결됨",
+    ingest_reconnecting: "서버 /ingest 연결 끊김 — 재연결 중",
+    ingest_stopped: "서버 /ingest 닫힘",
+    ingest_idle: "서버 /ingest 대기",
+    devicePicked: "입력 장치 선택 — {{label}}",
+    startPressed: "시작 — {{label}}, 채널 {{channel}}, 요청 {{requested}}채널",
+    stopPressed: "중지",
   },
 
   level: {
@@ -235,7 +267,9 @@ export const KO_STRINGS = {
   // stdout/stderr — otherwise invisible once the app is packaged and there is
   // no terminal — is readable from inside the window.
   serverLog: {
-    title: "서버 로그",
+    title: "로그",
+    tabServer: "서버",
+    tabApp: "앱",
     empty: "로그가 없습니다",
   },
 

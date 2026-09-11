@@ -1,6 +1,7 @@
 import type React from "react";
 import { useTranslation } from "react-i18next";
 import DragWindowRegion from "@/components/drag-window-region";
+import { CaptureReporter } from "@/components/capture-reporter";
 import { Toaster } from "@/components/ui/sonner";
 import { UpdateToast } from "@/components/update-toast";
 
@@ -14,6 +15,7 @@ export default function BaseLayout({ children }: { children: React.ReactNode }) 
       <div className="min-h-0 flex-1">{children}</div>
       <Toaster />
       <UpdateToast />
+      <CaptureReporter />
     </div>
   );
 }

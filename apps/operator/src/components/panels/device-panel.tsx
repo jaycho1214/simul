@@ -5,14 +5,18 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import { Field, Notice, Panel } from "@/components/ui/panel";
+import { captureErrorHint } from "../../capture/capture-errors.ts";
 import { listInputDevices } from "../../capture/capture-controller.ts";
+import { captureErrorText } from "../capture-reporter.tsx";
+import { appLog } from "../../hooks/use-app-log.ts";
 import { useCapture } from "../../hooks/use-capture.ts";
 import { ipc } from "../../ipc/manager.ts";
 
 export function DevicePanel() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const { report } = useCapture();
+  const { report, error } = useCapture();
+  const hint = error?.code === "deviceOpenFailed" ? captureErrorHint(error.name) : undefined;
 
   const devices = useQuery({ queryKey: ["devices"], queryFn: listInputDevices });
   const settings = useQuery({ queryKey: ["settings"], queryFn: () => ipc.client.settings.get() });
@@ -49,6 +53,7 @@ export function DevicePanel() {
           value={current?.deviceId ?? ""}
           onChange={(e) => {
             const device = devices.data?.find((d) => d.deviceId === e.target.value);
+            appLog.info(t("log.devicePicked", { label: device?.label || e.target.value || "—" }));
             void patch({ deviceId: e.target.value, deviceLabel: device?.label ?? null });
           }}
         >
@@ -62,6 +67,16 @@ export function DevicePanel() {
       </Field>
       {devices.data?.some((d) => d.label === "") ? (
         <Notice tone="warn">{t("device.permissionNeeded")}</Notice>
+      ) : null}
+
+      {/* The last capture error, in full, until the next start clears it.
+          Restored: the sidebar redesign dropped this and for a while a
+          rejected getUserMedia was a dot on the rail and nothing more. */}
+      {error ? (
+        <div className="grid gap-1.5">
+          <Notice tone="error">{captureErrorText(t, error)}</Notice>
+          {hint ? <Notice tone="warn">{t(`hint.${hint}`)}</Notice> : null}
+        </div>
       ) : null}
 
       {/* getUserMedia has no way to ask a device how many channels it has, so

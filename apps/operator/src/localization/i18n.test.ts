@@ -74,6 +74,14 @@ describe("Korean string table", () => {
       "reach.profile_pass", // (Private)
       "reach.profile_warn", // (Public)
       "reach.rule_warn", // TCP
+      "hint.notReadable", // X-AIR/XR18, ASIO, obs-asio, DAW, OBS, WASAPI, USB
+      "hint.notAllowed", // Simul
+      "log.captureStarted", // Hz
+      "log.ingest_connecting", // /ingest
+      "log.ingest_open", // /ingest
+      "log.ingest_reconnecting", // /ingest
+      "log.ingest_stopped", // /ingest
+      "log.ingest_idle", // /ingest
       "control.apiKey", // Gemini API
       "control.portHint", // TCP, QR
       "control.usageTitle", // API

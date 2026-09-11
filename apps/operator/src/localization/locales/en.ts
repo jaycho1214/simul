@@ -108,10 +108,36 @@ export const EN_STRINGS = {
 
   error: {
     deviceLost: "The audio device disconnected. Capture stopped. Choose the device again.",
-    deviceOpenFailed:
-      "The selected device could not be opened: {{reason}}. Choose another device or check the cable.",
-    workletFailed: "The audio processing module failed to load: {{reason}}. Restart the app.",
+    deviceOpenFailed: "The selected device could not be opened — {{name}}: {{reason}}",
+    workletFailed:
+      "The audio processing module failed to load — {{name}}: {{reason}}. Restart the app.",
     ingestDisconnected: "Lost the connection to the server. Reconnecting; capture continues.",
+    noDevice: "Cannot start — choose an input device first.",
+  },
+
+  hint: {
+    notAllowed:
+      "The system blocked microphone access. Windows: Settings → Privacy & security → Microphone, turn on 'Microphone access' and 'Let desktop apps access your microphone'. macOS: System Settings → Privacy & Security → Microphone, allow Simul.",
+    notReadable:
+      "The device exists but will not open. Most likely another program holds it exclusively — on an X-AIR/XR18, close anything using ASIO (obs-asio, a DAW, the X-AIR control panel) or switch OBS to WASAPI, and use a different USB pair. Failing that, replug the USB cable and refresh the device list.",
+    notFound:
+      "The saved device was not found, or it cannot deliver the requested channel count. Refresh the device list, pick it again, and lower the requested channel count to what the device has.",
+  },
+
+  log: {
+    captureStarted:
+      "Capture started — requested {{requested}} ch · got {{achieved}} ch, channel {{channel}}, device {{device}} Hz → processed {{processed}} Hz",
+    captureStartedNoReport: "Capture started",
+    captureStopped: "Capture stopped",
+    captureError: "Capture error — {{message}}",
+    ingest_connecting: "Connecting to the server's /ingest",
+    ingest_open: "Connected to the server's /ingest",
+    ingest_reconnecting: "Lost the server's /ingest — reconnecting",
+    ingest_stopped: "The server's /ingest closed",
+    ingest_idle: "The server's /ingest is idle",
+    devicePicked: "Input device chosen — {{label}}",
+    startPressed: "Start — {{label}}, channel {{channel}}, {{requested}} ch requested",
+    stopPressed: "Stop",
   },
 
   level: {
@@ -220,7 +246,9 @@ export const EN_STRINGS = {
   },
 
   serverLog: {
-    title: "Server log",
+    title: "Log",
+    tabServer: "Server",
+    tabApp: "App",
     empty: "No log lines",
   },
 

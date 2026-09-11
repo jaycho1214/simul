@@ -2,9 +2,11 @@ import { useQuery } from "@tanstack/react-query";
 import type { LaneStatus } from "@simul/protocol";
 import { Image, Mic, QrCode, Radio, Server } from "lucide-react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { StatusDot, type Tone } from "@/components/ui/status-dot";
 import { cn } from "@/utils/tailwind";
+import { appLog } from "../hooks/use-app-log.ts";
 import { captureController, useCapture } from "../hooks/use-capture.ts";
 import { ipc } from "../ipc/manager.ts";
 import { LanguageToggle } from "./language-toggle.tsx";
@@ -138,7 +140,10 @@ export function OperatorRail({ active, onSelect, lanes }: OperatorRailProps) {
             variant="outline"
             className="h-10 w-full text-sm font-semibold"
             disabled={!capture.running}
-            onClick={() => void captureController.stop()}
+            onClick={() => {
+              appLog.info(t("log.stopPressed"));
+              void captureController.stop();
+            }}
           >
             {t("control.stop")}
           </Button>
@@ -155,7 +160,18 @@ export function OperatorRail({ active, onSelect, lanes }: OperatorRailProps) {
   );
 
   async function startCapture() {
-    if (!current?.deviceId) return;
+    if (!current?.deviceId) {
+      appLog.error(t("error.noDevice"));
+      toast.warning(t("error.noDevice"));
+      return;
+    }
+    appLog.info(
+      t("log.startPressed", {
+        label: current.deviceLabel ?? current.deviceId,
+        channel: current.channelIndex + 1,
+        requested: current.requestedChannelCount,
+      }),
+    );
     const token = await ipc.client.settings.ingestToken();
     await captureController.start({
       deviceId: current.deviceId,

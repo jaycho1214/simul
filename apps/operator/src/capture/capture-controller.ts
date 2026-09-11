@@ -1,6 +1,7 @@
 import workletUrl from "./pcm-tap.worklet.js?url";
 import { buildDeviceReport, clampChannelIndex, type DeviceReport } from "./device-report.ts";
 import { FrameAccumulator } from "./frame-accumulator.ts";
+import { describeCaptureCause } from "./capture-errors.ts";
 import { clampGainDb, dbToLinear } from "./gain.ts";
 import { IngestSocket, ingestUrl } from "./ingest-socket.ts";
 import { floatTo16BitPcm } from "./pcm.ts";
@@ -13,9 +14,10 @@ export interface InputDevice {
 }
 
 export type CaptureError =
-  | { code: "deviceOpenFailed"; reason: string }
+  /** `name` is the DOMException's — see capture-errors.ts for what each one means. */
+  | { code: "deviceOpenFailed"; name: string; reason: string }
   | { code: "deviceLost" }
-  | { code: "workletFailed"; reason: string };
+  | { code: "workletFailed"; name: string; reason: string };
 
 export interface CaptureSnapshot {
   running: boolean;
@@ -153,9 +155,7 @@ export class CaptureController {
       // deviceId: { exact } fails rather than substituting the built-in mic,
       // which is the behaviour the spec relies on.
       if (generation === this.generation) {
-        this.emit({
-          error: { code: "deviceOpenFailed", reason: String((err as Error).message ?? err) },
-        });
+        this.emit({ error: { code: "deviceOpenFailed", ...describeCaptureCause(err) } });
       }
       throw err;
     }
@@ -171,7 +171,7 @@ export class CaptureController {
     this.stream = stream;
     const track = stream.getAudioTracks()[0];
     if (!track) {
-      this.emit({ error: { code: "deviceOpenFailed", reason: "no audio track" } });
+      this.emit({ error: { code: "deviceOpenFailed", name: "", reason: "no audio track" } });
       await this.stop();
       throw new Error("no audio track");
     }
@@ -184,9 +184,7 @@ export class CaptureController {
       await context.audioWorklet.addModule(workletUrl);
     } catch (err) {
       if (generation === this.generation) {
-        this.emit({
-          error: { code: "workletFailed", reason: String((err as Error).message ?? err) },
-        });
+        this.emit({ error: { code: "workletFailed", ...describeCaptureCause(err) } });
         await this.stop();
       }
       throw err;
@@ -298,9 +296,7 @@ export class CaptureController {
       // Anything from graph wiring through resume() leaves a half-built
       // graph; it must not be left holding the microphone or the socket.
       if (generation === this.generation) {
-        this.emit({
-          error: { code: "workletFailed", reason: String((err as Error).message ?? err) },
-        });
+        this.emit({ error: { code: "workletFailed", ...describeCaptureCause(err) } });
         await this.stop();
       }
       throw err;

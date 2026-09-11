@@ -413,6 +413,16 @@ The rest is common to both: a pre-fader send (W2), 입력 게인 in 레벨 미�
 the send arrives quiet or hot and the board cannot be touched mid-service,
 and no phone or monitor speaker within earshot of the stage mic (U3b).
 
+**If 시작 appears to do nothing:** it did something — open 서버 · 로그 → the
+**앱** tab. Every start is logged with what the device actually opened at,
+and a refused device is logged with its error name and a red toast. On
+Windows the two names to expect are `NotAllowedError` (Settings → Privacy &
+security → Microphone: turn on microphone access _and_ "Let desktop apps
+access your microphone") and `NotReadableError` (another program holds the
+X-AIR endpoint — anything on ASIO, including obs-asio; close it or switch OBS
+to WASAPI, and use a different USB pair). Before 0.2.0 the app showed
+nothing but a dot on the rail for this, which is what "does nothing" was.
+
 ## Pre-event checklist — the venue laptop, Windows, with OBS running
 
 Every item below needs hardware and software this development environment
