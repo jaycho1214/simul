@@ -1,5 +1,5 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,6 +8,7 @@ import { StatusLine, type Tone } from "@/components/ui/status-dot";
 import type { ServerHostState } from "@/server-host/server-supervisor";
 import { captureController, useCapture } from "../../hooks/use-capture.ts";
 import { ipc } from "../../ipc/manager.ts";
+import { parsePort } from "../../settings/port.ts";
 
 const SERVER_TONE: Record<ServerHostState, Tone> = {
   stopped: "idle",
@@ -23,6 +24,7 @@ export function ControlPanel() {
   const queryClient = useQueryClient();
   const capture = useCapture();
   const [apiKey, setApiKey] = useState("");
+  const [portDraft, setPortDraft] = useState<string | null>(null);
 
   const settings = useQuery({ queryKey: ["settings"], queryFn: () => ipc.client.settings.get() });
   const server = useQuery({
@@ -34,6 +36,25 @@ export function ControlPanel() {
   });
 
   const status = server.data;
+  const savedPort = settings.data?.port;
+
+  useEffect(() => {
+    if (savedPort !== undefined && portDraft === null) setPortDraft(String(savedPort));
+  }, [savedPort, portDraft]);
+
+  const parsedPort = parsePort(portDraft ?? "");
+  const portInvalid = portDraft !== null && parsedPort === null;
+  // The saved port is the next spawn's; the running server's is in `status`.
+  // While they differ, nothing on the QR or the ingest socket has moved yet.
+  const portPending =
+    savedPort !== undefined && status?.port !== undefined && status.port !== savedPort;
+
+  async function savePort() {
+    if (parsedPort === null || parsedPort === savedPort) return;
+    await ipc.client.settings.set({ port: parsedPort });
+    await queryClient.invalidateQueries({ queryKey: ["settings"] });
+  }
+
   // ServerHostState has one string-table entry per member: control.server_stopped
   // / _starting / _listening / _crashed / _giving_up / _external.
   const statusText = status
@@ -80,6 +101,31 @@ export function ControlPanel() {
         {status ? <StatusLine tone={SERVER_TONE[status.state]}>{statusText}</StatusLine> : null}
         {status?.detail ? (
           <p className="font-mono text-xs break-all text-muted-foreground">{status.detail}</p>
+        ) : null}
+        <label className="grid max-w-md gap-1.5">
+          <span className="text-sm font-medium">{t("control.port")}</span>
+          <Input
+            inputMode="numeric"
+            className="max-w-32 font-mono"
+            value={portDraft ?? ""}
+            aria-invalid={portInvalid}
+            onChange={(e) => setPortDraft(e.target.value)}
+            onBlur={() => void savePort()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void savePort();
+            }}
+          />
+          <span className="text-xs leading-snug text-muted-foreground">
+            {t("control.portHint")}
+          </span>
+        </label>
+        {portInvalid ? (
+          <p role="alert" className="text-xs text-error">
+            {t("control.portInvalid")}
+          </p>
+        ) : null}
+        {portPending ? (
+          <Notice tone="warn">{t("control.portRestart", { port: savedPort })}</Notice>
         ) : null}
       </Group>
 

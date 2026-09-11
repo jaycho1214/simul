@@ -182,6 +182,11 @@ export const EN_STRINGS = {
     server_giving_up: "The server keeps exiting. Check the log.",
     server_external: "Using an external server (--external-server)",
     restart: "Restart server",
+    port: "Port",
+    portHint: "The TCP port the attendee page and the QR address use (1–65535).",
+    portInvalid: "Enter a number from 1 to 65535.",
+    portRestart:
+      "The port is now {{port}}. Press Restart server to apply it, and stop and start capture again if it was running. The Windows firewall rule must be recreated for the new port too.",
     apiKey: "Gemini API key",
     apiKeyReplace: "Paste a new key to replace it",
     apiKeySet: "Set",

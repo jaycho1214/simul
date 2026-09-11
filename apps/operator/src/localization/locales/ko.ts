@@ -191,6 +191,11 @@ export const KO_STRINGS = {
     server_giving_up: "서버가 반복해서 종료됩니다. 로그를 확인하세요.",
     server_external: "외부 서버 사용 중 (--external-server)",
     restart: "서버 재시작",
+    port: "포트",
+    portHint: "참석자 페이지와 QR 주소가 쓰는 TCP 포트입니다 (1–65535).",
+    portInvalid: "1에서 65535 사이의 숫자를 입력하세요.",
+    portRestart:
+      "포트가 {{port}}(으)로 바뀌었습니다. 서버 재시작을 눌러야 적용되고, 캡처 중이었다면 중지 후 다시 시작하세요. 윈도우 방화벽 규칙도 새 포트로 다시 만들어야 합니다.",
     apiKey: "Gemini API 키",
     apiKeyReplace: "새 키를 붙여넣어 교체",
     apiKeySet: "설정됨",
