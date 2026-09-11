@@ -206,4 +206,14 @@ export const EN_STRINGS = {
     language: "Display language",
     version: "Version {{version}}",
   },
+
+  update: {
+    ready: "Update v{{version}} is ready",
+    readyHint: "Restart to apply it.",
+    restart: "Restart",
+    restartLink: "Restart to update",
+    check: "Check for updates",
+    checking: "Checking…",
+    downloading: "Downloading…",
+  },
 } as const satisfies StringTable<typeof KO_STRINGS>;

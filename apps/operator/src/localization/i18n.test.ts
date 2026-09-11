@@ -79,6 +79,7 @@ describe("Korean string table", () => {
       "lang.autoDetect", // Gemini
       "lang.passthroughHint", // API
       "lang.addHint", // Gemini, BCP-47
+      "update.ready", // v1.2.3
     ];
     expect(offenders.sort()).toEqual(expected.sort());
   });

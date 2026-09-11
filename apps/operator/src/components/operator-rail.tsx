@@ -8,7 +8,7 @@ import { cn } from "@/utils/tailwind";
 import { captureController, useCapture } from "../hooks/use-capture.ts";
 import { ipc } from "../ipc/manager.ts";
 import { LanguageToggle } from "./language-toggle.tsx";
-import { VersionBadge } from "./version-badge.tsx";
+import { RestartToUpdateLink, VersionBadge } from "./version-badge.tsx";
 
 export type SectionId = "live" | "device" | "join" | "brand" | "server";
 
@@ -142,9 +142,12 @@ export function OperatorRail({ active, onSelect, lanes }: OperatorRailProps) {
           >
             {t("control.stop")}
           </Button>
-          <div className="flex items-center justify-between gap-2 pt-1">
-            <LanguageToggle />
-            <VersionBadge />
+          <div className="grid min-w-0 gap-1 pt-1">
+            <RestartToUpdateLink />
+            <div className="flex min-w-0 items-center justify-between gap-2">
+              <LanguageToggle />
+              <VersionBadge />
+            </div>
           </div>
         </div>
       </div>

@@ -222,6 +222,17 @@ export const KO_STRINGS = {
     language: "표시 언어",
     version: "버전 {{version}}",
   },
+
+  // Auto-update. Never a dialog: a toast the engineer acts on when the room allows.
+  update: {
+    ready: "업데이트 v{{version}} 준비됨",
+    readyHint: "다시 시작하면 적용됩니다.",
+    restart: "다시 시작",
+    restartLink: "다시 시작하여 업데이트",
+    check: "업데이트 확인",
+    checking: "확인 중…",
+    downloading: "내려받는 중…",
+  },
 } as const;
 
 /**
