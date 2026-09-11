@@ -407,6 +407,31 @@ criteria so it can actually be executed rather than assumed passing.
       without error, and the installed app launches to the same six-panel
       window verified above.
 
+- [ ] **P4b — Auto-update round-trip.** **UNVERIFIED — needs a Windows
+      machine and two published releases.** Install `Simul-Setup.exe` from
+      release `v0.1.0` (GitHub → Releases). Open the app: the rail footer
+      reads `v0.1.0` with a refresh icon. **Before updating, set the Gemini
+      API key, an event name and a logo, and pick the input device** — the
+      point of this item is as much that they survive as that the update
+      lands. On the development machine run
+      `pnpm release 0.1.1` and wait for the Release workflow to finish
+      (`gh run watch`). On the Windows machine click the refresh icon (or
+      wait: the app checks hourly). **Pass**, in order: the 서버 로그 panel
+      shows `[update] checking for updates`, then
+      `[update] update available, downloading`, then
+      `[update] v0.1.1 downloaded, restart to apply`; a toast
+      "업데이트 v0.1.1 준비됨" appears bottom-right and stays; with the
+      server running, **다시 시작** asks the stop-translation question;
+      confirming quits the app and it comes back on its own reading
+      `v0.1.1` **with everything still set: 제어 shows the API key as 설정됨,
+      행사 브랜드 shows the same name and logo, 입력 장치 shows the same
+      device.** They live in `%APPDATA%\Simul\` (Electron's `userData`:
+      `simul-operator.json` and `brand\`), which Squirrel never touches — it
+      only swaps `%LocalAppData%\Simul\app-<version>\` — so anything lost
+      here is a bug, not an expected reset. Dismissing the toast instead and
+      quitting normally must also come back as `v0.1.1` (Squirrel applies the
+      staged version on the next launch).
+
 - [ ] **P5 — `opusscript` loaded and its WASM is on disk.**
       **UNVERIFIED.** **Pass:** the server reaches `listening` (visible in
       서버 로그 as `simul server on :8080`) rather than crashing on
