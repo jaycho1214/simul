@@ -1,7 +1,8 @@
-import type { LangCode, LaneStatus } from "@simul/protocol";
+import type { LangCode, LaneStatus, UsageReport } from "@simul/protocol";
 import type { Clock, TimerHandle } from "../clock.ts";
 import type { AudioHub } from "../audio-hub.ts";
 import type { TranslateSessionFactory } from "../gemini/translate-session.ts";
+import { UsageLedger } from "../usage-ledger.ts";
 import type { Lane } from "./lane.ts";
 import { SourceLane } from "./source-lane.ts";
 import { TranslatedLane } from "./translated-lane.ts";
@@ -80,10 +81,13 @@ interface Opening {
 export class LaneManager {
   private readonly entries = new Map<LangCode, Entry>();
   private readonly opening = new Map<LangCode, Opening>();
+  private readonly ledger: UsageLedger;
   /** Set once by closeAll(). Permanent: this instance is done after that. */
   private closed = false;
 
-  constructor(private readonly opts: LaneManagerOptions) {}
+  constructor(private readonly opts: LaneManagerOptions) {
+    this.ledger = new UsageLedger(opts.clock.now());
+  }
 
   get(lang: LangCode): Lane | undefined {
     return this.entries.get(lang)?.lane;
@@ -235,9 +239,20 @@ export class LaneManager {
       if (current) current.closeTimer = undefined;
       if (!current || current.subscribers.size > 0) return;
       this.opts.hub.removeLane(lang);
-      current.lane.close();
+      this.closeLane(lang, current.lane);
       this.entries.delete(lang);
     }, this.opts.laneGraceMs);
+  }
+
+  /** The one place a registered lane is closed, so none escapes the ledger. */
+  private closeLane(lang: LangCode, lane: Lane): void {
+    this.ledger.retire(lang, lane.usage);
+    lane.close();
+  }
+
+  /** The bill so far: every lane that has been open under this manager. */
+  usage(): UsageReport {
+    return this.ledger.report([...this.entries.values()].map((entry) => entry.lane));
   }
 
   statuses(): LaneStatus[] {
@@ -268,7 +283,7 @@ export class LaneManager {
     for (const [lang, entry] of this.entries) {
       if (entry.closeTimer) this.opts.clock.clearTimeout(entry.closeTimer);
       this.opts.hub.removeLane(lang);
-      entry.lane.close();
+      this.closeLane(lang, entry.lane);
     }
     this.entries.clear();
     // Any opens still in flight finish on their own (see the `this.closed`

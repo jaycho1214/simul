@@ -75,7 +75,7 @@ export const MAX_RETRY_MS = 30_000;
 export class SessionRotator implements TranslateSession {
   private readonly handlers: {
     [K in keyof TranslateSessionEvents]: Array<TranslateSessionEvents[K]>;
-  } = { audio: [], transcript: [], state: [], closed: [] };
+  } = { audio: [], transcript: [], state: [], closed: [], usage: [] };
 
   private current: TranslateSession | undefined;
   private replacement: TranslateSession | undefined;
@@ -233,6 +233,11 @@ export class SessionRotator implements TranslateSession {
       this.emit("state", s);
       if (s === "reconnecting") void this.rotate();
     });
+
+    // Unlike audio and transcripts, never gated on isOutputActive: a
+    // replacement whose output is being discarded is still an open, billing
+    // connection, and the operator's meter has to say so.
+    session.on("usage", (delta) => this.emit("usage", delta));
 
     session.on("closed", () => {
       if (this.closed) return; // caller-initiated close; expected, no reconnect

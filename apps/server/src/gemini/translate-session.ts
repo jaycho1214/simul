@@ -1,6 +1,14 @@
-import type { LangCode, LaneState } from "@simul/protocol";
+import type { AudioUsage, LangCode, LaneState } from "@simul/protocol";
 
 export interface TranslateSessionEvents {
+  /**
+   * Tokens Gemini has just charged for, as a delta: the Live API reports
+   * usage about once a second, each report covering only what arrived since
+   * the last. Emitted for every connection that is open, whether or not its
+   * output is being forwarded — a replacement session overlapping the one
+   * it replaces bills just the same.
+   */
+  usage: (delta: AudioUsage) => void;
   /** Translated speech, 16-bit PCM mono at 24 kHz. */
   audio: (pcm24k: Buffer) => void;
   /**

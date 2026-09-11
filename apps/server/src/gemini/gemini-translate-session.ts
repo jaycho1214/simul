@@ -1,6 +1,6 @@
 import { GoogleGenAI, Modality } from "@google/genai";
-import type { LiveServerMessage } from "@google/genai";
-import type { LangCode } from "@simul/protocol";
+import type { LiveServerMessage, UsageMetadata } from "@google/genai";
+import type { AudioUsage, LangCode } from "@simul/protocol";
 import type { Clock, TimerHandle } from "../clock.ts";
 import { splitCompleteSentences } from "./segment-lines.ts";
 import type {
@@ -24,13 +24,33 @@ export const DEFAULT_MODEL = "gemini-3.5-live-translate-preview";
  */
 export const TRANSCRIPT_IDLE_MS = 2_000;
 
+/**
+ * The audio tokens one usage report charges for.
+ *
+ * Measured 2026-09-11 against the real model: a report arrives about once a
+ * second, and each is a delta — 25 AUDIO prompt tokens per second of speech
+ * sent, 25 AUDIO response tokens per second of translation returned, exactly
+ * the rate the pricing page bills at. The TEXT prompt detail is the growing
+ * context (system prompt plus transcripts): it is not in `totalTokenCount`
+ * and is not what the bill is made of, so it is ignored. The bare counts
+ * stand in when the per-modality breakdown is missing.
+ */
+export function audioUsageDelta(usage: UsageMetadata): AudioUsage {
+  const audio = (details: UsageMetadata["promptTokensDetails"]) =>
+    details?.find((d) => d.modality === "AUDIO")?.tokenCount;
+  return {
+    inputAudioTokens: audio(usage.promptTokensDetails) ?? usage.promptTokenCount ?? 0,
+    outputAudioTokens: audio(usage.responseTokensDetails) ?? usage.responseTokenCount ?? 0,
+  };
+}
+
 export class GeminiTranslateSession implements TranslateSession {
   /** Latest handle from SessionResumptionUpdate; read by SessionRotator. */
   resumptionHandle: string | undefined;
 
   private readonly handlers: {
     [K in keyof TranslateSessionEvents]: Array<TranslateSessionEvents[K]>;
-  } = { audio: [], transcript: [], state: [], closed: [] };
+  } = { audio: [], transcript: [], state: [], closed: [], usage: [] };
 
   private live: Awaited<ReturnType<GoogleGenAI["live"]["connect"]>> | undefined;
   private opened = false;
@@ -168,6 +188,11 @@ export class GeminiTranslateSession implements TranslateSession {
 
     if (message.goAway) {
       this.emit("state", "reconnecting");
+    }
+
+    if (message.usageMetadata) {
+      const delta = audioUsageDelta(message.usageMetadata);
+      if (delta.inputAudioTokens > 0 || delta.outputAudioTokens > 0) this.emit("usage", delta);
     }
 
     const content = message.serverContent;

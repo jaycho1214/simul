@@ -1,4 +1,4 @@
-import type { LangCode } from "@simul/protocol";
+import type { AudioUsage, LangCode } from "@simul/protocol";
 import type {
   TranslateSession,
   TranslateSessionEvents,
@@ -16,7 +16,7 @@ const OUT_BYTES_PER_UTTERANCE = 24000; // 500 ms @ 24 kHz mono s16le
 export class FakeTranslateSession implements TranslateSession {
   private readonly handlers: {
     [K in keyof TranslateSessionEvents]: Array<TranslateSessionEvents[K]>;
-  } = { audio: [], transcript: [], state: [], closed: [] };
+  } = { audio: [], transcript: [], state: [], closed: [], usage: [] };
 
   private frames = 0;
   private utterances = 0;
@@ -61,6 +61,15 @@ export class FakeTranslateSession implements TranslateSession {
     if (this.closed) return;
     this.closed = true;
     for (const fn of this.handlers.closed) fn("closed by caller");
+  }
+
+  /**
+   * Test hook: simulate one of the usage reports the real session emits about
+   * once a second. No production path may reach this.
+   */
+  simulateUsage(delta: AudioUsage): void {
+    if (this.closed) return;
+    for (const fn of this.handlers.usage) fn(delta);
   }
 
   /**

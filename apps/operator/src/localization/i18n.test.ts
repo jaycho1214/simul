@@ -76,6 +76,9 @@ describe("Korean string table", () => {
       "reach.rule_warn", // TCP
       "control.apiKey", // Gemini API
       "control.portHint", // TCP, QR
+      "control.usageTitle", // API
+      "control.usageHint", // Gemini, Google, $, AI Studio
+      "control.usageDashboard", // AI Studio
       "control.server_external", // --external-server
       "brand.accentPlaceholder", // #3e8fd0 — a colour value, not copy
       "brand.accentInvalid", // quotes the same colour value back

@@ -21,6 +21,31 @@ describe("parseAdminMessage", () => {
     expect(parsed).toEqual({ type: "lanes", lanes: [lane] });
   });
 
+  test("carries the server's usage report through, and reads its absence as absent", () => {
+    const usage = {
+      since: 1_700_000_000_000,
+      languages: [{ lang: "en", inputAudioTokens: 1500, outputAudioTokens: 1500 }],
+    };
+    expect(parseAdminMessage(JSON.stringify({ type: "lanes", lanes: [], usage }))).toEqual({
+      type: "lanes",
+      lanes: [],
+      usage,
+    });
+    // An older server sends no usage at all; the meter simply stays hidden.
+    expect(parseAdminMessage(JSON.stringify({ type: "lanes", lanes: [] }))?.usage).toBeUndefined();
+  });
+
+  test("drops a malformed usage report rather than the whole frame", () => {
+    const parsed = parseAdminMessage(
+      JSON.stringify({
+        type: "lanes",
+        lanes: [lane],
+        usage: { since: "yesterday", languages: [{ lang: "", inputAudioTokens: "lots" }] },
+      }),
+    );
+    expect(parsed).toEqual({ type: "lanes", lanes: [lane] });
+  });
+
   test("accepts an empty lane table", () => {
     expect(parseAdminMessage(JSON.stringify({ type: "lanes", lanes: [] }))).toEqual({
       type: "lanes",

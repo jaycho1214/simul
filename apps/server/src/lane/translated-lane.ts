@@ -1,4 +1,4 @@
-import type { LangCode, LaneState } from "@simul/protocol";
+import type { AudioUsage, LangCode, LaneState } from "@simul/protocol";
 import { frameBytesFor, LaneOpusEncoder } from "../audio/opus-encoder.ts";
 import { WebMSink } from "../audio/webm-sink.ts";
 import { FrameBus } from "../frame-bus.ts";
@@ -39,6 +39,8 @@ export interface TranslatedLaneOptions {
 export class TranslatedLane implements Lane {
   readonly frames = new FrameBus();
   readonly transcripts: TranscriptBus;
+  /** Summed from the session's usage deltas; see `Lane.usage`. */
+  readonly usage: AudioUsage = { inputAudioTokens: 0, outputAudioTokens: 0 };
 
   private readonly encoder: LaneOpusEncoder;
   private readonly sink: WebMSink;
@@ -91,6 +93,10 @@ export class TranslatedLane implements Lane {
       this.transcripts.publish(text, isFinal);
     });
     session.on("state", (s) => this.setState(s));
+    session.on("usage", (delta) => {
+      this.usage.inputAudioTokens += delta.inputAudioTokens;
+      this.usage.outputAudioTokens += delta.outputAudioTokens;
+    });
     // No "closed" handler: under R5, `session` here is always a
     // SessionRotator, which only emits "closed" from its own close() — and
     // that is only ever reached via this class's close(), which has already

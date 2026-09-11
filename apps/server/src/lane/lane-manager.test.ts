@@ -455,3 +455,40 @@ test("statuses count a client that only ever pulls audio", async () => {
   assert.equal(status!.listeners, 1, "a bare /stream URL in a media player is still a listener");
   assert.equal(status!.audioListeners, 1);
 });
+
+// The bill for a lane does not stop being real when the lane closes, and the
+// operator's meter is read over a whole event, across lanes opening and
+// closing as people come and go. So the total carries retired lanes.
+test("usage totals every lane that ever cost anything, open or already closed", async () => {
+  const sessions: FakeTranslateSession[] = [];
+  const { clock, manager } = makeManagerWithFactory(
+    createFakeTranslateSessionFactory((s) => sessions.push(s)),
+    { laneGraceMs: 1000 },
+  );
+  clock.advance(5_000);
+  const sub = {};
+  await manager.acquire("en", sub, "transcript");
+  sessions[0]!.simulateUsage({ inputAudioTokens: 100, outputAudioTokens: 50 });
+  assert.deepEqual(manager.usage(), {
+    since: 0,
+    languages: [{ lang: "en", inputAudioTokens: 100, outputAudioTokens: 50 }],
+  });
+
+  manager.release("en", sub);
+  clock.advance(1000);
+  assert.equal(manager.statuses().length, 0, "the lane closed after grace");
+  assert.deepEqual(manager.usage().languages, [
+    { lang: "en", inputAudioTokens: 100, outputAudioTokens: 50 },
+  ]);
+
+  await manager.acquire("en", {}, "transcript");
+  sessions[1]!.simulateUsage({ inputAudioTokens: 25, outputAudioTokens: 25 });
+  assert.deepEqual(manager.usage().languages, [
+    { lang: "en", inputAudioTokens: 125, outputAudioTokens: 75 },
+  ]);
+
+  manager.closeAll();
+  assert.deepEqual(manager.usage().languages, [
+    { lang: "en", inputAudioTokens: 125, outputAudioTokens: 75 },
+  ]);
+});

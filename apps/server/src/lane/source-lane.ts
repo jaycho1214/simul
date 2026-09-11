@@ -1,4 +1,4 @@
-import type { LangCode, LaneState } from "@simul/protocol";
+import type { AudioUsage, LangCode, LaneState } from "@simul/protocol";
 import { LaneOpusEncoder } from "../audio/opus-encoder.ts";
 import { WebMSink } from "../audio/webm-sink.ts";
 import { FrameBus } from "../frame-bus.ts";
@@ -15,6 +15,8 @@ import { primeSilence, pumpPackets } from "./pump-packets.ts";
 export class SourceLane implements Lane {
   readonly frames = new FrameBus();
   readonly transcripts: TranscriptBus;
+  /** No session, so nothing is ever charged. */
+  readonly usage: AudioUsage = Object.freeze({ inputAudioTokens: 0, outputAudioTokens: 0 });
 
   private readonly encoder: LaneOpusEncoder;
   private readonly sink: WebMSink;

@@ -16,12 +16,14 @@ const PUSH_INTERVAL_MS = 1000;
 
 class FakeAdminWs implements AdminWebSocket {
   readonly tables: LaneStatus[][] = [];
+  readonly usages: Array<AdminMessage["usage"]> = [];
   private handlers = new Map<string, () => void>();
 
   send(data: string): void {
     const message = JSON.parse(data) as AdminMessage;
     assert.equal(message.type, "lanes");
     this.tables.push(message.lanes);
+    this.usages.push(message.usage);
   }
   on(event: "close", fn: () => void): void {
     this.handlers.set(event, fn);
@@ -318,4 +320,23 @@ test("stop() is safe to call when nothing is scheduled", async () => {
 
   clock.advance(PUSH_INTERVAL_MS * 5);
   assert.equal(ws.tables.length, 1, "stopped means stopped: only the connect-time push happened");
+});
+
+test("every push carries the running usage total for the operator's meter", async () => {
+  const created: FakeTranslateSession[] = [];
+  const { clock, manager, socket } = setup(
+    createFakeTranslateSessionFactory((s) => created.push(s)),
+  );
+  const ws = new FakeAdminWs();
+  socket.handleConnection(ws);
+  assert.deepEqual(ws.usages.at(-1), { since: 0, languages: [] });
+
+  await manager.acquire("en", {}, "transcript");
+  created[0]!.simulateUsage({ inputAudioTokens: 25, outputAudioTokens: 25 });
+  clock.advance(PUSH_INTERVAL_MS);
+  assert.deepEqual(ws.usages.at(-1), {
+    since: 0,
+    languages: [{ lang: "en", inputAudioTokens: 25, outputAudioTokens: 25 }],
+  });
+  socket.stop();
 });

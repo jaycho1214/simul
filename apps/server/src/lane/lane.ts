@@ -1,4 +1,4 @@
-import type { LangCode, LaneState } from "@simul/protocol";
+import type { AudioUsage, LangCode, LaneState } from "@simul/protocol";
 import type { TranscriptBus } from "../transcript-bus.ts";
 
 /** Anything AudioHub can hand ingest PCM to. */
@@ -38,5 +38,11 @@ export interface Lane extends PcmConsumer {
    * attendee reading a status frozen at whatever it was when they joined.
    */
   onStateChange(fn: (state: LaneState) => void): () => void;
+  /**
+   * What Gemini has charged for this lane since it opened. Zero forever on
+   * the passthrough lane, which has no session. Read live by the admin feed
+   * and folded into `UsageLedger` when the lane closes.
+   */
+  readonly usage: AudioUsage;
   close(): void;
 }

@@ -42,7 +42,11 @@ describe("AdminClient", () => {
     const wss = new WebSocketServer({ port: 0 });
     await new Promise<void>((r) => wss.once("listening", r));
     const { port } = wss.address() as AddressInfo;
-    wss.on("connection", (ws) => ws.send(JSON.stringify({ type: "lanes", lanes })));
+    const usage = {
+      since: 5,
+      languages: [{ lang: "en", inputAudioTokens: 25, outputAudioTokens: 25 }],
+    };
+    wss.on("connection", (ws) => ws.send(JSON.stringify({ type: "lanes", lanes, usage })));
 
     const client = new AdminClient({
       url: `ws://127.0.0.1:${port}/admin`,
@@ -56,6 +60,7 @@ describe("AdminClient", () => {
     // it is the only signal that shows an operator somebody muted.
     expect(client.lanes[0]).toMatchObject({ lang: "en", listeners: 2, audioListeners: 1 });
     expect(client.getSnapshot().externalListenerSeen).toBe(true);
+    expect(client.getSnapshot().usage).toEqual(usage);
 
     client.stop();
     wss.close();

@@ -1,4 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import type { UsageReport } from "@simul/protocol";
+import { ExternalLink } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
@@ -6,8 +8,10 @@ import { Input } from "@/components/ui/input";
 import { Group, Notice, Panel } from "@/components/ui/panel";
 import { StatusLine, type Tone } from "@/components/ui/status-dot";
 import type { ServerHostState } from "@/server-host/server-supervisor";
+import { estimateUsd, formatUsd, sumUsage } from "../../admin/usage-cost.ts";
 import { captureController, useCapture } from "../../hooks/use-capture.ts";
 import { ipc } from "../../ipc/manager.ts";
+import { languageLabel } from "../../settings/languages.ts";
 import { parsePort } from "../../settings/port.ts";
 
 const SERVER_TONE: Record<ServerHostState, Tone> = {
@@ -19,7 +23,90 @@ const SERVER_TONE: Record<ServerHostState, Tone> = {
   giving_up: "error",
 };
 
-export function ControlPanel() {
+const tokens = new Intl.NumberFormat("en-US");
+
+/**
+ * The running bill, from the server's own count of what Gemini has reported
+ * charging for. Google's API has no way to ask what a key has spent, so this
+ * is the nearest thing to a meter the desk can have — a sum since the server
+ * started, priced at the list rates in usage-cost.ts, and a link to the page
+ * that shows the real figure.
+ */
+function UsageMeter({ usage }: { usage: UsageReport | undefined }) {
+  const { t, i18n } = useTranslation();
+  if (!usage) return null;
+
+  const total = sumUsage(usage.languages);
+  const since = new Date(usage.since).toLocaleTimeString(i18n.language, {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <Group
+      label={t("control.usageTitle")}
+      aside={
+        <Button variant="ghost" size="sm" onClick={() => void ipc.client.app.openUsageDashboard()}>
+          {t("control.usageDashboard")}
+          <ExternalLink data-icon="inline-end" />
+        </Button>
+      }
+    >
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="text-xs text-muted-foreground">
+          {t("control.usageSince", { time: since })}
+        </span>
+        <span className="font-mono text-2xl font-medium tabular-nums">
+          {formatUsd(estimateUsd(total))}
+        </span>
+      </div>
+
+      {usage.languages.length === 0 ? (
+        <p className="text-xs leading-snug text-muted-foreground">{t("control.usageEmpty")}</p>
+      ) : (
+        <table className="max-w-xl text-sm">
+          <thead className="text-xs text-muted-foreground">
+            <tr>
+              <th className="py-1 pr-4 text-left font-medium">{t("control.usageLanguage")}</th>
+              <th className="py-1 pr-4 text-right font-medium">{t("control.usageTokensHeader")}</th>
+              <th className="py-1 text-right font-medium">{t("control.usageCost")}</th>
+            </tr>
+          </thead>
+          <tbody className="font-mono tabular-nums">
+            {usage.languages.map((row) => (
+              <tr key={row.lang}>
+                <td className="py-1 pr-4 font-sans">{languageLabel(row.lang)}</td>
+                <td className="py-1 pr-4 text-right text-muted-foreground">
+                  {t("control.usageTokens", {
+                    input: tokens.format(row.inputAudioTokens),
+                    output: tokens.format(row.outputAudioTokens),
+                  })}
+                </td>
+                <td className="py-1 text-right">{formatUsd(estimateUsd(row))}</td>
+              </tr>
+            ))}
+            <tr className="border-t border-border">
+              <td className="py-1 pr-4 font-sans font-medium">{t("control.usageTotal")}</td>
+              <td className="py-1 pr-4 text-right text-muted-foreground">
+                {t("control.usageTokens", {
+                  input: tokens.format(total.inputAudioTokens),
+                  output: tokens.format(total.outputAudioTokens),
+                })}
+              </td>
+              <td className="py-1 text-right font-medium">{formatUsd(estimateUsd(total))}</td>
+            </tr>
+          </tbody>
+        </table>
+      )}
+
+      <p className="max-w-3xl text-xs leading-snug text-muted-foreground">
+        {t("control.usageHint")}
+      </p>
+    </Group>
+  );
+}
+
+export function ControlPanel({ usage }: { usage?: UsageReport | undefined }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const capture = useCapture();
@@ -172,6 +259,8 @@ export function ControlPanel() {
           </Button>
         </div>
       </Group>
+
+      {hasKey ? <UsageMeter usage={usage} /> : null}
     </Panel>
   );
 }

@@ -502,3 +502,51 @@ test("the pause timer is disarmed by every way a session can close", async () =>
     assert.deepEqual(events, []);
   }
 });
+
+// Measured 2026-09-11 against the real live-translate model: usageMetadata
+// arrives about once a second and each one is a delta — 25 audio tokens per
+// second of speech sent and 25 per second of audio returned, exactly the
+// rate the pricing page quotes. The TEXT prompt detail is the growing
+// context (system prompt plus transcripts) and is not in totalTokenCount, so
+// it is not billed per message and not counted here.
+test("usageMetadata is forwarded as a per-message delta of audio tokens", async () => {
+  const gen = fakeGenAI();
+  const session = new GeminiTranslateSession("en", new FakeClock());
+  await session.connect({ ai: gen.ai, model: "test-model" });
+  const deltas: Array<{ inputAudioTokens: number; outputAudioTokens: number }> = [];
+  session.on("usage", (delta) => deltas.push(delta));
+
+  gen.live().onmessage({
+    usageMetadata: {
+      promptTokenCount: 50,
+      responseTokenCount: 25,
+      totalTokenCount: 75,
+      promptTokensDetails: [
+        { modality: "TEXT", tokenCount: 535 },
+        { modality: "AUDIO", tokenCount: 50 },
+      ],
+      responseTokensDetails: [{ modality: "AUDIO", tokenCount: 25 }],
+    },
+  } as LiveServerMessage);
+  assert.deepEqual(deltas, [{ inputAudioTokens: 50, outputAudioTokens: 25 }]);
+
+  // Without the modality breakdown the plain counts are the best available.
+  gen.live().onmessage({
+    usageMetadata: { promptTokenCount: 25, responseTokenCount: 0, totalTokenCount: 25 },
+  } as LiveServerMessage);
+  assert.deepEqual(deltas.at(-1), { inputAudioTokens: 25, outputAudioTokens: 0 });
+
+  // A message that says nothing costs nothing and is not reported.
+  gen.live().onmessage({ usageMetadata: {} } as LiveServerMessage);
+  gen.live().onmessage(turn("hola"));
+  assert.equal(deltas.length, 2);
+
+  // Closed is inert for usage too: a dead session's late messages are for a
+  // connection the rotator has already replaced, and its replacement reports
+  // its own.
+  gen.live().onclose({ reason: "connection reset" });
+  gen.live().onmessage({
+    usageMetadata: { promptTokenCount: 25, responseTokenCount: 25 },
+  } as LiveServerMessage);
+  assert.equal(deltas.length, 2);
+});

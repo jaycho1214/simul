@@ -1,4 +1,4 @@
-import type { LaneStatus } from "@simul/protocol";
+import type { LaneStatus, UsageReport } from "@simul/protocol";
 import {
   ReconnectingSocket,
   type ConnectionState,
@@ -22,6 +22,11 @@ export interface AdminSnapshot {
   lanes: LaneStatus[];
   /** Latches true the first time any lane reports a listener. */
   externalListenerSeen: boolean;
+  /**
+   * The server's running bill, from the latest frame that carried one.
+   * Undefined until the first does — an older server never sends it.
+   */
+  usage: UsageReport | undefined;
 }
 
 export interface AdminClientOptions {
@@ -42,6 +47,7 @@ export class AdminClient {
     state: "idle",
     lanes: [],
     externalListenerSeen: false,
+    usage: undefined,
   };
 
   constructor(opts: AdminClientOptions) {
@@ -62,6 +68,9 @@ export class AdminClient {
         lanes: message.lanes,
         externalListenerSeen:
           this.snapshot.externalListenerSeen || anyExternalListener(message.lanes),
+        // A frame whose report failed to parse keeps the last good one, the
+        // same way the lane table does.
+        usage: message.usage ?? this.snapshot.usage,
       });
     });
   }

@@ -72,7 +72,7 @@ function OperatorWindow() {
             <BrandPanel />
           ) : (
             <div className="grid content-start gap-8">
-              <ControlPanel />
+              <ControlPanel usage={admin.usage} />
               <ServerLogPanel />
             </div>
           )}

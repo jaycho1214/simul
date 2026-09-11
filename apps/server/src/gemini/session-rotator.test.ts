@@ -288,7 +288,7 @@ test("rotate() reads resumptionHandle directly off the current session, with no 
     resumptionHandle: string | undefined = "resume-abc";
     private readonly handlers: {
       [K in keyof TranslateSessionEvents]: Array<TranslateSessionEvents[K]>;
-    } = { audio: [], transcript: [], state: [], closed: [] };
+    } = { audio: [], transcript: [], state: [], closed: [], usage: [] };
 
     on<K extends keyof TranslateSessionEvents>(event: K, fn: TranslateSessionEvents[K]): void {
       this.handlers[event].push(fn);
@@ -869,4 +869,21 @@ test("a factory that rejects after start() has already timed out does not become
   } finally {
     process.off("unhandledRejection", onUnhandled);
   }
+});
+
+test("usage from both sessions is forwarded during an overlap: the replacement bills too", async () => {
+  const { created, factory } = controllableFactory();
+  const rotator = new SessionRotator("en", factory, new FakeClock());
+  await rotator.start();
+  const deltas: number[] = [];
+  rotator.on("usage", (d) => deltas.push(d.inputAudioTokens));
+
+  created[0]!.simulateUsage({ inputAudioTokens: 25, outputAudioTokens: 0 });
+  await rotator.rotate();
+  // Neither session's output is active for the replacement, but Google
+  // charges for every open connection, so what the operator reads must
+  // include both while they overlap.
+  created[1]!.simulateUsage({ inputAudioTokens: 50, outputAudioTokens: 0 });
+  created[0]!.simulateUsage({ inputAudioTokens: 75, outputAudioTokens: 0 });
+  assert.deepEqual(deltas, [25, 50, 75]);
 });

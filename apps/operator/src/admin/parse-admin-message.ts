@@ -1,4 +1,10 @@
-import type { AdminMessage, LaneState, LaneStatus } from "@simul/protocol";
+import type {
+  AdminMessage,
+  LaneState,
+  LaneStatus,
+  LanguageUsage,
+  UsageReport,
+} from "@simul/protocol";
 
 const LANE_STATES: readonly LaneState[] = ["starting", "live", "reconnecting", "error"];
 
@@ -39,6 +45,34 @@ function toLaneStatus(value: unknown): LaneStatus | undefined {
   };
 }
 
+function toLanguageUsage(value: unknown): LanguageUsage | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const row = value as Record<string, unknown>;
+  if (typeof row.lang !== "string" || row.lang.length === 0) return undefined;
+  if (typeof row.inputAudioTokens !== "number" || typeof row.outputAudioTokens !== "number") {
+    return undefined;
+  }
+  return {
+    lang: row.lang,
+    inputAudioTokens: toCount(row.inputAudioTokens),
+    outputAudioTokens: toCount(row.outputAudioTokens),
+  };
+}
+
+/**
+ * The meter is money, so a report is all-or-nothing: a row that does not
+ * parse discards the whole report for this frame rather than showing a total
+ * that is quietly short by one language. The lane table is unaffected.
+ */
+function toUsageReport(value: unknown): UsageReport | undefined {
+  if (typeof value !== "object" || value === null) return undefined;
+  const report = value as Record<string, unknown>;
+  if (typeof report.since !== "number" || !Array.isArray(report.languages)) return undefined;
+  const languages = report.languages.map(toLanguageUsage);
+  if (languages.some((row) => row === undefined)) return undefined;
+  return { since: report.since, languages: languages as LanguageUsage[] };
+}
+
 /**
  * The dashboard is watched during a live event. A payload that is malformed for
  * one second must not blank the table or crash the renderer, so anything that
@@ -63,5 +97,6 @@ export function parseAdminMessage(raw: unknown): AdminMessage | undefined {
     .map(toLaneStatus)
     .filter((lane): lane is LaneStatus => lane !== undefined);
 
-  return { type: "lanes", lanes };
+  const usage = toUsageReport(message.usage);
+  return usage ? { type: "lanes", lanes, usage } : { type: "lanes", lanes };
 }

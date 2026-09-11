@@ -198,6 +198,17 @@ export const EN_STRINGS = {
     apiKeySet: "Set",
     apiKeyMissing: "Not set — translation lanes will not open",
     save: "Save",
+    usageTitle: "API usage (estimate)",
+    usageSince: "Since the server started at {{time}}",
+    usageEmpty: "No lane has opened yet. Costs accrue here once an attendee picks a language.",
+    usageTokensHeader: "Tokens (in · out)",
+    usageTokens: "{{input}} · {{output}}",
+    usageTotal: "Total",
+    usageLanguage: "Language",
+    usageCost: "Estimated cost",
+    usageHint:
+      "The audio tokens Gemini reports every second, summed and priced at Google's published rates ($3.50 in, $21.00 out per million tokens). Restarting the server starts the count again from zero. The Gemini API cannot report a key's actual bill, so check the exact figure on the AI Studio usage dashboard.",
+    usageDashboard: "Open the AI Studio usage dashboard",
   },
 
   strip: {

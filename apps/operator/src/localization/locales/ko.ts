@@ -207,6 +207,17 @@ export const KO_STRINGS = {
     apiKeySet: "설정됨",
     apiKeyMissing: "설정되지 않음 — 번역 레인이 열리지 않습니다",
     save: "저장",
+    usageTitle: "API 사용량 (추정)",
+    usageSince: "서버 시작 {{time}}부터",
+    usageEmpty: "아직 열린 레인이 없습니다. 참석자가 언어를 고르면 여기에 비용이 쌓입니다.",
+    usageTokensHeader: "토큰 (입력 · 출력)",
+    usageTokens: "{{input}} · {{output}}",
+    usageTotal: "합계",
+    usageLanguage: "언어",
+    usageCost: "예상 비용",
+    usageHint:
+      "Gemini가 1초마다 보고하는 오디오 토큰을 더한 값에 Google의 공개 단가(입력 $3.50, 출력 $21.00 / 100만 토큰)를 곱한 추정치입니다. 서버를 다시 시작하면 0부터 다시 셉니다. Gemini API는 키의 실제 청구액을 조회하는 기능이 없으니, 정확한 금액은 AI Studio 사용량 대시보드에서 확인하세요.",
+    usageDashboard: "AI Studio 사용량 대시보드 열기",
   },
 
   // The header strip that never scrolls away: capture, server, head count,

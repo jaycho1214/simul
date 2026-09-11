@@ -54,7 +54,7 @@ export class AdminSocket {
       ...status,
       listenerDrops: this.opts.streamRoute.listenerDrops(status.lang),
     }));
-    const message: AdminMessage = { type: "lanes", lanes };
+    const message: AdminMessage = { type: "lanes", lanes, usage: this.opts.manager.usage() };
     const payload = JSON.stringify(message);
 
     for (const ws of this.clients) {

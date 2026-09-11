@@ -46,4 +46,35 @@ export interface LaneStatus {
   ageMs: number;
 }
 
-export type AdminMessage = { type: "lanes"; lanes: LaneStatus[] };
+/**
+ * What Gemini has charged for, in the unit it bills: audio tokens, in and
+ * out. Counted from the `usageMetadata` the Live API sends about once a
+ * second — 25 tokens per second of speech either way — so this is Google's
+ * own tally, not an estimate from bytes.
+ */
+export interface AudioUsage {
+  inputAudioTokens: number;
+  outputAudioTokens: number;
+}
+
+export interface LanguageUsage extends AudioUsage {
+  lang: LangCode;
+}
+
+/**
+ * The bill so far for this server process, per language, across every lane
+ * that has been open — including ones that have since closed. Only the
+ * price list is missing, which the operator app carries.
+ */
+export interface UsageReport {
+  /** Epoch ms when the server started counting: its own start. */
+  since: number;
+  languages: LanguageUsage[];
+}
+
+export type AdminMessage = {
+  type: "lanes";
+  lanes: LaneStatus[];
+  /** Absent from an older server; the operator app shows nothing then. */
+  usage?: UsageReport;
+};
