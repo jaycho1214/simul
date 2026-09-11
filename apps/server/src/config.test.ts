@@ -80,7 +80,10 @@ test("rejects a lane cap that could never open a lane", () => {
 });
 
 test("rejects a transcript history that would keep nothing", () => {
-  assert.throws(() => loadConfig({ ...base, TRANSCRIPT_HISTORY_LINES: "0" }), /TRANSCRIPT_HISTORY_LINES/);
+  assert.throws(
+    () => loadConfig({ ...base, TRANSCRIPT_HISTORY_LINES: "0" }),
+    /TRANSCRIPT_HISTORY_LINES/,
+  );
 });
 
 test("rejects negative durations and out-of-range ports", () => {
@@ -149,10 +152,7 @@ test("rejects an unknown theme", () => {
 });
 
 test("rejects a logo whose type cannot be served", () => {
-  assert.throws(
-    () => loadConfig({ ...base, BRAND_LOGO: "/srv/event/logo.tiff" }),
-    /BRAND_LOGO/,
-  );
+  assert.throws(() => loadConfig({ ...base, BRAND_LOGO: "/srv/event/logo.tiff" }), /BRAND_LOGO/);
 });
 
 test("treats blank brand vars as unset", () => {
@@ -189,8 +189,10 @@ test("STREAM_PRIME_MS defaults to enough audio to fill Chrome's 32 KiB block", (
   for (const bitrate of ["24000", "64000", "128000", "256000"]) {
     const c = loadConfig({ ...base, OPUS_BITRATE: bitrate });
     const bytes = (c.streamPrimeMs / 1000) * (Number(bitrate) / 8);
-    assert.ok(bytes > BLOCK,
-      `at ${bitrate}bps the default prime is ${Math.round(bytes)}B, under one ${BLOCK}B block`);
+    assert.ok(
+      bytes > BLOCK,
+      `at ${bitrate}bps the default prime is ${Math.round(bytes)}B, under one ${BLOCK}B block`,
+    );
   }
 });
 

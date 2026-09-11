@@ -6,9 +6,7 @@ function toText(raw: unknown): string | undefined {
   if (typeof raw === "string") return raw;
   if (raw instanceof ArrayBuffer) return new TextDecoder().decode(raw);
   if (ArrayBuffer.isView(raw)) {
-    return new TextDecoder().decode(
-      new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength),
-    );
+    return new TextDecoder().decode(new Uint8Array(raw.buffer, raw.byteOffset, raw.byteLength));
   }
   return undefined;
 }

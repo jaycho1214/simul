@@ -15,8 +15,7 @@ class IPCManager {
   readonly client: RPCClient;
 
   constructor() {
-    const { port1: clientChannelPort, port2: serverChannelPort } =
-      new MessageChannel();
+    const { port1: clientChannelPort, port2: serverChannelPort } = new MessageChannel();
     this.clientPort = clientChannelPort;
     this.serverPort = serverChannelPort;
 

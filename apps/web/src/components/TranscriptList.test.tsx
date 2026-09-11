@@ -1,11 +1,7 @@
 import type { TranscriptLine } from "@tongyeok/protocol";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test } from "vitest";
-import {
-  STICKY_THRESHOLD_PX,
-  TranscriptList,
-  isAtBottom,
-} from "./TranscriptList.tsx";
+import { STICKY_THRESHOLD_PX, TranscriptList, isAtBottom } from "./TranscriptList.tsx";
 
 function line(seq: number, text: string, isFinal = true): TranscriptLine {
   return { seq, text, isFinal, ts: seq };
@@ -172,12 +168,8 @@ describe("the commit animation", () => {
   });
 
   test("keeps a line fresh across an unrelated re-render", () => {
-    const { rerender } = render(
-      <TranscriptList lines={[]} interim={null} emptyLabel="empty" />,
-    );
-    rerender(
-      <TranscriptList lines={[line(9, "spoken")]} interim={null} emptyLabel="empty" />,
-    );
+    const { rerender } = render(<TranscriptList lines={[]} interim={null} emptyLabel="empty" />);
+    rerender(<TranscriptList lines={[line(9, "spoken")]} interim={null} emptyLabel="empty" />);
     rerender(
       <TranscriptList
         lines={[line(9, "spoken")]}

@@ -6,7 +6,10 @@ import type { PcmConsumer } from "./lane/lane.ts";
 class SpyLane implements PcmConsumer {
   received: Buffer[] = [];
   laneDrops = 0;
-  constructor(readonly lang: string, private readonly throws = false) {}
+  constructor(
+    readonly lang: string,
+    private readonly throws = false,
+  ) {}
   pushPcm(frame: Buffer): void {
     if (this.throws) throw new Error("boom");
     this.received.push(frame);

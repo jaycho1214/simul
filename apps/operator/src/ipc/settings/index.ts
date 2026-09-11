@@ -111,9 +111,7 @@ export const pickBrandLogo = os.handler(async (): Promise<PublicSettings> => {
   const result = await dialog.showOpenDialog({
     title: "행사 로고 선택",
     properties: ["openFile"],
-    filters: [
-      { name: "Image", extensions: LOGO_EXTENSIONS.map((ext) => ext.replace(".", "")) },
-    ],
+    filters: [{ name: "Image", extensions: LOGO_EXTENSIONS.map((ext) => ext.replace(".", "")) }],
   });
 
   const picked = result.canceled ? undefined : result.filePaths[0];
@@ -130,9 +128,8 @@ export const pickBrandLogo = os.handler(async (): Promise<PublicSettings> => {
  */
 export const dropBrandLogo = os
   .input(z.object({ filename: z.string(), base64: z.string() }))
-  .handler(
-    async ({ input }): Promise<PublicSettings> =>
-      storeLogo(input.filename, Buffer.from(input.base64, "base64")),
+  .handler(async ({ input }): Promise<PublicSettings> =>
+    storeLogo(input.filename, Buffer.from(input.base64, "base64")),
   );
 
 /**

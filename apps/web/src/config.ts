@@ -130,9 +130,7 @@ export function parseConfig(payload: unknown): WebConfig {
     offered.length === 0 ||
     !offered.every((l) => typeof l === "string" && l.length > 0)
   ) {
-    throw new Error(
-      "/config offeredLanguages must be a non-empty array of language codes",
-    );
+    throw new Error("/config offeredLanguages must be a non-empty array of language codes");
   }
 
   const passthrough = raw.passthroughLanguage;
@@ -172,10 +170,10 @@ export async function fetchConfig(
  * back to the server, so deriving from `window.location` still resolves to the
  * dev server's own origin and works unmodified.
  */
-export function serverBaseUrls(location: {
-  protocol: string;
-  host: string;
-}): { http: string; ws: string } {
+export function serverBaseUrls(location: { protocol: string; host: string }): {
+  http: string;
+  ws: string;
+} {
   const secure = location.protocol === "https:";
   return {
     http: `${location.protocol}//${location.host}`,

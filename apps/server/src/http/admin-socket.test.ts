@@ -23,8 +23,12 @@ class FakeAdminWs implements AdminWebSocket {
     assert.equal(message.type, "lanes");
     this.tables.push(message.lanes);
   }
-  on(event: "close", fn: () => void): void { this.handlers.set(event, fn); }
-  emit(event: string): void { this.handlers.get(event)?.(); }
+  on(event: "close", fn: () => void): void {
+    this.handlers.set(event, fn);
+  }
+  emit(event: string): void {
+    this.handlers.get(event)?.();
+  }
 
   /** The most recent table pushed, which is what the operator is looking at. */
   latest(): LaneStatus[] {
@@ -52,10 +56,20 @@ class FakeStreamResponse {
   writableLength = 0;
   written: Buffer[] = [];
   headersSent = false;
-  writeHead() { return this; }
-  write(chunk: Buffer) { this.headersSent = true; this.written.push(chunk); return true; }
-  end() { return this; }
-  on() { return this; }
+  writeHead() {
+    return this;
+  }
+  write(chunk: Buffer) {
+    this.headersSent = true;
+    this.written.push(chunk);
+    return true;
+  }
+  end() {
+    return this;
+  }
+  on() {
+    return this;
+  }
 }
 
 /**
@@ -110,7 +124,13 @@ function setup(sessionFactory: TranslateSessionFactory = createFakeTranslateSess
   // A zero-byte buffer ceiling makes any pending write count as a backed-up
   // client, so listener drops can be produced without shovelling megabytes.
   const route = new StreamRoute({ manager, maxBufferedBytes: 0 });
-  return { clock, hub, manager, route, socket: new AdminSocket({ manager, streamRoute: route, clock }) };
+  return {
+    clock,
+    hub,
+    manager,
+    route,
+    socket: new AdminSocket({ manager, streamRoute: route, clock }),
+  };
 }
 
 test("pushes a table immediately on connect and again on every interval", async () => {
@@ -124,7 +144,10 @@ test("pushes a table immediately on connect and again on every interval", async 
   clock.advance(PUSH_INTERVAL_MS);
   clock.advance(PUSH_INTERVAL_MS);
   assert.equal(ws.tables.length, 3);
-  assert.deepEqual(ws.latest().map((l) => l.lang), ["en"]);
+  assert.deepEqual(
+    ws.latest().map((l) => l.lang),
+    ["en"],
+  );
 });
 
 test("reports listener counts, lane age and per-language listener drops", async () => {

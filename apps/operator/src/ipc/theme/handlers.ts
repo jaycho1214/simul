@@ -14,23 +14,21 @@ export const toggleThemeMode = os.handler(() => {
   return nativeTheme.shouldUseDarkColors;
 });
 
-export const setThemeMode = os
-  .input(setThemeModeInputSchema)
-  .handler(({ input }) => {
-    switch (input as "light" | "dark" | "system") {
-      case "light":
-        nativeTheme.themeSource = "light";
-        break;
-      case "dark":
-        nativeTheme.themeSource = "dark";
-        break;
-      case "system":
-        nativeTheme.themeSource = "system";
-        break;
-      default:
-        nativeTheme.themeSource = "system";
-        break;
-    }
+export const setThemeMode = os.input(setThemeModeInputSchema).handler(({ input }) => {
+  switch (input as "light" | "dark" | "system") {
+    case "light":
+      nativeTheme.themeSource = "light";
+      break;
+    case "dark":
+      nativeTheme.themeSource = "dark";
+      break;
+    case "system":
+      nativeTheme.themeSource = "system";
+      break;
+    default:
+      nativeTheme.themeSource = "system";
+      break;
+  }
 
-    return nativeTheme.themeSource;
-  });
+  return nativeTheme.themeSource;
+});

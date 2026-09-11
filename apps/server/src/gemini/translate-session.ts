@@ -39,10 +39,7 @@ export interface TranslateSession {
   /** One 640-byte frame of 16 kHz mono s16le. */
   sendPcm16k(frame: Buffer): void;
   close(): void;
-  on<K extends keyof TranslateSessionEvents>(
-    event: K,
-    fn: TranslateSessionEvents[K],
-  ): void;
+  on<K extends keyof TranslateSessionEvents>(event: K, fn: TranslateSessionEvents[K]): void;
 }
 
 export type TranslateSessionFactory = (opts: {

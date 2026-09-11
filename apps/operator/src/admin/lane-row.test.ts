@@ -95,8 +95,6 @@ describe("anyExternalListener", () => {
   });
 
   test("is true even when the listener's audio is muted, since presence — not audio — is what proves reachability", () => {
-    expect(
-      anyExternalListener([lane({ lang: "ja", listeners: 1, audioListeners: 0 })]),
-    ).toBe(true);
+    expect(anyExternalListener([lane({ lang: "ja", listeners: 1, audioListeners: 0 })])).toBe(true);
   });
 });

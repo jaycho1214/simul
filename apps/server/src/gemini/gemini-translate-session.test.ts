@@ -191,10 +191,7 @@ test("turnComplete is still the fallback when the transcription omits finished",
     serverContent: { outputTranscription: { text: " settled" }, turnComplete: true },
   } as LiveServerMessage);
 
-  assert.deepEqual(events, [
-    "transcript:interim:false",
-    "transcript:interim settled:true",
-  ]);
+  assert.deepEqual(events, ["transcript:interim:false", "transcript:interim settled:true"]);
 });
 
 /**
@@ -349,7 +346,9 @@ test("a close with no reason still names the close code", async () => {
 // speaking its language — an English listener would hear nothing during an
 // English passage — so every lane asks for the parrot.
 test("every session asks the model to echo speech already in its target language", async () => {
-  let config: { translationConfig?: { echoTargetLanguage?: boolean; targetLanguageCode?: string } } | undefined;
+  let config:
+    | { translationConfig?: { echoTargetLanguage?: boolean; targetLanguageCode?: string } }
+    | undefined;
   const ai = {
     live: {
       connect: async (opts: { config: typeof config }) => {
@@ -402,7 +401,9 @@ test("cuts a line at each sentence the fragments complete, keeping the rest inte
   // A full stop with nothing after it is not yet a boundary: the next
   // fragment decides whether it ended a sentence or sat inside "3.5".
   send(" system.");
-  assert.deepEqual(events, ["transcript:Today we're going to talk about a real-time system.:false"]);
+  assert.deepEqual(events, [
+    "transcript:Today we're going to talk about a real-time system.:false",
+  ]);
   events.length = 0;
 
   send(" Can you hear me clearly?");

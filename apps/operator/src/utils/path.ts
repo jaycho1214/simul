@@ -26,11 +26,7 @@ export function getBasePath() {
  * pure function callers can unit-test without loading Electron — matching
  * `electronForkFn`'s lazy `require("electron")` a few files over.
  */
-export function resolveWebRoot(
-  basePath: string,
-  packaged: boolean,
-  resourcesPath: string,
-): string {
+export function resolveWebRoot(basePath: string, packaged: boolean, resourcesPath: string): string {
   // Packaged: forge.config.ts's `extraResource` copies apps/web/dist into the
   // resources directory by basename, landing at <resourcesPath>/dist — this
   // is true on both platforms and independent of whether main.js itself sits

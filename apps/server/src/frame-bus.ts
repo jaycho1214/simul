@@ -15,7 +15,9 @@ export class FrameBus {
 
   subscribe(fn: FrameListener): () => void {
     this.listeners.add(fn);
-    return () => { this.listeners.delete(fn); };
+    return () => {
+      this.listeners.delete(fn);
+    };
   }
 
   publish(frame: Buffer, timestampMs: number): void {

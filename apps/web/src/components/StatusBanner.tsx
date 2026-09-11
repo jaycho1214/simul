@@ -1,9 +1,6 @@
 import { S } from "../strings.ts";
 import type { AudioStatus } from "../audio/audio-stream-controller.ts";
-import type {
-  TranscriptError,
-  TranscriptState,
-} from "../transcript/transcript-store.ts";
+import type { TranscriptError, TranscriptState } from "../transcript/transcript-store.ts";
 
 export type BannerTone = "ok" | "warn" | "error";
 

@@ -57,7 +57,9 @@ export function VariantB({ brand, rows }: { brand: Brand; rows: LanguageRow[] })
               type="button"
               className={r.isPassthrough ? "vb-tile vb-tile--source" : "vb-tile"}
             >
-              <span className="vb-name" lang={r.lang}>{r.endonym}</span>
+              <span className="vb-name" lang={r.lang}>
+                {r.endonym}
+              </span>
               {r.tag ? <span className="vb-tag">{r.tag}</span> : null}
             </button>
           </li>
@@ -82,11 +84,10 @@ export function VariantC({ brand, rows }: { brand: Brand; rows: LanguageRow[] })
       <ul className="vc-rows">
         {rows.map((r) => (
           <li key={r.lang}>
-            <button
-              type="button"
-              className={r.isPassthrough ? "vc-row vc-row--source" : "vc-row"}
-            >
-              <span className="vc-name" lang={r.lang}>{r.endonym}</span>
+            <button type="button" className={r.isPassthrough ? "vc-row vc-row--source" : "vc-row"}>
+              <span className="vc-name" lang={r.lang}>
+                {r.endonym}
+              </span>
               {r.tag ? <span className="vc-tag">{r.tag}</span> : null}
             </button>
           </li>

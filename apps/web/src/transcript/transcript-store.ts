@@ -1,8 +1,4 @@
-import type {
-  LaneState,
-  ServerMessage,
-  TranscriptLine,
-} from "@tongyeok/protocol";
+import type { LaneState, ServerMessage, TranscriptLine } from "@tongyeok/protocol";
 
 /**
  * The spec caps the transcript DOM at ~50 visible lines. Truncating here rather
@@ -92,9 +88,7 @@ export function transcriptReducer(
     case "socket":
       // An open socket says nothing about the lane; the server sends a `lane`
       // message right after `hello`. A closed one does: we are not receiving.
-      return action.open
-        ? state
-        : { ...state, laneState: "connecting", interim: null };
+      return action.open ? state : { ...state, laneState: "connecting", interim: null };
     case "message":
       return applyServerMessage(state, action.message);
   }

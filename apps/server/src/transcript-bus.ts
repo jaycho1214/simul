@@ -18,7 +18,9 @@ export class TranscriptBus {
 
   subscribe(fn: (line: TranscriptLine) => void): () => void {
     this.listeners.add(fn);
-    return () => { this.listeners.delete(fn); };
+    return () => {
+      this.listeners.delete(fn);
+    };
   }
 
   history(): TranscriptLine[] {

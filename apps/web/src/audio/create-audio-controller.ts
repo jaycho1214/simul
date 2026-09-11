@@ -22,7 +22,10 @@ export interface CreateAudioControllerOptions {
  * URL. The choice is made once per tap, so the screen never has to know.
  */
 export function createAudioController(opts: CreateAudioControllerOptions): AudioController {
-  const ctor = "mediaSource" in opts ? opts.mediaSource : (globalThis as { MediaSource?: unknown }).MediaSource;
+  const ctor =
+    "mediaSource" in opts
+      ? opts.mediaSource
+      : (globalThis as { MediaSource?: unknown }).MediaSource;
   if (mseSupported(ctor)) {
     return new MseStreamController({
       element: opts.element,

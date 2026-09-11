@@ -29,7 +29,9 @@ test("unsubscribe stops delivery", () => {
 test("one throwing subscriber does not block the others", () => {
   const bus = new FrameBus();
   const got: Buffer[] = [];
-  bus.subscribe(() => { throw new Error("boom"); });
+  bus.subscribe(() => {
+    throw new Error("boom");
+  });
   bus.subscribe((f) => got.push(f));
   bus.publish(Buffer.from([1]), 0);
   assert.equal(got.length, 1);

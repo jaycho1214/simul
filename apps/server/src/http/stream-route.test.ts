@@ -2,7 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
-import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
+import {
+  createFakeTranslateSessionFactory,
+  FakeTranslateSession,
+} from "../gemini/fake-translate-session.ts";
 import { ROTATION_TIMEOUT_MS } from "../gemini/session-rotator.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
 import { LaneManager, PASSTHROUGH_LANG } from "../lane/lane-manager.ts";
@@ -37,9 +40,17 @@ class FakeResponse {
     this.written.push(chunk);
     return true;
   }
-  end(_?: unknown) { this.ended = true; return this; }
-  on(event: string, fn: () => void) { this.handlers.set(event, fn); return this; }
-  emit(event: string) { this.handlers.get(event)?.(); }
+  end(_?: unknown) {
+    this.ended = true;
+    return this;
+  }
+  on(event: string, fn: () => void) {
+    this.handlers.set(event, fn);
+    return this;
+  }
+  emit(event: string) {
+    this.handlers.get(event)?.();
+  }
 }
 
 /**
@@ -86,7 +97,10 @@ function deferredSessionFactory(): {
   resolve: (session: TranslateSession) => void;
 } {
   let resolve!: (session: TranslateSession) => void;
-  const factory: TranslateSessionFactory = () => new Promise((res) => { resolve = res; });
+  const factory: TranslateSessionFactory = () =>
+    new Promise((res) => {
+      resolve = res;
+    });
   return { factory, resolve: (session) => resolve(session) };
 }
 
@@ -272,7 +286,11 @@ test("a client that disconnects while the lane is still opening does not leak th
   // the grace period and confirm the lane is fully torn down — removed from
   // both the manager and the hub — the same as any other listener leaving.
   clock.advance(60_000);
-  assert.equal(manager.statuses().find((s) => s.lang === "en"), undefined, "the lane was torn down");
+  assert.equal(
+    manager.statuses().find((s) => s.lang === "en"),
+    undefined,
+    "the lane was torn down",
+  );
   assert.equal(hub.laneCount, 0, "the hub no longer holds the torn-down lane");
 });
 

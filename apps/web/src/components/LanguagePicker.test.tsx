@@ -18,54 +18,62 @@ const rowsWithPassthrough = languageRows({
 
 describe("LanguagePicker", () => {
   test("renders one row per offered language", () => {
-    render(<LanguagePicker
+    render(
+      <LanguagePicker
         brand={UNBRANDED}
         live
         preference={null}
         onPreferenceChange={() => {}}
         rows={rows}
         onPick={() => {}}
-      />);
+      />,
+    );
     expect(
       screen.getAllByRole("button").filter((b) => b.className.includes("picker-row")),
     ).toHaveLength(4);
   });
 
   test("shows each endonym in its own script", () => {
-    render(<LanguagePicker
+    render(
+      <LanguagePicker
         brand={UNBRANDED}
         live
         preference={null}
         onPreferenceChange={() => {}}
         rows={rows}
         onPick={() => {}}
-      />);
+      />,
+    );
     for (const text of ["한국어", "English", "Español", "日本語"]) {
       expect(screen.getByText(text)).toBeTruthy();
     }
   });
 
   test("tags nothing when every row is a translation", () => {
-    render(<LanguagePicker
+    render(
+      <LanguagePicker
         brand={UNBRANDED}
         live
         preference={null}
         onPreferenceChange={() => {}}
         rows={rows}
         onPick={() => {}}
-      />);
+      />,
+    );
     expect(screen.queryByText(PASSTHROUGH_TAG)).toBeNull();
   });
 
   test("tags the passthrough lane as debug, last in the list", () => {
-    render(<LanguagePicker
+    render(
+      <LanguagePicker
         brand={UNBRANDED}
         live
         preference={null}
         onPreferenceChange={() => {}}
         rows={rowsWithPassthrough}
         onPick={() => {}}
-      />);
+      />,
+    );
     const tag = screen.getByText(PASSTHROUGH_TAG);
     expect(tag.closest("button")?.textContent).toContain("원음");
     const buttons = screen.getAllByRole("button");
@@ -75,14 +83,16 @@ describe("LanguagePicker", () => {
   // The row the tag sits on is also marked structurally, for the reader who
   // can read neither of the tag's two languages.
   test("marks the passthrough row apart from the translated ones", () => {
-    render(<LanguagePicker
+    render(
+      <LanguagePicker
         brand={UNBRANDED}
         live
         preference={null}
         onPreferenceChange={() => {}}
         rows={rowsWithPassthrough}
         onPick={() => {}}
-      />);
+      />,
+    );
     const passthrough = screen.getByText("원음").closest("button")!;
     expect(passthrough.className).toContain("picker-row--passthrough");
 
@@ -92,14 +102,16 @@ describe("LanguagePicker", () => {
 
   test("shows the prompt in both languages, stacked rather than slash-joined", () => {
     const { ko, en } = bilingual(S.pickLanguage);
-    render(<LanguagePicker
+    render(
+      <LanguagePicker
         brand={UNBRANDED}
         live
         preference={null}
         onPreferenceChange={() => {}}
         rows={rows}
         onPick={() => {}}
-      />);
+      />,
+    );
 
     const heading = screen.getByRole("heading");
     expect(screen.getByText(ko)).toBeTruthy();
@@ -123,14 +135,16 @@ describe("LanguagePicker", () => {
 
   test("calls onPick synchronously inside the click handler", () => {
     const onPick = vi.fn();
-    render(<LanguagePicker
+    render(
+      <LanguagePicker
         brand={UNBRANDED}
         live
         preference={null}
         onPreferenceChange={() => {}}
         rows={rows}
         onPick={onPick}
-      />);
+      />,
+    );
 
     fireEvent.click(screen.getByText("Español").closest("button")!);
 
@@ -142,14 +156,16 @@ describe("LanguagePicker", () => {
   });
 
   test("every row is a real button, not a div with a handler", () => {
-    render(<LanguagePicker
+    render(
+      <LanguagePicker
         brand={UNBRANDED}
         live
         preference={null}
         onPreferenceChange={() => {}}
         rows={rows}
         onPick={() => {}}
-      />);
+      />,
+    );
     for (const el of screen.getAllByRole("button")) {
       expect(el.tagName).toBe("BUTTON");
       expect(el.getAttribute("type")).toBe("button");

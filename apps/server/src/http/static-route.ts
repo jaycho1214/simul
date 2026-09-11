@@ -53,26 +53,19 @@ export class StaticRoute {
     this.root = resolve(opts.root);
   }
 
-  async handle(
-    req: IncomingMessage,
-    res: ServerResponse,
-    pathname: string,
-  ): Promise<boolean> {
+  async handle(req: IncomingMessage, res: ServerResponse, pathname: string): Promise<boolean> {
     if (req.method !== "GET" && req.method !== "HEAD") return false;
 
     const found = await this.locate(pathname);
     if (!found) return false;
 
     res.writeHead(200, {
-      "content-type":
-        CONTENT_TYPES[extname(found.file)] ?? "application/octet-stream",
+      "content-type": CONTENT_TYPES[extname(found.file)] ?? "application/octet-stream",
       "content-length": String(found.size),
       // Vite emits content-hashed filenames under /assets, so those are safe to
       // pin forever; 60 phones then fetch them once between them. index.html
       // must never be cached or a re-deploy strands everyone on old code.
-      "cache-control": found.immutable
-        ? "public, max-age=31536000, immutable"
-        : "no-store",
+      "cache-control": found.immutable ? "public, max-age=31536000, immutable" : "no-store",
     });
 
     if (req.method === "HEAD") {

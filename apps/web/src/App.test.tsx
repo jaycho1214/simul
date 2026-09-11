@@ -190,9 +190,7 @@ test("wakes the picker up when the room goes live, without a reload", async () =
   await vi.advanceTimersByTimeAsync(4000);
 
   await waitFor(() =>
-    expect(
-      screen.getByText("English").closest("button")!.hasAttribute("disabled"),
-    ).toBe(false),
+    expect(screen.getByText("English").closest("button")!.hasAttribute("disabled")).toBe(false),
   );
   vi.useRealTimers();
 });

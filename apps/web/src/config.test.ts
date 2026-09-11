@@ -1,19 +1,14 @@
 import { describe, expect, test, vi } from "vitest";
 import { DEFAULT_ACCENT } from "./brand.ts";
-import {
-  UNBRANDED,
-  fetchConfig,
-  parseConfig,
-  resolveScheme,
-  serverBaseUrls,
-} from "./config.ts";
+import { UNBRANDED, fetchConfig, parseConfig, resolveScheme, serverBaseUrls } from "./config.ts";
 
 function stubFetch(body: unknown, status = 200): typeof fetch {
-  return vi.fn(async () =>
-    new Response(JSON.stringify(body), {
-      status,
-      headers: { "content-type": "application/json" },
-    }),
+  return vi.fn(
+    async () =>
+      new Response(JSON.stringify(body), {
+        status,
+        headers: { "content-type": "application/json" },
+      }),
   ) as unknown as typeof fetch;
 }
 
@@ -44,9 +39,7 @@ describe("parseConfig", () => {
   });
 
   test("rejects an empty language list", () => {
-    expect(() =>
-      parseConfig({ offeredLanguages: [] }),
-    ).toThrow(/offeredLanguages/);
+    expect(() => parseConfig({ offeredLanguages: [] })).toThrow(/offeredLanguages/);
   });
 
   test("rejects a negative transcript delay", () => {
@@ -78,9 +71,7 @@ describe("fetchConfig", () => {
   });
 
   test("throws on a non-OK response", async () => {
-    await expect(
-      fetchConfig("http://192.168.1.4:8080", stubFetch({}, 503)),
-    ).rejects.toThrow(/503/);
+    await expect(fetchConfig("http://192.168.1.4:8080", stubFetch({}, 503))).rejects.toThrow(/503/);
   });
 
   test("propagates a malformed JSON body instead of swallowing it", async () => {
@@ -92,9 +83,7 @@ describe("fetchConfig", () => {
         }),
     ) as unknown as typeof fetch;
 
-    await expect(
-      fetchConfig("http://192.168.1.4:8080", fetchImpl),
-    ).rejects.toThrow();
+    await expect(fetchConfig("http://192.168.1.4:8080", fetchImpl)).rejects.toThrow();
   });
 
   test("propagates a network failure instead of swallowing it", async () => {
@@ -102,26 +91,22 @@ describe("fetchConfig", () => {
       throw new Error("network unreachable");
     }) as unknown as typeof fetch;
 
-    await expect(
-      fetchConfig("http://192.168.1.4:8080", fetchImpl),
-    ).rejects.toThrow(/network unreachable/);
+    await expect(fetchConfig("http://192.168.1.4:8080", fetchImpl)).rejects.toThrow(
+      /network unreachable/,
+    );
   });
 });
 
 describe("serverBaseUrls", () => {
   test("derives http and ws origins from the page location", () => {
-    expect(
-      serverBaseUrls({ protocol: "http:", host: "192.168.1.4:8080" }),
-    ).toEqual({
+    expect(serverBaseUrls({ protocol: "http:", host: "192.168.1.4:8080" })).toEqual({
       http: "http://192.168.1.4:8080",
       ws: "ws://192.168.1.4:8080",
     });
   });
 
   test("upgrades to wss when the page is somehow served over https", () => {
-    expect(serverBaseUrls({ protocol: "https:", host: "x.example" }).ws).toBe(
-      "wss://x.example",
-    );
+    expect(serverBaseUrls({ protocol: "https:", host: "x.example" }).ws).toBe("wss://x.example");
   });
 });
 
@@ -164,15 +149,11 @@ describe("parseConfig brand", () => {
   });
 
   test("falls back to the default accent rather than throwing", () => {
-    expect(parseConfig({ ...core, brand: { accent: "puce" } }).brand.accent).toBe(
-      DEFAULT_ACCENT,
-    );
+    expect(parseConfig({ ...core, brand: { accent: "puce" } }).brand.accent).toBe(DEFAULT_ACCENT);
   });
 
   test("falls back to the dark theme for an unknown value", () => {
-    expect(parseConfig({ ...core, brand: { theme: "sepia" } }).brand.theme).toBe(
-      "dark",
-    );
+    expect(parseConfig({ ...core, brand: { theme: "sepia" } }).brand.theme).toBe("dark");
   });
 
   test("treats an empty name as unbranded", () => {
@@ -216,9 +197,9 @@ describe("parseConfig streamPrimeMs", () => {
   });
 
   test("rejects a negative prime", () => {
-    expect(() =>
-      parseConfig({ offeredLanguages: ["ko"], streamPrimeMs: -1 }),
-    ).toThrow(/streamPrimeMs/);
+    expect(() => parseConfig({ offeredLanguages: ["ko"], streamPrimeMs: -1 })).toThrow(
+      /streamPrimeMs/,
+    );
   });
 });
 
@@ -228,12 +209,19 @@ describe("parseConfig streamPrimeMs", () => {
 describe("parseConfig passthroughLanguage", () => {
   test("is null when the server sends none", () => {
     expect(parseConfig({ offeredLanguages: ["ko"] }).passthroughLanguage).toBeNull();
-    expect(parseConfig({ offeredLanguages: ["ko"], passthroughLanguage: null }).passthroughLanguage).toBeNull();
-    expect(parseConfig({ offeredLanguages: ["ko"], passthroughLanguage: "" }).passthroughLanguage).toBeNull();
+    expect(
+      parseConfig({ offeredLanguages: ["ko"], passthroughLanguage: null }).passthroughLanguage,
+    ).toBeNull();
+    expect(
+      parseConfig({ offeredLanguages: ["ko"], passthroughLanguage: "" }).passthroughLanguage,
+    ).toBeNull();
   });
 
   test("carries the lane code when the operator turned the lane on", () => {
-    expect(parseConfig({ offeredLanguages: ["ko"], passthroughLanguage: "original" }).passthroughLanguage).toBe("original");
+    expect(
+      parseConfig({ offeredLanguages: ["ko"], passthroughLanguage: "original" })
+        .passthroughLanguage,
+    ).toBe("original");
   });
 });
 

@@ -23,7 +23,7 @@ const toggleVariants = cva(
         outline: "border border-input bg-transparent hover:bg-muted",
       },
     },
-  }
+  },
 );
 
 function Toggle({
@@ -31,8 +31,7 @@ function Toggle({
   variant = "default",
   size = "default",
   ...props
-}: React.ComponentProps<typeof TogglePrimitive.Root> &
-  VariantProps<typeof toggleVariants>) {
+}: React.ComponentProps<typeof TogglePrimitive.Root> & VariantProps<typeof toggleVariants>) {
   return (
     <TogglePrimitive.Root
       className={cn(toggleVariants({ className, size, variant }))}

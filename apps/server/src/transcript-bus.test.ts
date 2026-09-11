@@ -23,7 +23,10 @@ test("history keeps only the most recent N lines", () => {
 
   const history = bus.history();
   assert.equal(history.length, 3);
-  assert.deepEqual(history.map((l) => l.text), ["line 3", "line 4", "line 5"]);
+  assert.deepEqual(
+    history.map((l) => l.text),
+    ["line 3", "line 4", "line 5"],
+  );
 });
 
 test("interim lines are delivered but never stored in history", () => {
@@ -35,13 +38,18 @@ test("interim lines are delivered but never stored in history", () => {
   bus.publish("complete", true);
 
   assert.deepEqual(seen, ["partial", "complete"]);
-  assert.deepEqual(bus.history().map((l) => l.text), ["complete"]);
+  assert.deepEqual(
+    bus.history().map((l) => l.text),
+    ["complete"],
+  );
 });
 
 test("unsubscribe stops delivery", () => {
   const bus = new TranscriptBus(new FakeClock(), 10);
   let count = 0;
-  const off = bus.subscribe(() => { count++; });
+  const off = bus.subscribe(() => {
+    count++;
+  });
   bus.publish("one", true);
   off();
   bus.publish("two", true);
@@ -52,13 +60,10 @@ test("published lines are frozen and cannot be mutated", () => {
   const bus = new TranscriptBus(new FakeClock(), 10);
   const line = bus.publish("test", true);
 
-  assert.throws(
-    () => {
-      // @ts-expect-error - testing runtime mutation
-      line.text = "mutated";
-    },
-    TypeError,
-  );
+  assert.throws(() => {
+    // @ts-expect-error - testing runtime mutation
+    line.text = "mutated";
+  }, TypeError);
 
   // Verify history is unaffected
   const history = bus.history();
@@ -80,11 +85,15 @@ test("subscriber throws are caught and logged", (t) => {
   const errorMock = t.mock.method(console, "error", () => {});
 
   let count = 0;
-  bus.subscribe(() => { count++; });
+  bus.subscribe(() => {
+    count++;
+  });
   bus.subscribe(() => {
     throw new Error("boom");
   });
-  bus.subscribe(() => { count++; });
+  bus.subscribe(() => {
+    count++;
+  });
 
   bus.publish("test", true);
 

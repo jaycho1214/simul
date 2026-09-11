@@ -82,7 +82,11 @@ export class StreamRoute {
         return;
       }
       if (err instanceof LaneCapError) {
-        this.respondError(res, 503, "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now");
+        this.respondError(
+          res,
+          503,
+          "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now",
+        );
         return;
       }
       // Anything else (e.g. the manager has been closed) still must not

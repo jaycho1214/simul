@@ -22,7 +22,12 @@ export class SourceLane implements Lane {
   private elapsedMs = 0;
   private closed = false;
 
-  constructor(readonly lang: LangCode, opusBitrate: number, clock: Clock, streamPrimeMs = 0) {
+  constructor(
+    readonly lang: LangCode,
+    opusBitrate: number,
+    clock: Clock,
+    streamPrimeMs = 0,
+  ) {
     // The source is relayed straight through at ingest rate: 16 kHz.
     this.encoder = new LaneOpusEncoder(16000, opusBitrate);
     this.sink = new WebMSink({ inputSampleRate: 16000, backlogMs: streamPrimeMs });
@@ -61,7 +66,9 @@ export class SourceLane implements Lane {
    */
   onStateChange(fn: (state: LaneState) => void): () => void {
     this.stateListeners.add(fn);
-    return () => { this.stateListeners.delete(fn); };
+    return () => {
+      this.stateListeners.delete(fn);
+    };
   }
 
   pushPcm(frame: Buffer): void {

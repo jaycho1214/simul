@@ -19,7 +19,7 @@ class IPCContext {
         context: {
           window,
         },
-      })
+      }),
     );
   }
 }

@@ -11,10 +11,13 @@
     "build": "pnpm -r build",
     "start": "bash scripts/start.sh",
     "tone": "node scripts/tone.mjs",
-    "serve": "bash scripts/serve.sh"
+    "serve": "bash scripts/serve.sh",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
+    "prettier": "^3.9.6",
     "typescript": "^5.7.0"
   }
 }

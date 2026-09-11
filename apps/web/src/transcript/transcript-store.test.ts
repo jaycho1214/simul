@@ -116,8 +116,7 @@ describe("applyServerMessage", () => {
     });
     expect(state.error).toEqual({
       code: "lane_cap",
-      message:
-        "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now",
+      message: "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now",
     });
   });
 });
@@ -135,8 +134,8 @@ describe("transcriptReducer", () => {
   });
 
   test("reset returns the initial state", () => {
-    expect(
-      transcriptReducer(withLines(line(1, "x")), { kind: "reset" }),
-    ).toEqual(initialTranscriptState);
+    expect(transcriptReducer(withLines(line(1, "x")), { kind: "reset" })).toEqual(
+      initialTranscriptState,
+    );
   });
 });

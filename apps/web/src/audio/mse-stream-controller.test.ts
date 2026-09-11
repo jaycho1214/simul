@@ -185,7 +185,9 @@ interface Harness {
   session(): { source: FakeMediaSource; sb: FakeSourceBuffer; reader: FakeReader };
 }
 
-function setup(overrides: Partial<ConstructorParameters<typeof MseStreamController>[0]> = {}): Harness {
+function setup(
+  overrides: Partial<ConstructorParameters<typeof MseStreamController>[0]> = {},
+): Harness {
   const element = new FakeElement();
   const sources: FakeMediaSource[] = [];
   const readers: FakeReader[] = [];
@@ -198,7 +200,9 @@ function setup(overrides: Partial<ConstructorParameters<typeof MseStreamControll
     fetchCalls.push({ url: String(input), signal: init?.signal ?? undefined });
     const reader = new FakeReader();
     readers.push(reader);
-    init?.signal?.addEventListener("abort", () => reader.fail(Object.assign(new Error("aborted"), { name: "AbortError" })));
+    init?.signal?.addEventListener("abort", () =>
+      reader.fail(Object.assign(new Error("aborted"), { name: "AbortError" })),
+    );
     return {
       ok: true,
       status: 200,

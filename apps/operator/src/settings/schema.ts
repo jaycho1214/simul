@@ -1,10 +1,5 @@
 import { randomBytes } from "node:crypto";
-import {
-  BRAND_THEMES,
-  maskSecret,
-  normalizeAccent,
-  type BrandTheme,
-} from "./brand.ts";
+import { BRAND_THEMES, maskSecret, normalizeAccent, type BrandTheme } from "./brand.ts";
 
 export {
   BRAND_THEMES,
@@ -158,8 +153,7 @@ function langList(value: unknown, fallback: string[]): string[] {
  * an hour before an event.
  */
 export function normalizeSettings(raw: unknown): OperatorSettings {
-  const source =
-    typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
+  const source = typeof raw === "object" && raw !== null ? (raw as Record<string, unknown>) : {};
 
   // A file from an older build carries a `sourceLanguage`; it is simply not
   // read. That language is still offered (it was always in the list), just as
@@ -186,12 +180,7 @@ export function normalizeSettings(raw: unknown): OperatorSettings {
     port: int(source.port, DEFAULT_SETTINGS.port, 1, 65535),
     offeredLanguages,
     passthroughLane: source.passthroughLane === true,
-    maxConcurrentLanes: int(
-      source.maxConcurrentLanes,
-      DEFAULT_SETTINGS.maxConcurrentLanes,
-      1,
-      64,
-    ),
+    maxConcurrentLanes: int(source.maxConcurrentLanes, DEFAULT_SETTINGS.maxConcurrentLanes, 1, 64),
     laneGraceMs: int(source.laneGraceMs, DEFAULT_SETTINGS.laneGraceMs, 0, MAX_LANE_GRACE_MS),
     transcriptHistoryLines: int(
       source.transcriptHistoryLines,
@@ -199,12 +188,7 @@ export function normalizeSettings(raw: unknown): OperatorSettings {
       1,
       10_000,
     ),
-    transcriptDelayMs: int(
-      source.transcriptDelayMs,
-      DEFAULT_SETTINGS.transcriptDelayMs,
-      0,
-      60_000,
-    ),
+    transcriptDelayMs: int(source.transcriptDelayMs, DEFAULT_SETTINGS.transcriptDelayMs, 0, 60_000),
     opusBitrate: int(
       source.opusBitrate === LEGACY_DEFAULT_OPUS_BITRATE ? undefined : source.opusBitrate,
       DEFAULT_SETTINGS.opusBitrate,
@@ -212,9 +196,7 @@ export function normalizeSettings(raw: unknown): OperatorSettings {
       MAX_OPUS_BITRATE,
     ),
 
-    brandName: nullableStr(
-      typeof source.brandName === "string" ? source.brandName.trim() : null,
-    ),
+    brandName: nullableStr(typeof source.brandName === "string" ? source.brandName.trim() : null),
     brandAccent: normalizeAccent(source.brandAccent),
     brandLogoPath: nullableStr(source.brandLogoPath),
     brandTheme: BRAND_THEMES.includes(source.brandTheme as BrandTheme)

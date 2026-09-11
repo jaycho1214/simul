@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import type { LaneState } from "@tongyeok/protocol";
 import { FakeClock } from "../clock.ts";
 import { LaneOpusEncoder } from "../audio/opus-encoder.ts";
-import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
+import {
+  createFakeTranslateSessionFactory,
+  FakeTranslateSession,
+} from "../gemini/fake-translate-session.ts";
 import { SourceLane } from "./source-lane.ts";
 import { TranslatedLane } from "./translated-lane.ts";
 
@@ -181,13 +184,14 @@ test("TranslatedLane.create closes the session it opened when constructing the l
   // one is opened for every subsequent attendee tap, scaling with taps
   // rather than with language count.
   await assert.rejects(
-    () => TranslatedLane.create({
-      lang: "en",
-      clock: new FakeClock(),
-      opusBitrate: 0,
-      historyLines: 200,
-      sessionFactory: createFakeTranslateSessionFactory((s) => created.push(s)),
-    }),
+    () =>
+      TranslatedLane.create({
+        lang: "en",
+        clock: new FakeClock(),
+        opusBitrate: 0,
+        historyLines: 200,
+        sessionFactory: createFakeTranslateSessionFactory((s) => created.push(s)),
+      }),
     /Bad argument/,
   );
 
@@ -275,7 +279,9 @@ test("a lane-state subscriber that throws cannot break close()", async (t) => {
   // shutdown.
   const source = new SourceLane("ko", 24000, new FakeClock());
   const reached: LaneState[] = [];
-  source.onStateChange(() => { throw new Error("subscriber blew up"); });
+  source.onStateChange(() => {
+    throw new Error("subscriber blew up");
+  });
   source.onStateChange((s) => reached.push(s));
   source.close();
   assert.deepEqual(reached, ["error"], "the surviving subscriber was still notified");
@@ -287,7 +293,9 @@ test("a lane-state subscriber that throws cannot break close()", async (t) => {
     historyLines: 200,
     sessionFactory: createFakeTranslateSessionFactory(),
   });
-  translated.onStateChange(() => { throw new Error("subscriber blew up"); });
+  translated.onStateChange(() => {
+    throw new Error("subscriber blew up");
+  });
   translated.close();
 
   assert.equal(errorMock.mock.callCount(), 2, "both throws were logged, not swallowed");

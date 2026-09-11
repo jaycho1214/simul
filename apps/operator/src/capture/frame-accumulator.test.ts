@@ -1,9 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  FrameAccumulator,
-  INGEST_FRAME_BYTES,
-  INGEST_FRAME_SAMPLES,
-} from "./frame-accumulator.ts";
+import { FrameAccumulator, INGEST_FRAME_BYTES, INGEST_FRAME_SAMPLES } from "./frame-accumulator.ts";
 
 const ramp = (n: number, start = 0) =>
   Int16Array.from({ length: n }, (_, i) => (start + i) % 30000);

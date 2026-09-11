@@ -99,7 +99,7 @@ navigator.mediaDevices.getUserMedia({
     noiseSuppression: false,
     autoGainControl: false,
   },
-})
+});
 ```
 
 This is chosen for cross-platform reasons. The same code runs on macOS and
@@ -145,15 +145,15 @@ lower than the device advertises, it warns in Korean that the channel should be
 routed on the mixer instead. Silently capturing the wrong channel is the failure
 this prevents.
 
-**Required rig setup on Windows.** OBS and the operator app want *different*
+**Required rig setup on Windows.** OBS and the operator app want _different_
 audio, not a shared feed, so give each its own USB pair. The X-AIR WDM driver
 exposes USB 1-2, 3-4, 5-6 and 7-8 as separate Windows devices:
 
-| XR18 USB send | Fed by | Consumer |
-|---|---|---|
-| USB 1-2 | Aux 1 — instrumental / band | OBS source "Instrumental" |
-| USB 3-4 | Aux 2 — vocals | OBS source "Vocals" |
-| USB 5-6 | Aux 3 — **only the speech mics** | Operator app |
+| XR18 USB send | Fed by                           | Consumer                  |
+| ------------- | -------------------------------- | ------------------------- |
+| USB 1-2       | Aux 1 — instrumental / band      | OBS source "Instrumental" |
+| USB 3-4       | Aux 2 — vocals                   | OBS source "Vocals"       |
+| USB 5-6       | Aux 3 — **only the speech mics** | Operator app              |
 
 OBS adds one Audio Input Capture source per device, giving independent faders
 and filters for instrumental and vocal in the stream. The operator app points at
@@ -184,13 +184,13 @@ where ASIO is the blocker. Not built in v1.
 
 Single window, all labels Korean:
 
-| Panel | Contents |
-|---|---|
+| Panel     | Contents                                                                                                                                                        |
+| --------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 입력 장치 | Device dropdown from `enumerateDevices()`, channel picker (splitter index), requested vs **achieved** channel count, detected sample rate, DSP-off confirmation |
-| 레벨 미터 | RMS + peak from an `AnalyserNode`, clipping indicator |
-| 접속 정보 | Large QR of `http://<lan-ip>:8080` + the URL in large type; auto-detected IP, dropdown if several interfaces |
-| 레인 현황 | Per lane: 언어 · 청취자 수 · 상태 · 레인 드롭 · 청취자 드롭 · 세션 상태 |
-| 제어 | 시작 / 중지, server connection status |
+| 레벨 미터 | RMS + peak from an `AnalyserNode`, clipping indicator                                                                                                           |
+| 접속 정보 | Large QR of `http://<lan-ip>:8080` + the URL in large type; auto-detected IP, dropdown if several interfaces                                                    |
+| 레인 현황 | Per lane: 언어 · 청취자 수 · 상태 · 레인 드롭 · 청취자 드롭 · 세션 상태                                                                                         |
+| 제어      | 시작 / 중지, server connection status                                                                                                                           |
 
 Settings persist with `electron-store`.
 
@@ -228,7 +228,7 @@ Two consequences drive the design:
    quality.** A block fills in ~2.0 s instead of 9.4 s, and staying under
    Chrome's 3 s `stalled` timer also stops the attendee app tearing the stream
    down between blocks. CBR matters independently: under VBR a 20 ms frame of
-   silence encodes to *three bytes*, so a quiet room slows the byte rate to a
+   silence encodes to _three bytes_, so a quiet room slows the byte rate to a
    crawl and startup would depend on whether anyone happened to be talking.
    The cost is ~16 KB/s per phone — 60 phones is ~8 Mbps of venue wifi against
    1.5 Mbps before. Lower it if the AP cannot take that and expect the delay to
@@ -240,7 +240,7 @@ Two consequences drive the design:
    the backlog, then live clusters.
 
 **The prime is not free, and its duration is latency.** A plain `<audio src>`
-starts at the *oldest* cluster it receives and never skips forward, and plays
+starts at the _oldest_ cluster it receives and never skips forward, and plays
 at exactly 1.0×, so whatever backlog is sent up front is a permanent offset
 behind the room. Keep `STREAM_PRIME_MS` just above one block's worth. An
 earlier 12 s default made this worse, not better — startup was fast but every
@@ -291,15 +291,15 @@ stays at 128 kbps for those phones.
 speech-out on a translated lane, synthesized Korean into the real API,
 default config, two runs:
 
-| Stage | Measured |
-|---|---|
-| Speech starts → first audio message from the model | 1.0–1.3 s, and it is silence |
-| Speech starts → first translated word heard | 3.2–3.7 s |
-| Source sentence ends → translated sentence ends | ~4.0 s |
-| Speech starts → first transcript text | ~2.8 s (text leads its audio by ~0.5 s) |
-| Model output cadence | 250 ms chunks; gaps 250 ms median, 327 ms p99, 331 ms max over 68 s |
-| Server (encode, 40 ms cluster, write) | tens of ms |
-| MediaSource player runway | 0.6 s target |
+| Stage                                              | Measured                                                            |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| Speech starts → first audio message from the model | 1.0–1.3 s, and it is silence                                        |
+| Speech starts → first translated word heard        | 3.2–3.7 s                                                           |
+| Source sentence ends → translated sentence ends    | ~4.0 s                                                              |
+| Speech starts → first transcript text              | ~2.8 s (text leads its audio by ~0.5 s)                             |
+| Model output cadence                               | 250 ms chunks; gaps 250 ms median, 327 ms p99, 331 ms max over 68 s |
+| Server (encode, 40 ms cluster, write)              | tens of ms                                                          |
+| MediaSource player runway                          | 0.6 s target                                                        |
 
 VAD tuning (`realtimeInputConfig.automaticActivityDetection` at high
 sensitivity, 200 ms silence) and 100 ms input chunks instead of 20 ms changed
@@ -321,6 +321,7 @@ different model or API mode might translate sooner than this one, at a
 quality cost nobody has measured.
 
 **Lane** — one per active language:
+
 - `TranslatedLane`, for every offered language: `SessionRotator` → 24 kHz PCM
   → Opus → FrameBus, and `outputTranscription` → TranscriptBus.
 - `SourceLane`, the `original` lane: ingest PCM 16k → Opus → FrameBus. No API
@@ -418,12 +419,12 @@ of 16 kHz mono s16le.
 
 **Listen** — `ws://<host>:8080/listen?lang=xx`, text JSON only:
 
-| Direction | Message |
-|---|---|
-| → client | `{type:"hello", lang, historyLines}` |
-| → client | `{type:"history", lines:[…]}` on connect |
-| → client | `{type:"transcript", text, isFinal, seq, ts}` |
-| → client | `{type:"lane", state:"starting"\|"live"\|"reconnecting"\|"error"}` |
+| Direction | Message                                                            |
+| --------- | ------------------------------------------------------------------ |
+| → client  | `{type:"hello", lang, historyLines}`                               |
+| → client  | `{type:"history", lines:[…]}` on connect                           |
+| → client  | `{type:"transcript", text, isFinal, seq, ts}`                      |
+| → client  | `{type:"lane", state:"starting"\|"live"\|"reconnecting"\|"error"}` |
 
 **Audio** — `GET /stream/<lang>.webm`, chunked transfer, indefinite.
 
@@ -505,15 +506,15 @@ and a second sentence:
 
 ## Failure handling
 
-| Failure | Response |
-|---|---|
-| Gemini session drops | Reconnect with backoff and stored handle; lane state → `reconnecting`; phones show "재연결 중 / Reconnecting"; audio stream stays open and goes silent rather than 404ing |
-| Connection lifetime reached | `SessionRotator` via `GoAway` |
-| Operator app loses server | Auto-reconnect; capture keeps running so the level meter still moves; dashboard shows disconnected |
-| Audio interface unplugged | `devicechange` fires and the track ends → stop capture, surface a Korean error, offer re-pick. `deviceId: { exact }` already fails rather than silently substituting the built-in mic |
-| Attendee wifi drops | `<audio>` stalls; client detects and re-requests at live edge |
-| Lane cap reached | "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now" |
-| API key invalid or quota exhausted | Fail loudly on the operator dashboard, not silently per lane |
+| Failure                            | Response                                                                                                                                                                              |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gemini session drops               | Reconnect with backoff and stored handle; lane state → `reconnecting`; phones show "재연결 중 / Reconnecting"; audio stream stays open and goes silent rather than 404ing             |
+| Connection lifetime reached        | `SessionRotator` via `GoAway`                                                                                                                                                         |
+| Operator app loses server          | Auto-reconnect; capture keeps running so the level meter still moves; dashboard shows disconnected                                                                                    |
+| Audio interface unplugged          | `devicechange` fires and the track ends → stop capture, surface a Korean error, offer re-pick. `deviceId: { exact }` already fails rather than silently substituting the built-in mic |
+| Attendee wifi drops                | `<audio>` stalls; client detects and re-requests at live edge                                                                                                                         |
+| Lane cap reached                   | "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now"                                                                                                          |
+| API key invalid or quota exhausted | Fail loudly on the operator dashboard, not silently per lane                                                                                                                          |
 
 ## Testing
 
@@ -564,6 +565,7 @@ Each answers a question that changes what gets built.
    16.4 s at the operator app's old 24 kbps default. The deferred WS audio
    path is not needed for latency. Gemini's own speech-to-speech latency on
    a translated lane is still unmeasured.
+
 3. **`<audio>` chunked WebM/Opus playback** on iOS Safari and Android Chrome,
    including a late joiner receiving the init segment then clusters from the
    live edge. If iOS balks, fall back to a CAF container for Safari.
@@ -622,7 +624,7 @@ Each has a seam. None gets built now.
   buffered byte count. A queue drained synchronously in the same call can never
   fill, so it would isolate nothing. What the server actually guarantees is
   **throw isolation** — one lane's exception cannot stop the others — plus real
-  backpressure on the *listener* side, where the HTTP response stream's
+  backpressure on the _listener_ side, where the HTTP response stream's
   `writableLength` is visible and enforced. If a stalled session ever proves to
   cause unbounded memory growth in practice, this needs revisiting with an
   explicit send queue and an async drain.
@@ -634,26 +636,26 @@ Each has a seam. None gets built now.
   and this belongs on the pre-event checklist.
 - XR18 channels 9–18 are unreachable on Windows without ASIO. Route the feed to
   one of the USB 1-8 pairs instead, or run the operator app on macOS.
-- If a rehearsal ever forces OBS and the operator app onto the *same* USB pair,
+- If a rehearsal ever forces OBS and the operator app onto the _same_ USB pair,
   OBS must use WASAPI rather than `obs-asio`, which takes the device exclusively.
   The separate-pair routing above avoids this entirely.
 
 ## Configuration
 
-| Key | Default | Notes |
-|---|---|---|
-| `GEMINI_API_KEY` | — | Server only, never sent to clients |
-| `INGEST_TOKEN` | — | Shared secret for `/ingest` |
-| `PORT` | 8080 | |
-| `PASSTHROUGH_LANE` | `false` | Offer the untranslated `original` lane (debug, no API cost) |
-| `OFFERED_LANGUAGES` | `["ko","en","es","ja"]` | Shown on the picker |
-| `MAX_CONCURRENT_LANES` | 6 | Bounds worst-case spend |
-| `LANE_GRACE_MS` | 60000 | Delay before teardown at refcount 0 |
-| `TRANSCRIPT_HISTORY_LINES` | 200 | Per lane |
-| `TRANSCRIPT_DELAY_MS` | 0 | Tune after spike 2 |
-| `OPUS_BITRATE` | 128000 | Per lane, CBR. Sets the latency floor, not just quality |
-| `STREAM_PRIME_MS` | 4000 | Recent audio handed to a joining listener; also added to their latency; 0 disables |
-| `BRAND_NAME` | *unset* | Event name in the attendee app's bar |
-| `BRAND_ACCENT` | `#3e8fd0` | Hex; rejected at startup if unparseable |
-| `BRAND_LOGO` | *unset* | Path to an image, served at `/brand/logo` |
-| `BRAND_THEME` | `dark` | `dark` \| `light` \| `auto` |
+| Key                        | Default                 | Notes                                                                              |
+| -------------------------- | ----------------------- | ---------------------------------------------------------------------------------- |
+| `GEMINI_API_KEY`           | —                       | Server only, never sent to clients                                                 |
+| `INGEST_TOKEN`             | —                       | Shared secret for `/ingest`                                                        |
+| `PORT`                     | 8080                    |                                                                                    |
+| `PASSTHROUGH_LANE`         | `false`                 | Offer the untranslated `original` lane (debug, no API cost)                        |
+| `OFFERED_LANGUAGES`        | `["ko","en","es","ja"]` | Shown on the picker                                                                |
+| `MAX_CONCURRENT_LANES`     | 6                       | Bounds worst-case spend                                                            |
+| `LANE_GRACE_MS`            | 60000                   | Delay before teardown at refcount 0                                                |
+| `TRANSCRIPT_HISTORY_LINES` | 200                     | Per lane                                                                           |
+| `TRANSCRIPT_DELAY_MS`      | 0                       | Tune after spike 2                                                                 |
+| `OPUS_BITRATE`             | 128000                  | Per lane, CBR. Sets the latency floor, not just quality                            |
+| `STREAM_PRIME_MS`          | 4000                    | Recent audio handed to a joining listener; also added to their latency; 0 disables |
+| `BRAND_NAME`               | _unset_                 | Event name in the attendee app's bar                                               |
+| `BRAND_ACCENT`             | `#3e8fd0`               | Hex; rejected at startup if unparseable                                            |
+| `BRAND_LOGO`               | _unset_                 | Path to an image, served at `/brand/logo`                                          |
+| `BRAND_THEME`              | `dark`                  | `dark` \| `light` \| `auto`                                                        |

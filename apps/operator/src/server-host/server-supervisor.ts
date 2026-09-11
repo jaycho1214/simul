@@ -1,8 +1,4 @@
-import {
-  restartDelayMs,
-  shouldGiveUp,
-  type RestartFailure,
-} from "./restart-policy.ts";
+import { restartDelayMs, shouldGiveUp, type RestartFailure } from "./restart-policy.ts";
 
 /** The subset of a NodeJS.ReadableStream this supervisor reads from. */
 export interface ReadableLike {
@@ -30,12 +26,7 @@ export type ForkFn = (
 ) => ForkedProcess;
 
 export type ServerHostState =
-  | "stopped"
-  | "starting"
-  | "listening"
-  | "crashed"
-  | "giving_up"
-  | "external";
+  "stopped" | "starting" | "listening" | "crashed" | "giving_up" | "external";
 
 export interface ServerStatus {
   state: ServerHostState;
@@ -61,9 +52,7 @@ export interface ServerSupervisorOptions {
 }
 
 /** Messages the forked server entry sends back. */
-type ChildMessage =
-  | { type: "listening"; port: number }
-  | { type: "fatal"; message: string };
+type ChildMessage = { type: "listening"; port: number } | { type: "fatal"; message: string };
 
 /** One line of the child's stdout or stderr, as shown in the 서버 로그 panel. */
 export interface LogLine {

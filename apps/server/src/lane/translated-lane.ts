@@ -74,7 +74,12 @@ export class TranslatedLane implements Lane {
     this.clock = opts.clock;
     this.transcripts = new TranscriptBus(opts.clock, opts.historyLines);
     this.frames.subscribe((frame) => this.sink.writeOpus(frame));
-    this.elapsedMs = primeSilence(this.encoder, this.frames, opts.streamPrimeMs ?? 0, this.elapsedMs);
+    this.elapsedMs = primeSilence(
+      this.encoder,
+      this.frames,
+      opts.streamPrimeMs ?? 0,
+      this.elapsedMs,
+    );
     this.startedAt = opts.clock.now();
     this.startedElapsedMs = this.elapsedMs;
 
@@ -187,7 +192,9 @@ export class TranslatedLane implements Lane {
 
   onStateChange(fn: (state: LaneState) => void): () => void {
     this.stateListeners.add(fn);
-    return () => { this.stateListeners.delete(fn); };
+    return () => {
+      this.stateListeners.delete(fn);
+    };
   }
 
   /**

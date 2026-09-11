@@ -126,7 +126,13 @@ function evaluateFirewallRule(
   port: number,
 ): ReachabilityCheck {
   if (active.length === 0) {
-    return { id: "firewall_rule", status: "unknown", kind: "advisory", messageKey: "reach.rule_unknown", params: {} };
+    return {
+      id: "firewall_rule",
+      status: "unknown",
+      kind: "advisory",
+      messageKey: "reach.rule_unknown",
+      params: {},
+    };
   }
 
   const categories = active.map((c) => c.networkCategory);
@@ -163,7 +169,13 @@ function evaluateFirewallRule(
     };
   }
 
-  return { id: "firewall_rule", status: "warn", kind: "advisory", messageKey: "reach.rule_warn", params: { port } };
+  return {
+    id: "firewall_rule",
+    status: "warn",
+    kind: "advisory",
+    messageKey: "reach.rule_warn",
+    params: { port },
+  };
 }
 
 /**
@@ -174,21 +186,57 @@ function evaluateFirewallRule(
  */
 export function evaluateReachability(input: EvaluateReachabilityInput): ReachabilityCheck[] {
   const external: ReachabilityCheck = input.externalListenerSeen
-    ? { id: "external_hit", status: "pass", kind: "proof", messageKey: "reach.external_pass", params: {} }
-    : { id: "external_hit", status: "warn", kind: "proof", messageKey: "reach.external_warn", params: {} };
+    ? {
+        id: "external_hit",
+        status: "pass",
+        kind: "proof",
+        messageKey: "reach.external_pass",
+        params: {},
+      }
+    : {
+        id: "external_hit",
+        status: "warn",
+        kind: "proof",
+        messageKey: "reach.external_warn",
+        params: {},
+      };
 
   if (input.platform !== "win32") {
     return [
-      { id: "network_profile", status: "unknown", kind: "advisory", messageKey: "reach.macos", params: {} },
-      { id: "firewall_rule", status: "unknown", kind: "advisory", messageKey: "reach.macos", params: {} },
+      {
+        id: "network_profile",
+        status: "unknown",
+        kind: "advisory",
+        messageKey: "reach.macos",
+        params: {},
+      },
+      {
+        id: "firewall_rule",
+        status: "unknown",
+        kind: "advisory",
+        messageKey: "reach.macos",
+        params: {},
+      },
       external,
     ];
   }
 
   if (!input.probe) {
     return [
-      { id: "network_profile", status: "unknown", kind: "advisory", messageKey: "reach.profile_unknown", params: {} },
-      { id: "firewall_rule", status: "unknown", kind: "advisory", messageKey: "reach.rule_unknown", params: {} },
+      {
+        id: "network_profile",
+        status: "unknown",
+        kind: "advisory",
+        messageKey: "reach.profile_unknown",
+        params: {},
+      },
+      {
+        id: "firewall_rule",
+        status: "unknown",
+        kind: "advisory",
+        messageKey: "reach.rule_unknown",
+        params: {},
+      },
       external,
     ];
   }
@@ -205,7 +253,13 @@ export function evaluateReachability(input: EvaluateReachabilityInput): Reachabi
         params: { alias: publicConnection.interfaceAlias },
       }
     : active.length === 0
-      ? { id: "network_profile", status: "unknown", kind: "advisory", messageKey: "reach.profile_unknown", params: {} }
+      ? {
+          id: "network_profile",
+          status: "unknown",
+          kind: "advisory",
+          messageKey: "reach.profile_unknown",
+          params: {},
+        }
       : {
           id: "network_profile",
           status: "pass",

@@ -72,11 +72,9 @@
   --text-2xl--line-height: 1.2;
 
   --font-sans:
-    "Geist", "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic",
-    "Noto Sans KR", sans-serif;
+    "Geist", "Apple SD Gothic Neo", "Pretendard", "Malgun Gothic", "Noto Sans KR", sans-serif;
   --font-mono:
-    "Geist Mono", "SF Mono", Menlo, Consolas, "Apple SD Gothic Neo",
-    "Malgun Gothic", monospace;
+    "Geist Mono", "SF Mono", Menlo, Consolas, "Apple SD Gothic Neo", "Malgun Gothic", monospace;
 
   --color-ring: var(--ring);
   --color-input: var(--input);

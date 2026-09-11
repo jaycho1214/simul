@@ -66,12 +66,7 @@ export function SilentSwitchNotice(props: SilentSwitchNoticeProps) {
   }
 
   return (
-    <button
-      type="button"
-      className="silent-notice"
-      aria-expanded={true}
-      onClick={props.onToggle}
-    >
+    <button type="button" className="silent-notice" aria-expanded={true} onClick={props.onToggle}>
       {inner}
     </button>
   );

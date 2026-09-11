@@ -149,29 +149,31 @@ export function createServer(deps: ServerDeps) {
         "content-type": "application/json",
         "cache-control": "no-store",
       });
-      res.end(JSON.stringify({
-        offeredLanguages: config.offeredLanguages,
-        // The ingest socket opens on 시작 and closes on 중지, so its state is
-        // exactly "is there a speaker to listen to". The attendee app uses it
-        // to keep an early arrival from tapping a language — which would open
-        // a Gemini session, and bill for translating an empty room.
-        live: ingest.connected,
-        // The debug passthrough lane's code, or null when it is not offered.
-        passthroughLanguage: config.passthroughLane ? PASSTHROUGH_LANG : null,
-        transcriptDelayMs: config.transcriptDelayMs,
-        // How far behind live a plain-<audio> listener starts (see StreamRoute
-        // and WebMSink.backlog). The phone sizes its drift threshold from it.
-        streamPrimeMs: config.streamPrimeMs,
-        // Null rather than "" for the two optional fields: the client tells
-        // "unset" from "set to something empty", and only the former should
-        // stop it laying out a slot for them at all.
-        brand: {
-          name: brand.name || null,
-          accent: brand.accent,
-          logoUrl: brand.logoPath ? "/brand/logo" : null,
-          theme: brand.theme,
-        },
-      }));
+      res.end(
+        JSON.stringify({
+          offeredLanguages: config.offeredLanguages,
+          // The ingest socket opens on 시작 and closes on 중지, so its state is
+          // exactly "is there a speaker to listen to". The attendee app uses it
+          // to keep an early arrival from tapping a language — which would open
+          // a Gemini session, and bill for translating an empty room.
+          live: ingest.connected,
+          // The debug passthrough lane's code, or null when it is not offered.
+          passthroughLanguage: config.passthroughLane ? PASSTHROUGH_LANG : null,
+          transcriptDelayMs: config.transcriptDelayMs,
+          // How far behind live a plain-<audio> listener starts (see StreamRoute
+          // and WebMSink.backlog). The phone sizes its drift threshold from it.
+          streamPrimeMs: config.streamPrimeMs,
+          // Null rather than "" for the two optional fields: the client tells
+          // "unset" from "set to something empty", and only the former should
+          // stop it laying out a slot for them at all.
+          brand: {
+            name: brand.name || null,
+            accent: brand.accent,
+            logoUrl: brand.logoPath ? "/brand/logo" : null,
+            theme: brand.theme,
+          },
+        }),
+      );
       return;
     }
 
@@ -186,24 +188,29 @@ export function createServer(deps: ServerDeps) {
         "content-type": "application/json",
         "cache-control": "no-store",
       });
-      res.end(JSON.stringify({
-        now: Date.now(),
-        // Nanoseconds from the histogram; ms is what a human reads.
-        eventLoopDelayP99Ms: Number((loopDelay.percentile(99) / 1e6).toFixed(2)),
-        ingest: {
-          framesReceived: ingest.framesReceived,
-          framesDropped: ingest.framesDropped,
-        },
-        lanes: Object.fromEntries(
-          manager.statuses().map((status) => [status.lang, {
-            mediaMs: manager.get(status.lang)?.mediaMs ?? null,
-            state: status.state,
-            listeners: status.listeners,
-            laneDrops: status.laneDrops,
-            listenerDrops: streamRoute.listenerDrops(status.lang),
-          }]),
-        ),
-      }));
+      res.end(
+        JSON.stringify({
+          now: Date.now(),
+          // Nanoseconds from the histogram; ms is what a human reads.
+          eventLoopDelayP99Ms: Number((loopDelay.percentile(99) / 1e6).toFixed(2)),
+          ingest: {
+            framesReceived: ingest.framesReceived,
+            framesDropped: ingest.framesDropped,
+          },
+          lanes: Object.fromEntries(
+            manager.statuses().map((status) => [
+              status.lang,
+              {
+                mediaMs: manager.get(status.lang)?.mediaMs ?? null,
+                state: status.state,
+                listeners: status.listeners,
+                laneDrops: status.laneDrops,
+                listenerDrops: streamRoute.listenerDrops(status.lang),
+              },
+            ]),
+          ),
+        }),
+      );
       return;
     }
 

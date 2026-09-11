@@ -7,7 +7,10 @@ describe("GEMINI_LANGUAGES", () => {
     // these as examples of the 70+ it supports. Anything else in the list is a
     // reasonable guess, which is why the panel also takes a typed code.
     for (const code of ["en", "es", "fr", "de", "zh-CN", "zh-TW", "ja", "af", "kk", "km", "zu"]) {
-      expect(GEMINI_LANGUAGES.some((l) => l.code === code), code).toBe(true);
+      expect(
+        GEMINI_LANGUAGES.some((l) => l.code === code),
+        code,
+      ).toBe(true);
     }
   });
 

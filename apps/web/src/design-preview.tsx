@@ -61,14 +61,16 @@ function Preview() {
   const v = q.get("v");
   if (v === "b") return <VariantB brand={brand} rows={rows} />;
   if (v === "c") return <VariantC brand={brand} rows={rows} />;
-  return <LanguagePicker
+  return (
+    <LanguagePicker
       brand={brand}
       live
       preference={null}
       onPreferenceChange={() => {}}
       rows={rows}
       onPick={() => {}}
-    />;
+    />
+  );
 }
 
 createRoot(document.getElementById("root")!).render(

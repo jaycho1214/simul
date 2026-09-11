@@ -83,7 +83,11 @@ test("emits audio exactly once per utterance across a rotation", async () => {
 
   // current's next boundary completes the rotation.
   for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
-  assert.equal(chunks.length, 3, "still exactly one chunk per utterance, now including the cutover");
+  assert.equal(
+    chunks.length,
+    3,
+    "still exactly one chunk per utterance, now including the cutover",
+  );
   assert.equal(rotator.activeIndex, 1);
 });
 
@@ -152,7 +156,11 @@ test("a non-lockstep overlap never suppresses current, and discards the replacem
   // current completes its (10 + 15 = 25) utterance before the replacement
   // has received a single utterance's worth of frames.
   for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640));
-  assert.equal(chunks.length, 1, "current's own boundary is never suppressed by a pending replacement");
+  assert.equal(
+    chunks.length,
+    1,
+    "current's own boundary is never suppressed by a pending replacement",
+  );
   assert.equal(rotator.activeIndex, 0, "the replacement isn't ready yet, so no cutover");
 
   // The replacement now completes its own first utterance (15 + 10 = 25)
@@ -163,8 +171,16 @@ test("a non-lockstep overlap never suppresses current, and discards the replacem
 
   // current's next boundary (10 + 15 = 25) is the actual cutover point.
   for (let i = 0; i < 15; i++) rotator.sendPcm16k(Buffer.alloc(640));
-  assert.equal(chunks.length, 2, "current's second utterance forwarded normally, still no duplicate");
-  assert.equal(rotator.activeIndex, 1, "cutover happened on current's boundary, not on the replacement's timing");
+  assert.equal(
+    chunks.length,
+    2,
+    "current's second utterance forwarded normally, still no duplicate",
+  );
+  assert.equal(
+    rotator.activeIndex,
+    1,
+    "cutover happened on current's boundary, not on the replacement's timing",
+  );
 });
 
 test("state(reconnecting) on the active session triggers rotation without an explicit rotate() call", async () => {
@@ -186,7 +202,11 @@ test("state(reconnecting) on the active session triggers rotation without an exp
   assert.equal(rotator.activeIndex, 0, "cutover waits for a boundary, not just readiness");
 
   for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
-  assert.equal(chunks.length, 2, "no duplicated audio; the replacement's readiness chunk was discarded");
+  assert.equal(
+    chunks.length,
+    2,
+    "no duplicated audio; the replacement's readiness chunk was discarded",
+  );
   assert.equal(rotator.activeIndex, 1);
 });
 
@@ -385,7 +405,11 @@ test("current dying while its replacement is also failing still recovers, rather
   created[1]!.simulateDeath("replacement died too");
   await flush();
 
-  assert.equal(created.length, 3, "abandoning the dead replacement while current is also dead retries immediately");
+  assert.equal(
+    created.length,
+    3,
+    "abandoning the dead replacement while current is also dead retries immediately",
+  );
 
   // The third session recovers the lane.
   for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
@@ -418,7 +442,11 @@ test("the promoted session receives every frame, including the one that triggere
   // triggering frame had been dropped (the bug this test guards against),
   // it would only have 14, and would need 11, not 10.
   for (let i = 0; i < 9; i++) rotator.sendPcm16k(Buffer.alloc(640));
-  assert.equal(chunks.length, chunksAtCutover, "9 more frames alone must not complete the next utterance");
+  assert.equal(
+    chunks.length,
+    chunksAtCutover,
+    "9 more frames alone must not complete the next utterance",
+  );
 
   rotator.sendPcm16k(Buffer.alloc(640)); // the 10th
   assert.equal(
@@ -530,7 +558,11 @@ test("a persistently failing factory backs off exponentially, capped, and curren
   // current was never touched by any of this.
   for (let i = 0; i < 25; i++) rotator.sendPcm16k(Buffer.alloc(640));
   assert.equal(chunks.length, 1, "current kept serving through a long run of factory failures");
-  assert.equal(errorMock.mock.callCount(), 8, "every one of the 8 failures was logged, none thrown");
+  assert.equal(
+    errorMock.mock.callCount(),
+    8,
+    "every one of the 8 failures was logged, none thrown",
+  );
 });
 
 test("backoff resets to the initial delay after the factory succeeds", async (t) => {
@@ -819,7 +851,9 @@ test("a factory that rejects after start() has already timed out does not become
   // start() left this dangling `attempt` promise unattended, this whole test
   // process would crash — not just log something wrong.
   let unhandled: unknown;
-  const onUnhandled = (err: unknown) => { unhandled = err; };
+  const onUnhandled = (err: unknown) => {
+    unhandled = err;
+  };
   process.on("unhandledRejection", onUnhandled);
 
   try {

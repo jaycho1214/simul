@@ -47,7 +47,7 @@ test("vintSize throws for a value too large for an 8-byte vint", () => {
       assert(err instanceof Error);
       assert(err.message.includes("value too large for an EBML vint"));
       return true;
-    }
+    },
   );
 });
 

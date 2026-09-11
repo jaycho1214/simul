@@ -6,11 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Notice, Panel } from "@/components/ui/panel";
 import { cn } from "@/utils/tailwind";
-import {
-  GEMINI_LANGUAGES,
-  findLanguage,
-  isLanguageCode,
-} from "../../settings/languages.ts";
+import { GEMINI_LANGUAGES, findLanguage, isLanguageCode } from "../../settings/languages.ts";
 import { ipc } from "../../ipc/manager.ts";
 
 /**
@@ -50,9 +46,7 @@ export function LanguagePanel() {
   }
 
   function toggle(code: string) {
-    const next = offered.includes(code)
-      ? offered.filter((c) => c !== code)
-      : [...offered, code];
+    const next = offered.includes(code) ? offered.filter((c) => c !== code) : [...offered, code];
     void patch({ offeredLanguages: next });
   }
 
@@ -148,7 +142,12 @@ export function LanguagePanel() {
               if (e.key === "Enter") addTyped();
             }}
           />
-          <Button variant="secondary" className="h-9 px-3 text-sm" disabled={!typedIsNew} onClick={addTyped}>
+          <Button
+            variant="secondary"
+            className="h-9 px-3 text-sm"
+            disabled={!typedIsNew}
+            onClick={addTyped}
+          >
             <Plus data-icon="inline-start" />
             {t("lang.add")}
           </Button>
@@ -165,7 +164,9 @@ export function LanguagePanel() {
         />
         <span className="grid gap-1">
           <span className="font-medium">{t("lang.passthrough")}</span>
-          <span className="text-xs leading-snug text-muted-foreground">{t("lang.passthroughHint")}</span>
+          <span className="text-xs leading-snug text-muted-foreground">
+            {t("lang.passthroughHint")}
+          </span>
         </span>
       </label>
 

@@ -30,12 +30,9 @@ describe("parseHex", () => {
   // An operator typing into a .env file is the only source of these, so every
   // near-miss returns null and lets the caller fall back rather than throwing
   // into a render.
-  test.each(["", "#12345", "#ggghhh", "rgb(1,2,3)", "#1234567"])(
-    "rejects %j",
-    (bad) => {
-      expect(parseHex(bad)).toBeNull();
-    },
-  );
+  test.each(["", "#12345", "#ggghhh", "rgb(1,2,3)", "#1234567"])("rejects %j", (bad) => {
+    expect(parseHex(bad)).toBeNull();
+  });
 });
 
 describe("contrastRatio", () => {
@@ -126,16 +123,12 @@ describe("accentTokens", () => {
 
   test("lightens a near-black accent on the dark ground", () => {
     const t = accentTokens("#000080", "dark");
-    expect(luminance(parseHex(t["--accent"])!)).toBeGreaterThan(
-      luminance(parseHex("#000080")!),
-    );
+    expect(luminance(parseHex(t["--accent"])!)).toBeGreaterThan(luminance(parseHex("#000080")!));
   });
 
   test("darkens a near-white accent on the light ground", () => {
     const t = accentTokens("#FFFFF0", "light");
-    expect(luminance(parseHex(t["--accent"])!)).toBeLessThan(
-      luminance(parseHex("#FFFFF0")!),
-    );
+    expect(luminance(parseHex(t["--accent"])!)).toBeLessThan(luminance(parseHex("#FFFFF0")!));
   });
 
   // Lightening by blending toward white would wash the hue out; the whole
@@ -148,9 +141,7 @@ describe("accentTokens", () => {
   });
 
   test("falls back to the default accent when the value is unparseable", () => {
-    expect(accentTokens("not a colour", "dark")).toEqual(
-      accentTokens(DEFAULT_ACCENT, "dark"),
-    );
+    expect(accentTokens("not a colour", "dark")).toEqual(accentTokens(DEFAULT_ACCENT, "dark"));
   });
 });
 

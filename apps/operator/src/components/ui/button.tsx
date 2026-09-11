@@ -36,7 +36,7 @@ const buttonVariants = cva(
           "bg-secondary text-secondary-foreground hover:bg-secondary/80 aria-expanded:bg-secondary aria-expanded:text-secondary-foreground",
       },
     },
-  }
+  },
 );
 
 function Button({

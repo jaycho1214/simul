@@ -109,7 +109,11 @@ export function LevelMeterPanel() {
               style={{
                 left: `${widthPercent(db)}%`,
                 transform:
-                  i === 0 ? "none" : i === TICKS.length - 1 ? "translateX(-100%)" : "translateX(-50%)",
+                  i === 0
+                    ? "none"
+                    : i === TICKS.length - 1
+                      ? "translateX(-100%)"
+                      : "translateX(-50%)",
               }}
             >
               {db}

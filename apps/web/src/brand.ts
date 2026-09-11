@@ -41,9 +41,7 @@ function toLinear(channel: number): number {
 
 /** WCAG 2.x relative luminance. */
 export function luminance(c: Rgb): number {
-  return (
-    0.2126 * toLinear(c.r) + 0.7152 * toLinear(c.g) + 0.0722 * toLinear(c.b)
-  );
+  return 0.2126 * toLinear(c.r) + 0.7152 * toLinear(c.g) + 0.0722 * toLinear(c.b);
 }
 
 /** WCAG 2.x contrast ratio, 1:1 to 21:1. */
@@ -64,10 +62,7 @@ export interface Oklch {
 
 /** From linear-light 0-1 back to an sRGB 0-255 channel. */
 function fromLinear(channel: number): number {
-  const c =
-    channel <= 0.0031308
-      ? 12.92 * channel
-      : 1.055 * channel ** (1 / 2.4) - 0.055;
+  const c = channel <= 0.0031308 ? 12.92 * channel : 1.055 * channel ** (1 / 2.4) - 0.055;
   return Math.round(Math.min(1, Math.max(0, c)) * 255);
 }
 
@@ -179,11 +174,7 @@ const MIN_TEXT_CONTRAST = 4.55;
  * that has already run to white or black cannot improve further, and the loop
  * has to end regardless.
  */
-function pushFromGround(
-  accent: Rgb,
-  scheme: "dark" | "light",
-  minContrast: number,
-): Rgb {
+function pushFromGround(accent: Rgb, scheme: "dark" | "light", minContrast: number): Rgb {
   const ground = parseHex(GROUND[scheme])!;
   const step = scheme === "dark" ? 0.01 : -0.01;
   const start = toOklch(accent);
@@ -213,10 +204,7 @@ export interface AccentTokens {
  * written onto the document root. The stylesheet ships a default for each so
  * the page is fully styled before this ever runs.
  */
-export function accentTokens(
-  accent: string,
-  scheme: "dark" | "light",
-): AccentTokens {
+export function accentTokens(accent: string, scheme: "dark" | "light"): AccentTokens {
   const parsed = parseHex(accent) ?? parseHex(DEFAULT_ACCENT)!;
   const shape = pushFromGround(parsed, scheme, MIN_SHAPE_CONTRAST);
 

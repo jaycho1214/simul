@@ -41,10 +41,7 @@ export function applyBrand(
  * switching itself between light and dark mid-session — which on iOS happens
  * on a schedule, and so will happen during an evening event.
  */
-export function useBrand(
-  brand: Brand,
-  reader: "light" | "dark" | null = null,
-): void {
+export function useBrand(brand: Brand, reader: "light" | "dark" | null = null): void {
   useEffect(() => {
     const media = window.matchMedia?.(DARK_QUERY);
     const paint = () => applyBrand(document, brand, media?.matches ?? false, reader);

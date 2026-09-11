@@ -31,9 +31,7 @@ afterEach(() => {
 
 describe("backoffMs", () => {
   test("grows and then caps", () => {
-    expect([0, 1, 2, 3, 4, 5, 9].map(backoffMs)).toEqual([
-      250, 500, 1000, 2000, 4000, 8000, 8000,
-    ]);
+    expect([0, 1, 2, 3, 4, 5, 9].map(backoffMs)).toEqual([250, 500, 1000, 2000, 4000, 8000, 8000]);
   });
 });
 

@@ -1,10 +1,7 @@
 import path from "node:path";
 import { app, BrowserWindow, dialog, session, systemPreferences } from "electron";
 import { ipcMain } from "electron/main";
-import {
-  installExtension,
-  REACT_DEVELOPER_TOOLS,
-} from "electron-devtools-installer";
+import { installExtension, REACT_DEVELOPER_TOOLS } from "electron-devtools-installer";
 import squirrelStartup from "electron-squirrel-startup";
 import { ipcContext } from "@/ipc/context";
 import { ServerSupervisor, electronForkFn } from "@/server-host/server-supervisor";
@@ -25,8 +22,7 @@ if (squirrelStartup) {
 }
 
 const externalServer =
-  process.argv.includes("--external-server") ||
-  process.env.TONGYEOK_EXTERNAL_SERVER === "1";
+  process.argv.includes("--external-server") || process.env.TONGYEOK_EXTERNAL_SERVER === "1";
 
 // Both in development and in a packaged app the bundle sits beside main.js.
 const serverEntryPath = path.join(getBasePath(), "server-entry.js");
@@ -68,8 +64,7 @@ function createWindow() {
     minWidth: 960,
     backgroundColor: "#17191e",
     titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "hidden",
-    trafficLightPosition:
-      process.platform === "darwin" ? { x: 5, y: 5 } : undefined,
+    trafficLightPosition: process.platform === "darwin" ? { x: 5, y: 5 } : undefined,
     webPreferences: {
       contextIsolation: true,
       devTools: inDevelopment,
@@ -93,17 +88,18 @@ function createWindow() {
     if (closeConfirmed || supervisor.status.state !== "listening") return;
 
     event.preventDefault();
-    const quit = dialog.showMessageBoxSync(mainWindow, {
-      type: "warning",
-      buttons: ["취소 / Cancel", "종료 / Quit"],
-      defaultId: 0,
-      cancelId: 0,
-      title: "통역 종료 / Stop translation",
-      message: "지금 종료하면 통역이 중단됩니다.",
-      detail:
-        "듣고 있는 사람들의 소리가 모두 끊깁니다.\n\n" +
-        "Quitting now stops translation. Everyone currently listening loses audio.",
-    }) === 1;
+    const quit =
+      dialog.showMessageBoxSync(mainWindow, {
+        type: "warning",
+        buttons: ["취소 / Cancel", "종료 / Quit"],
+        defaultId: 0,
+        cancelId: 0,
+        title: "통역 종료 / Stop translation",
+        message: "지금 종료하면 통역이 중단됩니다.",
+        detail:
+          "듣고 있는 사람들의 소리가 모두 끊깁니다.\n\n" +
+          "Quitting now stops translation. Everyone currently listening loses audio.",
+      }) === 1;
 
     if (quit) {
       // Re-entrant: this same handler runs again for the close below, and the
@@ -116,9 +112,7 @@ function createWindow() {
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
     mainWindow.loadURL(MAIN_WINDOW_VITE_DEV_SERVER_URL);
   } else {
-    mainWindow.loadFile(
-      path.join(basePath, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`)
-    );
+    mainWindow.loadFile(path.join(basePath, `../renderer/${MAIN_WINDOW_VITE_NAME}/index.html`));
   }
 }
 

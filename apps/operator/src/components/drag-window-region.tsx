@@ -59,13 +59,7 @@ function WindowButtons() {
         title="Minimize"
         type="button"
       >
-        <svg
-          aria-hidden="true"
-          height="12"
-          role="img"
-          viewBox="0 0 12 12"
-          width="12"
-        >
+        <svg aria-hidden="true" height="12" role="img" viewBox="0 0 12 12" width="12">
           <rect fill="currentColor" height="1" width="10" x="1" y="6" />
         </svg>
       </button>
@@ -75,36 +69,12 @@ function WindowButtons() {
         title="Maximize"
         type="button"
       >
-        <svg
-          aria-hidden="true"
-          height="12"
-          role="img"
-          viewBox="0 0 12 12"
-          width="12"
-        >
-          <rect
-            fill="none"
-            height="9"
-            stroke="currentColor"
-            width="9"
-            x="1.5"
-            y="1.5"
-          />
+        <svg aria-hidden="true" height="12" role="img" viewBox="0 0 12 12" width="12">
+          <rect fill="none" height="9" stroke="currentColor" width="9" x="1.5" y="1.5" />
         </svg>
       </button>
-      <button
-        className="p-2 hover:bg-red-300"
-        onClick={closeWindow}
-        title="Close"
-        type="button"
-      >
-        <svg
-          aria-hidden="true"
-          height="12"
-          role="img"
-          viewBox="0 0 12 12"
-          width="12"
-        >
+      <button className="p-2 hover:bg-red-300" onClick={closeWindow} title="Close" type="button">
+        <svg aria-hidden="true" height="12" role="img" viewBox="0 0 12 12" width="12">
           <polygon
             fill="currentColor"
             fillRule="evenodd"

@@ -68,8 +68,7 @@ export function OperatorRail({ active, onSelect, lanes }: OperatorRailProps) {
   const alerts: Partial<Record<SectionId, Tone>> = {
     live: errorLanes > 0 ? "error" : warnLanes > 0 ? "warn" : undefined,
     device: capture.error ? "error" : undefined,
-    server:
-      status?.state === "crashed" || status?.state === "giving_up" ? "error" : undefined,
+    server: status?.state === "crashed" || status?.state === "giving_up" ? "error" : undefined,
   };
 
   const subtitles: Record<SectionId, string> = {

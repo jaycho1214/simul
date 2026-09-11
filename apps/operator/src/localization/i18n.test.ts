@@ -5,9 +5,7 @@ import { KO_STRINGS } from "./i18n.ts";
 function leaves(node: unknown, prefix = ""): Array<[string, string]> {
   if (typeof node === "string") return [[prefix, node]];
   if (typeof node !== "object" || node === null) return [];
-  return Object.entries(node).flatMap(([k, v]) =>
-    leaves(v, prefix ? `${prefix}.${k}` : k),
-  );
+  return Object.entries(node).flatMap(([k, v]) => leaves(v, prefix ? `${prefix}.${k}` : k));
 }
 
 describe("Korean string table", () => {

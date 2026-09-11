@@ -53,9 +53,7 @@ export function LanguagePicker({
     <main className="picker">
       <BrandBar
         brand={brand}
-        trailing={
-          <ThemeToggle preference={preference} onChange={onPreferenceChange} />
-        }
+        trailing={<ThemeToggle preference={preference} onChange={onPreferenceChange} />}
       />
 
       <div className="picker-head">
@@ -80,9 +78,7 @@ export function LanguagePicker({
           <li key={row.lang}>
             <button
               type="button"
-              className={
-                row.isPassthrough ? "picker-row picker-row--passthrough" : "picker-row"
-              }
+              className={row.isPassthrough ? "picker-row picker-row--passthrough" : "picker-row"}
               // Inert until the operator starts. A tap opens a lane, and a
               // lane opened against an empty room bills for translating
               // silence.

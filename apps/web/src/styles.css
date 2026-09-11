@@ -128,9 +128,8 @@ body {
   background: var(--ground);
   color: var(--ink);
   font-family:
-    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard",
-    "Noto Sans KR", "Noto Sans CJK KR", "Malgun Gothic", "Segoe UI", Roboto,
-    sans-serif;
+    -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR",
+    "Noto Sans CJK KR", "Malgun Gothic", "Segoe UI", Roboto, sans-serif;
   font-size: var(--t-md);
   line-height: 1.45;
   -webkit-text-size-adjust: 100%;
@@ -505,8 +504,7 @@ svg {
   flex-direction: column;
   min-height: 0;
   gap: var(--gap-2);
-  padding: var(--gap-2) var(--gutter)
-    max(var(--gap-3), env(safe-area-inset-bottom));
+  padding: var(--gap-2) var(--gutter) max(var(--gap-3), env(safe-area-inset-bottom));
 }
 
 /* ---------- silent switch notice ---------- */

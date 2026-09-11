@@ -70,7 +70,10 @@ test("encodes at a constant bitrate, so silence costs the same bytes as speech",
   }
   const speech = enc.encode(tone)[0]!;
 
-  assert.equal(silence.length, speech.length,
-    `silence ${silence.length}B vs speech ${speech.length}B — VBR would make block timing depend on whether anyone is talking`);
+  assert.equal(
+    silence.length,
+    speech.length,
+    `silence ${silence.length}B vs speech ${speech.length}B — VBR would make block timing depend on whether anyone is talking`,
+  );
   enc.close();
 });

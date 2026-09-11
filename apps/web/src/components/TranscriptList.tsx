@@ -9,10 +9,7 @@ export function isAtBottom(metrics: {
   scrollHeight: number;
   clientHeight: number;
 }): boolean {
-  return (
-    metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight <=
-    STICKY_THRESHOLD_PX
-  );
+  return metrics.scrollHeight - metrics.scrollTop - metrics.clientHeight <= STICKY_THRESHOLD_PX;
 }
 
 export interface TranscriptListProps {
@@ -22,11 +19,7 @@ export interface TranscriptListProps {
   emptyLabel: ReactNode;
 }
 
-export function TranscriptList({
-  lines,
-  interim,
-  emptyLabel,
-}: TranscriptListProps) {
+export function TranscriptList({ lines, interim, emptyLabel }: TranscriptListProps) {
   const boxRef = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(true);
 

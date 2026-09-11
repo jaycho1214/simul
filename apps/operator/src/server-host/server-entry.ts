@@ -45,7 +45,9 @@ async function main(): Promise<void> {
   // lines for the 서버 로그 panel and echo them to its own console, instead of
   // the server's boot state being invisible outside its status.
   console.log(`tongyeok server on :${port}`);
-  console.log(`languages: ${config.offeredLanguages.join(", ")}${config.passthroughLane ? " + passthrough lane (debug)" : ""}`);
+  console.log(
+    `languages: ${config.offeredLanguages.join(", ")}${config.passthroughLane ? " + passthrough lane (debug)" : ""}`,
+  );
   process.parentPort.postMessage({ type: "listening", port });
 }
 

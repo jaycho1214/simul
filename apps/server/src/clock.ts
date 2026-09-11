@@ -16,10 +16,13 @@ export class SystemClock implements Clock {
 
   setTimeout(fn: () => void, ms: number): TimerHandle {
     const id = this.next++;
-    this.timers.set(id, setTimeout(() => {
-      this.timers.delete(id);
-      fn();
-    }, ms));
+    this.timers.set(
+      id,
+      setTimeout(() => {
+        this.timers.delete(id);
+        fn();
+      }, ms),
+    );
     return { id };
   }
 

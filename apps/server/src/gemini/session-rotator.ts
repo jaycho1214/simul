@@ -112,10 +112,7 @@ export class SessionRotator implements TranslateSession {
     return this.rotations;
   }
 
-  on<K extends keyof TranslateSessionEvents>(
-    event: K,
-    fn: TranslateSessionEvents[K],
-  ): void {
+  on<K extends keyof TranslateSessionEvents>(event: K, fn: TranslateSessionEvents[K]): void {
     this.handlers[event].push(fn);
   }
 

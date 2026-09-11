@@ -49,7 +49,8 @@ export const KO_STRINGS = {
     add: "추가",
     addHint:
       "위 목록은 자주 쓰는 언어만 추린 것입니다. Gemini가 지원하는 70여 개 언어 중 목록에 없는 것은 BCP-47 코드로 직접 넣으세요.",
-    restartNeeded: "언어 변경은 서버를 다시 시작해야 적용됩니다. 진행 중에 다시 시작하면 듣고 있는 참석자의 소리가 잠시 끊깁니다.",
+    restartNeeded:
+      "언어 변경은 서버를 다시 시작해야 적용됩니다. 진행 중에 다시 시작하면 듣고 있는 참석자의 소리가 잠시 끊깁니다.",
   },
 
   brand: {
@@ -59,9 +60,11 @@ export const KO_STRINGS = {
     accent: "강조 색",
     accentPlaceholder: "#3e8fd0",
     accentInvalid: "#3e8fd0 같은 색상 코드를 입력하세요.",
-    accentHint: "참석자 화면 배경에서 읽히도록 자동으로 밝기를 조정합니다. 초록·노랑·빨강 상태 색은 바뀌지 않습니다.",
+    accentHint:
+      "참석자 화면 배경에서 읽히도록 자동으로 밝기를 조정합니다. 초록·노랑·빨강 상태 색은 바뀌지 않습니다.",
     logo: "로고",
-    logoHint: "이미지를 끌어다 놓거나 파일을 선택하세요. 앱 안에 복사되므로 원본 파일을 지워도 됩니다.",
+    logoHint:
+      "이미지를 끌어다 놓거나 파일을 선택하세요. 앱 안에 복사되므로 원본 파일을 지워도 됩니다.",
     logoPick: "파일 선택",
     logoClear: "로고 제거",
     logoNone: "선택된 파일 없음",
@@ -71,7 +74,8 @@ export const KO_STRINGS = {
     themeLight: "밝은 화면",
     themeAuto: "참석자 기기 설정에 맞춤",
     themeHint: "어두운 예배당에서는 어두운 화면이, 낮 행사에서는 밝은 화면이 읽기 좋습니다.",
-    appliesOnRefresh: "변경 사항은 바로 적용됩니다. 이미 듣고 있는 참석자는 화면을 새로 고쳐야 보입니다.",
+    appliesOnRefresh:
+      "변경 사항은 바로 적용됩니다. 이미 듣고 있는 참석자는 화면을 새로 고쳐야 보입니다.",
     restart: "서버 다시 시작",
   },
 
@@ -81,7 +85,8 @@ export const KO_STRINGS = {
     refresh: "장치 목록 새로 고침",
     channel: "채널",
     requestedChannels: "요청 채널 수",
-    requestedChannelsHint: "장치가 지원하는 최대 채널 수를 넣으세요. 맥에서는 18, 윈도우 페어 장치에서는 2입니다.",
+    requestedChannelsHint:
+      "장치가 지원하는 최대 채널 수를 넣으세요. 맥에서는 18, 윈도우 페어 장치에서는 2입니다.",
     channelCount: "요청 {{requested}}채널 · 실제 {{achieved}}채널",
     // "processed", not "context": i18next reserves {{context}} for its own
     // contextual-pluralization feature, and react-i18next's typed t() rejects
@@ -105,7 +110,8 @@ export const KO_STRINGS = {
 
   error: {
     deviceLost: "오디오 장치 연결이 끊겼습니다. 캡처를 중지했습니다. 장치를 다시 선택하세요.",
-    deviceOpenFailed: "선택한 장치를 열 수 없습니다: {{reason}}. 다른 장치를 고르거나 케이블을 확인하세요.",
+    deviceOpenFailed:
+      "선택한 장치를 열 수 없습니다: {{reason}}. 다른 장치를 고르거나 케이블을 확인하세요.",
     workletFailed: "오디오 처리 모듈을 불러오지 못했습니다: {{reason}}. 앱을 다시 시작하세요.",
     ingestDisconnected: "서버 연결이 끊겼습니다. 재연결 중입니다. 캡처는 계속됩니다.",
   },
@@ -136,10 +142,12 @@ export const KO_STRINGS = {
     advisory: "참고",
     proof: "실측",
     profile_pass: "네트워크 프로필: {{alias}} — 개인(Private)",
-    profile_warn: "경고: {{alias}} 네트워크가 공용(Public)으로 분류되어 있습니다. 휴대폰이 접속하지 못합니다.",
+    profile_warn:
+      "경고: {{alias}} 네트워크가 공용(Public)으로 분류되어 있습니다. 휴대폰이 접속하지 못합니다.",
     profile_unknown: "네트워크 프로필을 확인하지 못했습니다.",
     rule_pass: "방화벽 인바운드 허용 규칙 발견: {{name}}",
-    rule_warn: "경고: TCP {{port}} 인바운드 허용 규칙을 찾지 못했습니다. 휴대폰이 페이지를 열지 못합니다.",
+    rule_warn:
+      "경고: TCP {{port}} 인바운드 허용 규칙을 찾지 못했습니다. 휴대폰이 페이지를 열지 못합니다.",
     rule_unknown: "방화벽 규칙을 확인하지 못했습니다.",
     external_pass: "외부 기기가 실제로 접속했습니다.",
     external_warn: "아직 외부 기기 접속 기록이 없습니다. 휴대폰으로 직접 확인하세요.",

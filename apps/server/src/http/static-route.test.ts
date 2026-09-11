@@ -33,9 +33,15 @@ class FakeResponse {
     this.resolveFinished();
     return this;
   }
-  on() { return this; }
-  once() { return this; }
-  emit() { return true; }
+  on() {
+    return this;
+  }
+  once() {
+    return this;
+  }
+  emit() {
+    return true;
+  }
   write(chunk: Buffer | string) {
     this.body += chunk.toString();
     return true;
@@ -126,10 +132,7 @@ test("declines everything when the root does not exist", async () => {
 test("declines a non-GET method", async () => {
   const res = new FakeResponse();
   const route = new StaticRoute({ root });
-  assert.equal(
-    await route.handle({ method: "POST" } as never, res as never, "/"),
-    false,
-  );
+  assert.equal(await route.handle({ method: "POST" } as never, res as never, "/"), false);
 });
 
 test("answers HEAD with headers but no body", async () => {

@@ -5,9 +5,7 @@ import { pickLanAddresses, type LanAddress } from "../../net/lan-ip.ts";
 import { evaluateReachability, type ReachabilityCheck } from "../../net/reachability.ts";
 import { runWindowsReachabilityProbe } from "../../net/reachability-windows.ts";
 
-export const lanAddresses = os.handler((): LanAddress[] =>
-  pickLanAddresses(networkInterfaces()),
-);
+export const lanAddresses = os.handler((): LanAddress[] => pickLanAddresses(networkInterfaces()));
 
 export const reachability = os
   .input(z.object({ port: z.number(), externalListenerSeen: z.boolean() }))

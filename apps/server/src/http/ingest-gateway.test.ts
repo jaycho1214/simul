@@ -7,9 +7,15 @@ import type { PcmConsumer } from "../lane/lane.ts";
 class FakeSocket implements WebSocketLike {
   closedWith: number | undefined;
   protected handlers = new Map<string, (arg: any) => void>();
-  on(event: string, fn: (arg: any) => void): void { this.handlers.set(event, fn); }
-  close(code?: number): void { this.closedWith = code; }
-  emit(event: string, arg?: unknown): void { this.handlers.get(event)?.(arg); }
+  on(event: string, fn: (arg: any) => void): void {
+    this.handlers.set(event, fn);
+  }
+  close(code?: number): void {
+    this.closedWith = code;
+  }
+  emit(event: string, arg?: unknown): void {
+    this.handlers.get(event)?.(arg);
+  }
 }
 
 /**
@@ -29,7 +35,9 @@ class SpyLane implements PcmConsumer {
   received: Buffer[] = [];
   laneDrops = 0;
   readonly lang = "en";
-  pushPcm(frame: Buffer): void { this.received.push(frame); }
+  pushPcm(frame: Buffer): void {
+    this.received.push(frame);
+  }
 }
 
 const url = (token: string) => new URL(`ws://x/ingest?token=${token}`);

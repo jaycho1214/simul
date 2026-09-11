@@ -1,11 +1,5 @@
 import { describe, expect, test } from "vitest";
-import {
-  MAX_LOGO_BYTES,
-  logoDataUri,
-  logoMimeType,
-  storedLogoName,
-  maskSecret,
-} from "./brand.ts";
+import { MAX_LOGO_BYTES, logoDataUri, logoMimeType, storedLogoName, maskSecret } from "./brand.ts";
 
 describe("maskSecret", () => {
   test("shows the last four characters so a key can be told apart", () => {
@@ -33,12 +27,9 @@ describe("storedLogoName", () => {
     expect(storedLogoName(input)).toBe(expected);
   });
 
-  test.each(["mark.tiff", "logo", "script.svg.exe", "../../etc/passwd"])(
-    "refuses %j",
-    (bad) => {
-      expect(storedLogoName(bad)).toBeNull();
-    },
-  );
+  test.each(["mark.tiff", "logo", "script.svg.exe", "../../etc/passwd"])("refuses %j", (bad) => {
+    expect(storedLogoName(bad)).toBeNull();
+  });
 });
 
 describe("logoMimeType", () => {

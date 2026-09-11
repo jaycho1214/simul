@@ -43,14 +43,10 @@ export function LaneStatusPanel({ lanes }: { lanes: LaneStatus[] }) {
               <tr className="text-left text-xs text-muted-foreground">
                 <th className="pb-1.5 font-medium">{t("lanes.language")}</th>
                 <th className="w-24 pb-1.5 text-right font-medium">{t("lanes.listeners")}</th>
-                <th className="w-32 pb-1.5 text-right font-medium">
-                  {t("lanes.audioListeners")}
-                </th>
+                <th className="w-32 pb-1.5 text-right font-medium">{t("lanes.audioListeners")}</th>
                 <th className="w-20 pb-1.5 pl-6 font-medium">{t("lanes.status")}</th>
                 <th className="w-24 pb-1.5 text-right font-medium">{t("lanes.laneDrops")}</th>
-                <th className="w-28 pb-1.5 text-right font-medium">
-                  {t("lanes.listenerDrops")}
-                </th>
+                <th className="w-28 pb-1.5 text-right font-medium">{t("lanes.listenerDrops")}</th>
                 <th className="w-32 pb-1.5 pl-6 font-medium">{t("lanes.sessionState")}</th>
               </tr>
             </thead>

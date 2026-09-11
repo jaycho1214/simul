@@ -34,11 +34,7 @@ export function BrandBar({ brand, children, trailing }: BrandBarProps) {
             onError={() => setLogoBroken(true)}
           />
         ) : null}
-        <span
-          className={
-            brand.name ? "brand-name" : "brand-name brand-name--fallback"
-          }
-        >
+        <span className={brand.name ? "brand-name" : "brand-name brand-name--fallback"}>
           {brand.name ?? S.appTitle}
         </span>
       </div>

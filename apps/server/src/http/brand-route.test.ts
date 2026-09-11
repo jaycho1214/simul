@@ -31,9 +31,15 @@ class FakeResponse {
     this.resolveFinished();
     return this;
   }
-  on() { return this; }
-  once() { return this; }
-  emit() { return true; }
+  on() {
+    return this;
+  }
+  once() {
+    return this;
+  }
+  emit() {
+    return true;
+  }
   write(chunk: Buffer | string) {
     this.body += chunk.toString();
     return true;
@@ -75,10 +81,7 @@ test("declines when no logo is configured", async () => {
 // an unbranded page, never to a crash mid-event.
 test("declines when the configured file has gone missing", async () => {
   const res = new FakeResponse();
-  assert.equal(
-    await new BrandRoute(join(dir, "not-here.png")).handle(res as never),
-    false,
-  );
+  assert.equal(await new BrandRoute(join(dir, "not-here.png")).handle(res as never), false);
 });
 
 test("declines when the path is a directory rather than a file", async () => {

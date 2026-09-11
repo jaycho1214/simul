@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createFakeTranslateSessionFactory, FakeTranslateSession } from "./fake-translate-session.ts";
+import {
+  createFakeTranslateSessionFactory,
+  FakeTranslateSession,
+} from "./fake-translate-session.ts";
 
 // Non-silent PCM: the fake never inspects frame content, so this changes no
 // assertion below, but it avoids exercising every downstream test exclusively
@@ -49,7 +52,9 @@ test("close emits closed and stops output", async () => {
   const session = await createFakeTranslateSessionFactory()({ targetLanguage: "en" });
   let closedReason = "";
   const chunks: Buffer[] = [];
-  session.on("closed", (r) => { closedReason = r; });
+  session.on("closed", (r) => {
+    closedReason = r;
+  });
   session.on("audio", (c) => chunks.push(c));
 
   session.close();
@@ -64,7 +69,10 @@ test("close is safe to call twice", async () => {
   const session = await createFakeTranslateSessionFactory()({ targetLanguage: "en" });
   let closedCount = 0;
   let closedReason = "";
-  session.on("closed", (r) => { closedCount++; closedReason = r; });
+  session.on("closed", (r) => {
+    closedCount++;
+    closedReason = r;
+  });
 
   session.close();
   session.close();
@@ -121,7 +129,9 @@ test("simulateGoAway is a test hook that emits a reconnecting state", async () =
 test("simulateDeath is a test hook that emits closed without a caller close()", async () => {
   const session = new FakeTranslateSession("en");
   let closedReason = "";
-  session.on("closed", (r) => { closedReason = r; });
+  session.on("closed", (r) => {
+    closedReason = r;
+  });
 
   session.simulateDeath("connection reset");
 

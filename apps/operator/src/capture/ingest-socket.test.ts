@@ -31,9 +31,7 @@ const frame = () => new Int16Array(320).fill(1234).buffer;
 
 describe("ingestUrl", () => {
   test("is the spec's endpoint with the token in the query string", () => {
-    expect(ingestUrl({ port: 8080, token: "abc" })).toBe(
-      "ws://localhost:8080/ingest?token=abc",
-    );
+    expect(ingestUrl({ port: 8080, token: "abc" })).toBe("ws://localhost:8080/ingest?token=abc");
   });
 
   test("percent-encodes a token with URL-hostile characters", () => {
@@ -147,9 +145,7 @@ describe("IngestSocket", () => {
 
     test("being superseded (4409) stops instead of fighting the instance that took over", async () => {
       const { wss, port } = await startServer();
-      wss.on("connection", (ws) =>
-        ws.close(4409, "superseded by a newer ingest connection"),
-      );
+      wss.on("connection", (ws) => ws.close(4409, "superseded by a newer ingest connection"));
 
       const socket = new IngestSocket({
         url: `ws://127.0.0.1:${port}/ingest?token=t`,

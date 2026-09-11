@@ -98,7 +98,12 @@ describe("buildDeviceReport", () => {
     const report = buildDeviceReport({
       ...base,
       requestedChannelCount: 8,
-      settings: { sampleRate: 48000, echoCancellation: false, noiseSuppression: false, autoGainControl: false },
+      settings: {
+        sampleRate: 48000,
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+      },
     });
     expect(report.achievedChannelCount).toBe(1);
     expect(report.warnings).toContainEqual({

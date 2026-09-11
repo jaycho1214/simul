@@ -27,8 +27,7 @@ export const S = {
   tapToPlay: "화면을 눌러 소리를 켜세요 / Tap to start the sound",
 
   laneError: "이 언어에 문제가 있습니다 / This language has a problem",
-  laneCap:
-    "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now",
+  laneCap: "이 언어는 지금 사용할 수 없습니다 / This language is unavailable right now",
   unknownLanguage: "알 수 없는 언어입니다 / Unknown language",
 
   notStarted: "아직 시작 전입니다 / Not started yet",

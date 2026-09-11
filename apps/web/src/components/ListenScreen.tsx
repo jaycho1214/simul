@@ -80,10 +80,7 @@ export function ListenScreen(props: ListenScreenProps) {
           onToggle={() => setPinnedOpen(!pinnedOpen)}
         />
 
-        <StatusBand
-          banner={banner}
-          onRetry={props.transcript.error ? props.onRetry : undefined}
-        />
+        <StatusBand banner={banner} onRetry={props.transcript.error ? props.onRetry : undefined} />
 
         <TranscriptList
           lines={props.transcript.lines}

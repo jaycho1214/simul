@@ -32,11 +32,7 @@ export interface AudioStreamControllerOptions {
   maxDriftSec?: number;
 }
 
-export function streamUrl(
-  httpBaseUrl: string,
-  lang: string,
-  cacheBuster: number,
-): string {
+export function streamUrl(httpBaseUrl: string, lang: string, cacheBuster: number): string {
   return `${httpBaseUrl}/stream/${encodeURIComponent(lang)}.webm?t=${cacheBuster}`;
 }
 
@@ -156,11 +152,7 @@ export class AudioStreamController implements AudioController {
   start(): Promise<void> {
     this.muted = false;
     this.startDriftChecks();
-    this.element.src = streamUrl(
-      this.httpBaseUrl,
-      this.lang,
-      this.nextCacheBuster(),
-    );
+    this.element.src = streamUrl(this.httpBaseUrl, this.lang, this.nextCacheBuster());
     return this.play();
   }
 
@@ -197,11 +189,7 @@ export class AudioStreamController implements AudioController {
    */
   private rejoin(): Promise<void> {
     this.cancelRecovery();
-    this.element.src = streamUrl(
-      this.httpBaseUrl,
-      this.lang,
-      this.nextCacheBuster(),
-    );
+    this.element.src = streamUrl(this.httpBaseUrl, this.lang, this.nextCacheBuster());
     this.element.load();
     return this.play();
   }
@@ -213,14 +201,15 @@ export class AudioStreamController implements AudioController {
    */
   private nextCacheBuster(): number {
     const now = this.now();
-    this.lastCacheBuster =
-      now > this.lastCacheBuster ? now : this.lastCacheBuster + 1;
+    this.lastCacheBuster = now > this.lastCacheBuster ? now : this.lastCacheBuster + 1;
     return this.lastCacheBuster;
   }
 
   private startDriftChecks(): void {
     if (!this.liveMediaSeconds || this.driftTimer !== undefined) return;
-    this.driftTimer = setInterval(() => { void this.checkDrift(); }, this.driftCheckMs);
+    this.driftTimer = setInterval(() => {
+      void this.checkDrift();
+    }, this.driftCheckMs);
   }
 
   private stopDriftChecks(): void {

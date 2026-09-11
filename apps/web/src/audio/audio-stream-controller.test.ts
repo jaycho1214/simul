@@ -93,9 +93,7 @@ describe("AudioStreamController", () => {
     void controller.start();
 
     expect(element.playCalls).toHaveLength(1);
-    expect(element.src).toMatch(
-      /^http:\/\/192\.168\.1\.4:8080\/stream\/es\.webm\?t=\d+$/,
-    );
+    expect(element.src).toMatch(/^http:\/\/192\.168\.1\.4:8080\/stream\/es\.webm\?t=\d+$/);
   });
 
   test("mute pauses the element without touching the src", async () => {

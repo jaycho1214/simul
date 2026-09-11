@@ -28,13 +28,7 @@ export interface ListenClientOptions {
   now?: () => number;
 }
 
-const SERVER_MESSAGE_TYPES = new Set([
-  "hello",
-  "history",
-  "transcript",
-  "lane",
-  "error",
-]);
+const SERVER_MESSAGE_TYPES = new Set(["hello", "history", "transcript", "lane", "error"]);
 
 // Doubles from 500ms to 8s, capped there. Bounded so a saturated wifi AP does
 // not get hammered, but short enough that a normal drop (AP roam, a few lost
@@ -78,8 +72,7 @@ export class ListenClient {
   private currentStatus: ConnectionStatus = "closed";
 
   constructor(private readonly opts: ListenClientOptions) {
-    this.createSocket =
-      opts.createSocket ?? ((url) => new WebSocket(url) as WebSocketLike);
+    this.createSocket = opts.createSocket ?? ((url) => new WebSocket(url) as WebSocketLike);
     this.backoff = opts.reconnectDelaysMs ?? DEFAULT_BACKOFF;
     this.staleAfterHiddenMs = opts.staleAfterHiddenMs ?? 10_000;
     this.now = opts.now ?? Date.now;
@@ -145,9 +138,7 @@ export class ListenClient {
 
     socket.addEventListener("message", (event) => {
       if (generation !== this.generation) return;
-      const message = parseServerMessage(
-        (event as Event & { data?: unknown }).data,
-      );
+      const message = parseServerMessage((event as Event & { data?: unknown }).data);
       if (!message) return;
 
       if (message.type === "error") {

@@ -1,6 +1,10 @@
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { parseReachabilityProbe, REACHABILITY_POWERSHELL, type ReachabilityProbe } from "./reachability.ts";
+import {
+  parseReachabilityProbe,
+  REACHABILITY_POWERSHELL,
+  type ReachabilityProbe,
+} from "./reachability.ts";
 
 const execFileAsync = promisify(execFile);
 

@@ -13,8 +13,8 @@ nodeLinker: hoisted
 # this file rather than .npmrc.
 blockExoticSubdeps: false
 allowBuilds:
-  '@discordjs/opus': true
-  '@google/genai': true
+  "@discordjs/opus": true
+  "@google/genai": true
   electron: true
   electron-winstaller: true
   esbuild: true

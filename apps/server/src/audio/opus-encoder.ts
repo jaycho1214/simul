@@ -50,7 +50,9 @@ export class LaneOpusEncoder {
     let offset = 0;
 
     while (offset + this.frameBytes <= buf.length) {
-      packets.push(this.encoder.encode(buf.subarray(offset, offset + this.frameBytes), this.frameSamples));
+      packets.push(
+        this.encoder.encode(buf.subarray(offset, offset + this.frameBytes), this.frameSamples),
+      );
       offset += this.frameBytes;
     }
 

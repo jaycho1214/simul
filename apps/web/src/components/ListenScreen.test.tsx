@@ -27,9 +27,10 @@ describe("bannerText", () => {
   });
 
   test("an unknown_language error is reported in both languages", () => {
-    expect(
-      bannerText({ ...healthy, error: { code: "unknown_language", message: "x" } }),
-    ).toEqual({ text: S.unknownLanguage, tone: "error" });
+    expect(bannerText({ ...healthy, error: { code: "unknown_language", message: "x" } })).toEqual({
+      text: S.unknownLanguage,
+      tone: "error",
+    });
   });
 
   test("a reconnecting lane shows the spec's reconnecting text", () => {

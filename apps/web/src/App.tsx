@@ -30,15 +30,10 @@ function ListenContainer(props: {
     transcriptDelayMs: props.transcriptDelayMs,
   });
 
-  const [audioStatus, setAudioStatus] = useState<AudioStatus>(
-    props.controller.status,
-  );
+  const [audioStatus, setAudioStatus] = useState<AudioStatus>(props.controller.status);
   const [muted, setMuted] = useState(props.controller.isMuted);
 
-  useEffect(
-    () => props.controller.onStatusChange(setAudioStatus),
-    [props.controller],
-  );
+  useEffect(() => props.controller.onStatusChange(setAudioStatus), [props.controller]);
 
   const toggleMute = () => {
     if (props.controller.isMuted) {

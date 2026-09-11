@@ -12,15 +12,9 @@ describe("the bilingual string table", () => {
 
       const [korean, english] = parts as [string, string];
       expect(HANGUL.test(korean), `${key} Korean half: ${korean}`).toBe(true);
-      expect(
-        LATIN.test(korean),
-        `${key} Korean half leaks Latin: ${korean}`,
-      ).toBe(false);
+      expect(LATIN.test(korean), `${key} Korean half leaks Latin: ${korean}`).toBe(false);
       expect(LATIN.test(english), `${key} English half: ${english}`).toBe(true);
-      expect(
-        HANGUL.test(english),
-        `${key} English half leaks Hangul: ${english}`,
-      ).toBe(false);
+      expect(HANGUL.test(english), `${key} English half leaks Hangul: ${english}`).toBe(false);
       expect(korean.trim(), `${key} Korean half is padded`).toBe(korean);
       expect(english.trim(), `${key} English half is padded`).toBe(english);
     }
@@ -67,4 +61,4 @@ describe("bilingual", () => {
   test("returns the whole string as Korean when there is no divider", () => {
     expect(bilingual(PASSTHROUGH_TAG)).toEqual({ ko: PASSTHROUGH_TAG, en: "" });
   });
-})
+});

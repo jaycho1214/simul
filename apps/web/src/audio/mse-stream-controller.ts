@@ -223,8 +223,7 @@ export class MseStreamController implements AudioController {
     this.createMediaSource =
       opts.createMediaSource ?? (() => new MediaSource() as unknown as MediaSourceLike);
     this.createObjectUrl =
-      opts.createObjectUrl ??
-      ((source) => URL.createObjectURL(source as unknown as MediaSource));
+      opts.createObjectUrl ?? ((source) => URL.createObjectURL(source as unknown as MediaSource));
     this.revokeObjectUrl = opts.revokeObjectUrl ?? ((url) => URL.revokeObjectURL(url));
     this.fetchImpl = opts.fetchImpl ?? ((input, init) => fetch(input, init));
     this.now = opts.now ?? Date.now;

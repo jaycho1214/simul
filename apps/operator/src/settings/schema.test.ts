@@ -132,9 +132,7 @@ describe("redactSettings", () => {
   });
 
   test("reports a missing key so the UI can warn", () => {
-    expect(redactSettings({ ...DEFAULT_SETTINGS, geminiApiKey: "" }).hasGeminiApiKey).toBe(
-      false,
-    );
+    expect(redactSettings({ ...DEFAULT_SETTINGS, geminiApiKey: "" }).hasGeminiApiKey).toBe(false);
   });
 
   test("keeps the ingest token out but the port in", () => {
@@ -225,12 +223,9 @@ describe("brand settings", () => {
   // normalizeSettings reads a file a previous build wrote or an engineer
   // hand-edited an hour before doors, so it degrades rather than throwing —
   // the panel is what refuses a bad value at the point it is typed.
-  test.each(["puce", "#12345", "", "   ", 42, null])(
-    "drops an unusable accent %j",
-    (bad) => {
-      expect(normalizeSettings({ brandAccent: bad }).brandAccent).toBeNull();
-    },
-  );
+  test.each(["puce", "#12345", "", "   ", 42, null])("drops an unusable accent %j", (bad) => {
+    expect(normalizeSettings({ brandAccent: bad }).brandAccent).toBeNull();
+  });
 
   test("drops an unknown theme", () => {
     expect(normalizeSettings({ brandTheme: "sepia" }).brandTheme).toBeNull();
@@ -272,9 +267,7 @@ describe("redactSettings", () => {
   // and is it the right one" is a question an engineer asks at setup — so the
   // last four characters come across and nothing else does.
   test("sends a mask instead of the key", () => {
-    const s = redactSettings(
-      normalizeSettings({ geminiApiKey: "AIzaSyD-abcdefghijklmnop3f9a" }),
-    );
+    const s = redactSettings(normalizeSettings({ geminiApiKey: "AIzaSyD-abcdefghijklmnop3f9a" }));
     expect(s.geminiApiKeyMask).toBe("••••••••3f9a");
     expect(s.hasGeminiApiKey).toBe(true);
     expect(JSON.stringify(s)).not.toContain("AIzaSyD");

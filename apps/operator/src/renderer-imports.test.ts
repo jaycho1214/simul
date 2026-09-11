@@ -23,7 +23,9 @@ function walk(dir: string): string[] {
  */
 function importsOf(file: string): { relative: string[]; builtins: string[] } {
   const source = readFileSync(file, "utf8");
-  const specifiers = [...source.matchAll(/(^|\n)\s*(import|export)\s+([^;]*?)from\s+["']([^"']+)["']/g)]
+  const specifiers = [
+    ...source.matchAll(/(^|\n)\s*(import|export)\s+([^;]*?)from\s+["']([^"']+)["']/g),
+  ]
     .filter(([, , , clause]) => !/^type\s/.test(clause!.trim()))
     .map((m) => m[4]!);
   return {

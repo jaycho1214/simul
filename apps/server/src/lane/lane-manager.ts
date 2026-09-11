@@ -89,11 +89,7 @@ export class LaneManager {
     return this.entries.get(lang)?.lane;
   }
 
-  async acquire(
-    lang: LangCode,
-    subscriber: object,
-    kind: LaneSubscriberKind,
-  ): Promise<Lane> {
+  async acquire(lang: LangCode, subscriber: object, kind: LaneSubscriberKind): Promise<Lane> {
     if (this.closed) {
       throw new Error("LaneManager is closed");
     }

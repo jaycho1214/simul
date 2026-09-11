@@ -45,10 +45,7 @@ export class GeminiTranslateSession implements TranslateSession {
     private readonly clock: Clock,
   ) {}
 
-  on<K extends keyof TranslateSessionEvents>(
-    event: K,
-    fn: TranslateSessionEvents[K],
-  ): void {
+  on<K extends keyof TranslateSessionEvents>(event: K, fn: TranslateSessionEvents[K]): void {
     this.handlers[event].push(fn);
   }
 
@@ -65,11 +62,7 @@ export class GeminiTranslateSession implements TranslateSession {
     return !this.closed && this.live !== undefined;
   }
 
-  async connect(opts: {
-    ai: GoogleGenAI;
-    model: string;
-    resumeHandle?: string;
-  }): Promise<void> {
+  async connect(opts: { ai: GoogleGenAI; model: string; resumeHandle?: string }): Promise<void> {
     // The SDK's `live.connect()` resolves only once the server has answered
     // the setup message, and it never rejects. A socket the server closes
     // first — an invalid API key comes back as close code 1007 with the

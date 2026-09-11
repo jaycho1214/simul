@@ -42,7 +42,7 @@ Decisions already taken with the owner:
 1. **Pending work, as-is.** `git status` shows ~66 modified and ~32 new files
    (brand panel and `/brand` route, MSE audio controller, language panel,
    operator rail/toolbar, transcript segmenting, …). Run `pnpm typecheck &&
-   pnpm test` first; commit only if green, otherwise stop and report. One
+pnpm test` first; commit only if green, otherwise stop and report. One
    commit, message describing the redesign work it contains.
 2. **`chore: add prettier and format the repo`.** Nothing but formatting and
    the config below, so `git blame` past this commit is one `--ignore-rev`
@@ -78,21 +78,21 @@ Rule: the romanised identifier `tongyeok` disappears from the tree
 (`grep -ri tongyeok . --exclude-dir=node_modules` returns nothing). The Korean
 word 통역 in UI copy is a word, not the name, and stays.
 
-| Where | From | To |
-| --- | --- | --- |
-| Root `package.json` name | `tongyeok` | `simul` |
-| Workspace packages | `@tongyeok/{protocol,server,operator,web}` | `@simul/{…}` |
-| `apps/operator/package.json` `productName` | `tongyeok` | `Simul` |
-| `forge.config.ts` `packagerConfig.name` | `tongyeok` | `Simul` |
-| `executableName` | `tongyeok` | `simul` |
-| `appBundleId` | `kr.tongyeok.operator` | `io.github.jaycho1214.simul` |
-| `MakerSquirrel` | `name: "tongyeok"`, `tongyeok-setup.exe` | `name: "Simul"`, `Simul-Setup.exe` |
-| `NSMicrophoneUsageDescription` | Korean | English: "Simul needs microphone access to capture the mixer's audio." |
-| Env var | `TONGYEOK_EXTERNAL_SERVER` | `SIMUL_EXTERNAL_SERVER` |
-| electron-store name | `tongyeok-operator` | `simul-operator` |
-| Log prefixes / comments / test names | `[tongyeok]`, "tongyeok" | `[simul]`, "Simul" |
-| Web `localStorage` keys, `frames.html`, `theme.ts` | `tongyeok…` | `simul…` |
-| `scripts/*.sh`, `docs/**` (including dated plans/specs) | `@tongyeok/web`, "tongyeok" | `@simul/web`, "Simul" |
+| Where                                                   | From                                       | To                                                                     |
+| ------------------------------------------------------- | ------------------------------------------ | ---------------------------------------------------------------------- |
+| Root `package.json` name                                | `tongyeok`                                 | `simul`                                                                |
+| Workspace packages                                      | `@tongyeok/{protocol,server,operator,web}` | `@simul/{…}`                                                           |
+| `apps/operator/package.json` `productName`              | `tongyeok`                                 | `Simul`                                                                |
+| `forge.config.ts` `packagerConfig.name`                 | `tongyeok`                                 | `Simul`                                                                |
+| `executableName`                                        | `tongyeok`                                 | `simul`                                                                |
+| `appBundleId`                                           | `kr.tongyeok.operator`                     | `io.github.jaycho1214.simul`                                           |
+| `MakerSquirrel`                                         | `name: "tongyeok"`, `tongyeok-setup.exe`   | `name: "Simul"`, `Simul-Setup.exe`                                     |
+| `NSMicrophoneUsageDescription`                          | Korean                                     | English: "Simul needs microphone access to capture the mixer's audio." |
+| Env var                                                 | `TONGYEOK_EXTERNAL_SERVER`                 | `SIMUL_EXTERNAL_SERVER`                                                |
+| electron-store name                                     | `tongyeok-operator`                        | `simul-operator`                                                       |
+| Log prefixes / comments / test names                    | `[tongyeok]`, "tongyeok"                   | `[simul]`, "Simul"                                                     |
+| Web `localStorage` keys, `frames.html`, `theme.ts`      | `tongyeok…`                                | `simul…`                                                               |
+| `scripts/*.sh`, `docs/**` (including dated plans/specs) | `@tongyeok/web`, "tongyeok"                | `@simul/web`, "Simul"                                                  |
 
 After the package renames, `pnpm install` refreshes `pnpm-lock.yaml`
 (workspace links are keyed by name). `pnpm typecheck && pnpm test` must stay
@@ -135,13 +135,13 @@ follows one setting; there are no bilingual exceptions.
   means "follow the OS": the renderer resolves it as `ko` when
   `navigator.language` starts with `ko`, else `en`; the main process uses
   `app.getLocale()` the same way. Shared helper `resolveUiLanguage(setting,
-  osLocale)` in `settings/ui-language.ts`, unit-tested.
+osLocale)` in `settings/ui-language.ts`, unit-tested.
 - `normalizeSettings` accepts only `"ko"`/`"en"`, anything else → `null`.
   `patchSchema` and `PublicSettings` carry the field.
 - Switch: a **한국어 | English** `ToggleGroup` in the rail footer, below the
   Start/Stop buttons. Selecting a value persists it (`settings.set`) and calls
   `i18n.changeLanguage` immediately; no restart, no reload. The value in the
-  toggle is the *resolved* language, so a fresh install shows the language it
+  toggle is the _resolved_ language, so a fresh install shows the language it
   is actually using, not an empty control.
 - On renderer start, `app.tsx` resolves the language from `settings.get()`
   before the first render so the window never flashes Korean on an English
@@ -196,15 +196,15 @@ setup).
 
 - `apps/operator/src/updates/update-state.ts` — pure: an `UpdateState`
   (`{ status: "disabled" | "idle" | "checking" | "downloading" | "ready" |
-  "error"; version: string | null; message: string | null }`) and a reducer
+"error"; version: string | null; message: string | null }`) and a reducer
   from `autoUpdater` event names (+ payload) to the next state. Unit-tested
   with the full event sequence Electron documents, including
   `update-not-available` after `checking-for-update` and `error` from any
   state.
 - `apps/operator/src/updates/auto-update.ts` — main process: guards, calls
   `updateElectronApp({ updateSource: { type: ElectronPublicUpdateService,
-  repo: "jaycho1214/simul" }, updateInterval: "1 hour", notifyUser: false,
-  logger })`, subscribes to `autoUpdater` and feeds the reducer, exposes
+repo: "jaycho1214/simul" }, updateInterval: "1 hour", notifyUser: false,
+logger })`, subscribes to `autoUpdater` and feeds the reducer, exposes
   `state()`, `check()`, `install()`.
 - `apps/operator/src/ipc/updates/index.ts` — oRPC procedures `state`,
   `check`, `install`, added to `ipc/router.ts`. `install` owns the
@@ -298,14 +298,14 @@ then is section 4 done.
 
 ## Order of work and gates
 
-| Step | Gate to pass before the next |
-| --- | --- |
-| 0 | `pnpm format:check && pnpm typecheck && pnpm test` green; `main` fast-forwarded |
-| 1 | `grep -ri tongyeok` empty; typecheck/tests green; `package` produces a runnable app |
-| 2 | i18n parity test green; switch works live in `pnpm start` in both directions |
-| 3 | reducer tests green; toast renders in dev with a simulated `ready` state |
-| 4 | CI green on `main`; `v0.1.0` release exists with `RELEASES`, `.nupkg`, `Simul-Setup.exe` |
-| — | Owner: Windows install + update round-trip (`v0.1.0` → `v0.1.1`) |
+| Step | Gate to pass before the next                                                             |
+| ---- | ---------------------------------------------------------------------------------------- |
+| 0    | `pnpm format:check && pnpm typecheck && pnpm test` green; `main` fast-forwarded          |
+| 1    | `grep -ri tongyeok` empty; typecheck/tests green; `package` produces a runnable app      |
+| 2    | i18n parity test green; switch works live in `pnpm start` in both directions             |
+| 3    | reducer tests green; toast renders in dev with a simulated `ready` state                 |
+| 4    | CI green on `main`; `v0.1.0` release exists with `RELEASES`, `.nupkg`, `Simul-Setup.exe` |
+| —    | Owner: Windows install + update round-trip (`v0.1.0` → `v0.1.1`)                         |
 
 ## Open items for the owner
 

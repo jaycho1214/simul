@@ -47,7 +47,11 @@ function ToolbarLevel() {
               "linear-gradient(90deg, var(--live) 0 80%, var(--warn) 80% 90%, var(--error) 90% 100%)",
           }}
         />
-        <div ref={coverRef} className="absolute inset-y-0 right-0 bg-inset" style={{ width: "100%" }} />
+        <div
+          ref={coverRef}
+          className="absolute inset-y-0 right-0 bg-inset"
+          style={{ width: "100%" }}
+        />
       </div>
     </div>
   );

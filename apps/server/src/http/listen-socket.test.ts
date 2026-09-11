@@ -3,7 +3,10 @@ import assert from "node:assert/strict";
 import type { ServerMessage } from "@tongyeok/protocol";
 import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
-import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
+import {
+  createFakeTranslateSessionFactory,
+  FakeTranslateSession,
+} from "../gemini/fake-translate-session.ts";
 import { ROTATION_TIMEOUT_MS } from "../gemini/session-rotator.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
 import { LaneManager } from "../lane/lane-manager.ts";
@@ -13,10 +16,18 @@ class FakeWs implements ListenWebSocket {
   sent: ServerMessage[] = [];
   closedWith: number | undefined;
   private handlers = new Map<string, () => void>();
-  send(data: string): void { this.sent.push(JSON.parse(data)); }
-  close(code?: number): void { this.closedWith = code; }
-  on(event: "close", fn: () => void): void { this.handlers.set(event, fn); }
-  emit(event: string): void { this.handlers.get(event)?.(); }
+  send(data: string): void {
+    this.sent.push(JSON.parse(data));
+  }
+  close(code?: number): void {
+    this.closedWith = code;
+  }
+  on(event: "close", fn: () => void): void {
+    this.handlers.set(event, fn);
+  }
+  emit(event: string): void {
+    this.handlers.get(event)?.();
+  }
 }
 
 /**
@@ -30,7 +41,10 @@ function deferredSessionFactory(): {
   resolve: (session: TranslateSession) => void;
 } {
   let resolve!: (session: TranslateSession) => void;
-  const factory: TranslateSessionFactory = () => new Promise((res) => { resolve = res; });
+  const factory: TranslateSessionFactory = () =>
+    new Promise((res) => {
+      resolve = res;
+    });
   return { factory, resolve: (session) => resolve(session) };
 }
 
@@ -63,7 +77,10 @@ test("greets with hello, history and lane state", async () => {
   const ws = new FakeWs();
   await socket.handleConnection(ws, "en");
 
-  assert.deepEqual(ws.sent.map((m) => m.type), ["hello", "history", "lane"]);
+  assert.deepEqual(
+    ws.sent.map((m) => m.type),
+    ["hello", "history", "lane"],
+  );
 });
 
 test("pushes transcripts as they are published", async () => {
@@ -198,21 +215,18 @@ test("pushes a lane message every time the lane's state changes, not just at con
   // reading 연결 중 through a working talk, and one who joined while it was
   // live keeps reading 실시간 through a dead one.
   hub.push(Buffer.alloc(640));
-  assert.deepEqual(
-    laneMessages(),
-    [{ type: "lane", state: "starting" }, { type: "lane", state: "live" }],
-  );
+  assert.deepEqual(laneMessages(), [
+    { type: "lane", state: "starting" },
+    { type: "lane", state: "live" },
+  ]);
 
   created[0]!.simulateGoAway();
   await flush();
-  assert.deepEqual(
-    laneMessages(),
-    [
-      { type: "lane", state: "starting" },
-      { type: "lane", state: "live" },
-      { type: "lane", state: "reconnecting" },
-    ],
-  );
+  assert.deepEqual(laneMessages(), [
+    { type: "lane", state: "starting" },
+    { type: "lane", state: "live" },
+    { type: "lane", state: "reconnecting" },
+  ]);
 });
 
 test("closing stops the lane-state messages as well as the transcripts", async () => {

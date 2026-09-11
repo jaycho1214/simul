@@ -60,12 +60,7 @@ function required(env: Env, key: string): string {
  * bad one must fail here, once, at startup, rather than at the moment an
  * attendee first taps a language during a talk.
  */
-function num(
-  env: Env,
-  key: string,
-  fallback: number,
-  range: { min: number; max: number },
-): number {
+function num(env: Env, key: string, fallback: number, range: { min: number; max: number }): number {
   const raw = env[key];
   if (raw === undefined || raw.trim() === "") return fallback;
   const n = Number(raw);
@@ -159,9 +154,7 @@ const PRIME_BLOCKS = 1.5;
  */
 function defaultStreamPrimeMs(opusBitrate: number): number {
   const bytesPerSecond = opusBitrate / 8;
-  return Math.ceil(
-    (CHROME_MULTIBUFFER_BLOCK_BYTES / bytesPerSecond) * PRIME_BLOCKS * 1000,
-  );
+  return Math.ceil((CHROME_MULTIBUFFER_BLOCK_BYTES / bytesPerSecond) * PRIME_BLOCKS * 1000);
 }
 
 /** An hour. Past this a "grace" period is really a lane that never closes. */
@@ -215,9 +208,7 @@ function brand(env: Env): Brand {
   if (logoPath !== "") {
     const ext = logoPath.slice(logoPath.lastIndexOf(".")).toLowerCase();
     if (!LOGO_EXTENSIONS.includes(ext)) {
-      throw new Error(
-        `BRAND_LOGO must be one of ${LOGO_EXTENSIONS.join(", ")}, got ${logoPath}`,
-      );
+      throw new Error(`BRAND_LOGO must be one of ${LOGO_EXTENSIONS.join(", ")}, got ${logoPath}`);
     }
   }
 
@@ -252,13 +243,14 @@ export function loadConfig(env: Env = process.env): Config {
     transcriptHistoryLines: num(env, "TRANSCRIPT_HISTORY_LINES", 200, { min: 1, max: 10_000 }),
     transcriptDelayMs: num(env, "TRANSCRIPT_DELAY_MS", 0, { min: 0, max: 60_000 }),
     opusBitrate,
-    streamPrimeMs: num(env, "STREAM_PRIME_MS", defaultStreamPrimeMs(opusBitrate), { min: 0, max: 60_000 }),
+    streamPrimeMs: num(env, "STREAM_PRIME_MS", defaultStreamPrimeMs(opusBitrate), {
+      min: 0,
+      max: 60_000,
+    }),
     // Empty is a deliberate opt-out (dev running Vite standalone in front of
     // this server), not "not configured" — unlike num()'s treatment of an
     // env var set to nothing, so `??` rather than `||` here.
-    webRoot:
-      env.WEB_ROOT ??
-      fileURLToPath(new URL("../../web/dist", import.meta.url)),
+    webRoot: env.WEB_ROOT ?? fileURLToPath(new URL("../../web/dist", import.meta.url)),
     brand: brand(env),
   });
 }

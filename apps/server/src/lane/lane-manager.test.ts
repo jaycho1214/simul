@@ -2,9 +2,17 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { FakeClock } from "../clock.ts";
 import { AudioHub } from "../audio-hub.ts";
-import { createFakeTranslateSessionFactory, FakeTranslateSession } from "../gemini/fake-translate-session.ts";
+import {
+  createFakeTranslateSessionFactory,
+  FakeTranslateSession,
+} from "../gemini/fake-translate-session.ts";
 import type { TranslateSession, TranslateSessionFactory } from "../gemini/translate-session.ts";
-import { LaneManager, LaneCapError, PASSTHROUGH_LANG, UnknownLanguageError } from "./lane-manager.ts";
+import {
+  LaneManager,
+  LaneCapError,
+  PASSTHROUGH_LANG,
+  UnknownLanguageError,
+} from "./lane-manager.ts";
 
 /**
  * A session factory the test controls by hand: the returned promise only
@@ -18,11 +26,20 @@ function deferredSessionFactory(): {
   resolve: (session: TranslateSession) => void;
 } {
   let resolve!: (session: TranslateSession) => void;
-  const factory: TranslateSessionFactory = () => new Promise((res) => { resolve = res; });
+  const factory: TranslateSessionFactory = () =>
+    new Promise((res) => {
+      resolve = res;
+    });
   return { factory, resolve: (session) => resolve(session) };
 }
 
-function makeManager(overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number; passthroughLane: boolean }> = {}) {
+function makeManager(
+  overrides: Partial<{
+    maxConcurrentLanes: number;
+    laneGraceMs: number;
+    passthroughLane: boolean;
+  }> = {},
+) {
   return makeManagerWithFactory(createFakeTranslateSessionFactory(), overrides);
 }
 
@@ -33,7 +50,11 @@ function makeManager(overrides: Partial<{ maxConcurrentLanes: number; laneGraceM
  */
 function makeManagerWithFactory(
   sessionFactory: TranslateSessionFactory,
-  overrides: Partial<{ maxConcurrentLanes: number; laneGraceMs: number; passthroughLane: boolean }> = {},
+  overrides: Partial<{
+    maxConcurrentLanes: number;
+    laneGraceMs: number;
+    passthroughLane: boolean;
+  }> = {},
 ) {
   const clock = new FakeClock();
   const hub = new AudioHub();
@@ -68,7 +89,10 @@ test("a second subscriber reuses the same lane", async () => {
 
 test("concurrent acquires of the same language open only one lane", async () => {
   const { hub, manager } = makeManager();
-  const [a, b] = await Promise.all([manager.acquire("en", {}, "transcript"), manager.acquire("en", {}, "transcript")]);
+  const [a, b] = await Promise.all([
+    manager.acquire("en", {}, "transcript"),
+    manager.acquire("en", {}, "transcript"),
+  ]);
   assert.equal(a, b);
   assert.equal(hub.laneCount, 1);
 });
@@ -110,7 +134,10 @@ test("the passthrough lane costs no session, but only exists when turned on", as
   assert.equal(lane.constructor.name, "SourceLane");
 
   const off = makeManager();
-  await assert.rejects(() => off.manager.acquire(PASSTHROUGH_LANG, {}, "transcript"), UnknownLanguageError);
+  await assert.rejects(
+    () => off.manager.acquire(PASSTHROUGH_LANG, {}, "transcript"),
+    UnknownLanguageError,
+  );
 });
 
 test("rejects a language beyond the cap", async () => {
@@ -159,7 +186,11 @@ test("a concurrent burst across different languages cannot exceed the cap", asyn
   assert.equal(fulfilled.length, 2);
   assert.equal(rejected.length, 1);
   assert.ok(rejected[0]!.status === "rejected" && rejected[0]!.reason instanceof LaneCapError);
-  assert.equal(hub.laneCount, 2, "the cap must hold even when opens race, not just when sequential");
+  assert.equal(
+    hub.laneCount,
+    2,
+    "the cap must hold even when opens race, not just when sequential",
+  );
 });
 
 test("closeAll closes every open lane and clears the hub", async () => {
@@ -225,7 +256,11 @@ test("closeAll while an open is in flight closes the lane and never registers it
     0,
     "a lane whose open outlived closeAll() must never be registered with the hub",
   );
-  assert.equal(lane.state, "error", "the session created after closeAll() must be closed, not left live");
+  assert.equal(
+    lane.state,
+    "error",
+    "the session created after closeAll() must be closed, not left live",
+  );
 });
 
 test("release() before the open resolves does not create a phantom subscriber", async () => {
@@ -255,7 +290,11 @@ test("release() before the open resolves does not create a phantom subscriber", 
     0,
     "the lane must be torn down once its grace period passes, not left open by a phantom subscriber",
   );
-  assert.equal(lane.state, "error", "the actual Gemini session must be closed, not just deregistered");
+  assert.equal(
+    lane.state,
+    "error",
+    "the actual Gemini session must be closed, not just deregistered",
+  );
 });
 
 // The following two tests came out of a second review round on the fix
@@ -292,7 +331,11 @@ test("a joiner who stays after the owner releases mid-open is not blocked by a z
   // original grace period proves that: the joiner is still subscribed, so
   // the lane must still be open.
   clock.advance(60000);
-  assert.equal(hub.laneCount, 1, "the joiner is still listening; a stale timer must not have torn the lane down");
+  assert.equal(
+    hub.laneCount,
+    1,
+    "the joiner is still listening; a stale timer must not have torn the lane down",
+  );
 
   // Now the joiner leaves for real — the only real release this lane has
   // ever had with nobody left subscribed.
@@ -304,7 +347,11 @@ test("a joiner who stays after the owner releases mid-open is not blocked by a z
     0,
     "the lane must actually close once its only remaining subscriber releases, not stay open forever behind a dead timer handle",
   );
-  assert.equal(joinerLane.state, "error", "the Gemini session itself must be closed, not just deregistered");
+  assert.equal(
+    joinerLane.state,
+    "error",
+    "the Gemini session itself must be closed, not just deregistered",
+  );
 });
 
 test("a joiner's own release starts a fresh grace period, not a stale one inherited from the owner", async () => {
@@ -354,7 +401,11 @@ test("acquire() after closeAll() rejects without opening a new session", async (
   manager.closeAll();
 
   await assert.rejects(() => manager.acquire("en", {}, "transcript"));
-  assert.equal(factoryCalls, 0, "a closed manager must not open a new Gemini session at all, not open-then-close it");
+  assert.equal(
+    factoryCalls,
+    0,
+    "a closed manager must not open a new Gemini session at all, not open-then-close it",
+  );
   assert.equal(hub.laneCount, 0);
 });
 

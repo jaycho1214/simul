@@ -24,7 +24,9 @@ function rawRequest(port: number, requestLine: string, headers: string[] = []): 
     });
     let received = "";
     socket.setTimeout(2000, () => socket.destroy());
-    socket.on("data", (chunk) => { received += chunk; });
+    socket.on("data", (chunk) => {
+      received += chunk;
+    });
     socket.on("error", reject);
     socket.on("close", () => resolve(received));
   });
@@ -175,7 +177,9 @@ test("a request target Node accepts but WHATWG URL rejects is answered, not fata
   // leave this whole test file hanging on a still-listening server.
   t.after(() => server.close());
 
-  const response = await rawRequest(port, `GET ${MALFORMED_TARGET} HTTP/1.1`, ["Connection: close"]);
+  const response = await rawRequest(port, `GET ${MALFORMED_TARGET} HTTP/1.1`, [
+    "Connection: close",
+  ]);
   assert.match(response, /^HTTP\/1\.1 400 /, "the malformed request got a real HTTP answer");
 
   // The point of the assertion above is only worth anything if the server is
@@ -282,7 +286,6 @@ test("without a webRoot, an unknown path still 404s exactly as before", async ()
 
   await server.close();
 });
-
 
 test("/config publishes the brand alongside the language list", async (t) => {
   const server = createServer({

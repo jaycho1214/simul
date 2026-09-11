@@ -26,10 +26,7 @@ export class FakeTranslateSession implements TranslateSession {
 
   constructor(readonly targetLanguage: LangCode) {}
 
-  on<K extends keyof TranslateSessionEvents>(
-    event: K,
-    fn: TranslateSessionEvents[K],
-  ): void {
+  on<K extends keyof TranslateSessionEvents>(event: K, fn: TranslateSessionEvents[K]): void {
     this.handlers[event].push(fn);
   }
 

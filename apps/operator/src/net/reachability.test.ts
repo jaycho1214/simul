@@ -30,9 +30,7 @@ describe("parseReachabilityProbe", () => {
         rules: { DisplayName: "one", Profile: "Any" },
       }),
     );
-    expect(probe.connections).toEqual([
-      { interfaceAlias: "Ethernet", networkCategory: "Public" },
-    ]);
+    expect(probe.connections).toEqual([{ interfaceAlias: "Ethernet", networkCategory: "Public" }]);
     expect(probe.rules).toEqual([{ displayName: "one", profile: "Any" }]);
   });
 
@@ -87,7 +85,10 @@ describe("evaluateReachability", () => {
       }),
     );
     const [profile] = evaluateReachability({
-      platform: "win32", port, probe, externalListenerSeen: false,
+      platform: "win32",
+      port,
+      probe,
+      externalListenerSeen: false,
     });
     expect(profile).toMatchObject({
       id: "network_profile",
@@ -106,7 +107,10 @@ describe("evaluateReachability", () => {
       }),
     );
     const checks = evaluateReachability({
-      platform: "win32", port, probe, externalListenerSeen: false,
+      platform: "win32",
+      port,
+      probe,
+      externalListenerSeen: false,
     });
     expect(checks[1]).toMatchObject({ id: "firewall_rule", status: "warn" });
   });
@@ -120,7 +124,10 @@ describe("evaluateReachability", () => {
       }),
     );
     const checks = evaluateReachability({
-      platform: "win32", port, probe, externalListenerSeen: false,
+      platform: "win32",
+      port,
+      probe,
+      externalListenerSeen: false,
     });
     expect(checks[1]).toMatchObject({ id: "firewall_rule", status: "pass" });
   });
@@ -134,7 +141,10 @@ describe("evaluateReachability", () => {
       }),
     );
     const checks = evaluateReachability({
-      platform: "win32", port, probe, externalListenerSeen: false,
+      platform: "win32",
+      port,
+      probe,
+      externalListenerSeen: false,
     });
     expect(checks[1]).toMatchObject({
       id: "firewall_rule",
@@ -146,24 +156,45 @@ describe("evaluateReachability", () => {
 
   test("an undefined probe reports unknown rather than pass", () => {
     const checks = evaluateReachability({
-      platform: "win32", port, probe: undefined, externalListenerSeen: false,
+      platform: "win32",
+      port,
+      probe: undefined,
+      externalListenerSeen: false,
     });
     expect(checks.slice(0, 2).map((c) => c.status)).toEqual(["unknown", "unknown"]);
   });
 
   test("on macOS the Windows checks are reported as not applicable, never as pass", () => {
     const checks = evaluateReachability({
-      platform: "darwin", port, probe: undefined, externalListenerSeen: false,
+      platform: "darwin",
+      port,
+      probe: undefined,
+      externalListenerSeen: false,
     });
     expect(checks.slice(0, 2)).toEqual([
-      { id: "network_profile", status: "unknown", kind: "advisory", messageKey: "reach.macos", params: {} },
-      { id: "firewall_rule", status: "unknown", kind: "advisory", messageKey: "reach.macos", params: {} },
+      {
+        id: "network_profile",
+        status: "unknown",
+        kind: "advisory",
+        messageKey: "reach.macos",
+        params: {},
+      },
+      {
+        id: "firewall_rule",
+        status: "unknown",
+        kind: "advisory",
+        messageKey: "reach.macos",
+        params: {},
+      },
     ]);
   });
 
   test("the external-hit check is the only one that ever proves anything", () => {
     const checks = evaluateReachability({
-      platform: "darwin", port, probe: undefined, externalListenerSeen: true,
+      platform: "darwin",
+      port,
+      probe: undefined,
+      externalListenerSeen: true,
     });
     expect(checks[2]).toEqual({
       id: "external_hit",

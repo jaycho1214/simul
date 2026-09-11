@@ -2,11 +2,7 @@ import type React from "react";
 import { useTranslation } from "react-i18next";
 import DragWindowRegion from "@/components/drag-window-region";
 
-export default function BaseLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function BaseLayout({ children }: { children: React.ReactNode }) {
   const { t } = useTranslation();
 
   return (
