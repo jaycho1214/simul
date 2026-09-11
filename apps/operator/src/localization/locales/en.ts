@@ -201,4 +201,9 @@ export const EN_STRINGS = {
     title: "Server log",
     empty: "No log lines",
   },
+
+  footer: {
+    language: "Display language",
+    version: "Version {{version}}",
+  },
 } as const satisfies StringTable<typeof KO_STRINGS>;

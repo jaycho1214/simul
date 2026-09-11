@@ -7,6 +7,8 @@ import { StatusDot, type Tone } from "@/components/ui/status-dot";
 import { cn } from "@/utils/tailwind";
 import { captureController, useCapture } from "../hooks/use-capture.ts";
 import { ipc } from "../ipc/manager.ts";
+import { LanguageToggle } from "./language-toggle.tsx";
+import { VersionBadge } from "./version-badge.tsx";
 
 export type SectionId = "live" | "device" | "join" | "brand" | "server";
 
@@ -140,6 +142,10 @@ export function OperatorRail({ active, onSelect, lanes }: OperatorRailProps) {
           >
             {t("control.stop")}
           </Button>
+          <div className="flex items-center justify-between gap-2 pt-1">
+            <LanguageToggle />
+            <VersionBadge />
+          </div>
         </div>
       </div>
     </nav>

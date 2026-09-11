@@ -216,6 +216,12 @@ export const KO_STRINGS = {
     title: "서버 로그",
     empty: "로그가 없습니다",
   },
+
+  // The rail's footer: app-level things, never event controls.
+  footer: {
+    language: "표시 언어",
+    version: "버전 {{version}}",
+  },
 } as const;
 
 /**
