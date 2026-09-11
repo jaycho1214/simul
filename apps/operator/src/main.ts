@@ -7,7 +7,8 @@ import { ipcContext } from "@/ipc/context";
 import { ServerSupervisor, electronForkFn } from "@/server-host/server-supervisor";
 import { IPC_CHANNELS, inDevelopment } from "./constants";
 import { serverEnv } from "./settings/schema.ts";
-import { getSettings } from "./settings/store.ts";
+import { mainStrings } from "./localization/main-strings.ts";
+import { getSettings, uiLanguageForMain } from "./settings/store.ts";
 import { getBasePath, resolveWebRoot } from "./utils/path";
 
 // Squirrel launches this same executable with --squirrel-install,
@@ -88,17 +89,16 @@ function createWindow() {
     if (closeConfirmed || supervisor.status.state !== "listening") return;
 
     event.preventDefault();
+    const s = mainStrings(uiLanguageForMain());
     const quit =
       dialog.showMessageBoxSync(mainWindow, {
         type: "warning",
-        buttons: ["취소 / Cancel", "종료 / Quit"],
+        buttons: [s.cancel, s.quit],
         defaultId: 0,
         cancelId: 0,
-        title: "통역 종료 / Stop translation",
-        message: "지금 종료하면 통역이 중단됩니다.",
-        detail:
-          "듣고 있는 사람들의 소리가 모두 끊깁니다.\n\n" +
-          "Quitting now stops translation. Everyone currently listening loses audio.",
+        title: s.quitTitle,
+        message: s.quitMessage,
+        detail: s.quitDetail,
       }) === 1;
 
     if (quit) {

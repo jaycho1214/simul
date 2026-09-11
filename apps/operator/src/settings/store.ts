@@ -1,5 +1,7 @@
+import { app } from "electron";
 import Store from "electron-store";
 import { normalizeSettings, type OperatorSettings } from "./schema.ts";
+import { resolveUiLanguage, type UiLanguage } from "./ui-language.ts";
 
 /**
  * One flat record, normalised on every read. electron-store's own schema
@@ -20,4 +22,13 @@ export function updateSettings(patch: Partial<OperatorSettings>): OperatorSettin
   const next = normalizeSettings({ ...getSettings(), ...patch });
   store.set("settings", next);
   return next;
+}
+
+/**
+ * The language for anything the main process shows itself. Read at the moment
+ * of use, never cached: the rail's toggle writes the setting and the very next
+ * dialog must already follow it.
+ */
+export function uiLanguageForMain(): UiLanguage {
+  return resolveUiLanguage(getSettings().uiLanguage, app.getLocale());
 }

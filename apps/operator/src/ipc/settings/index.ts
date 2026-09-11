@@ -11,7 +11,8 @@ import {
   storedLogoName,
 } from "../../settings/brand.ts";
 import { redactSettings, type PublicSettings } from "../../settings/schema.ts";
-import { getSettings, updateSettings } from "../../settings/store.ts";
+import { mainStrings } from "../../localization/main-strings.ts";
+import { getSettings, uiLanguageForMain, updateSettings } from "../../settings/store.ts";
 import { UI_LANGUAGES } from "../../settings/ui-language.ts";
 import { supervisor } from "../../main.ts";
 
@@ -83,12 +84,13 @@ function brandDir(): string {
  * the event.
  */
 async function storeLogo(originalName: string, bytes: Buffer): Promise<PublicSettings> {
+  const s = mainStrings(uiLanguageForMain());
   const name = storedLogoName(originalName);
   if (!name) {
-    throw new Error(`지원하지 않는 이미지 형식입니다: ${originalName}`);
+    throw new Error(s.logoUnsupported(originalName));
   }
   if (bytes.byteLength > MAX_LOGO_BYTES) {
-    throw new Error(`로고 파일이 너무 큽니다 (최대 ${Math.floor(MAX_LOGO_BYTES / 1_000_000)}MB)`);
+    throw new Error(s.logoTooLarge(Math.floor(MAX_LOGO_BYTES / 1_000_000)));
   }
 
   const dir = brandDir();
@@ -111,7 +113,7 @@ async function storeLogo(originalName: string, bytes: Buffer): Promise<PublicSet
  */
 export const pickBrandLogo = os.handler(async (): Promise<PublicSettings> => {
   const result = await dialog.showOpenDialog({
-    title: "행사 로고 선택",
+    title: mainStrings(uiLanguageForMain()).logoPickTitle,
     properties: ["openFile"],
     filters: [{ name: "Image", extensions: LOGO_EXTENSIONS.map((ext) => ext.replace(".", "")) }],
   });
