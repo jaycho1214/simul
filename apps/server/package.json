@@ -18,9 +18,9 @@
     "@google/genai": "^2.21.0",
     "@simul/protocol": "workspace:*",
     "opusscript": "^0.1.1",
-    "ws": "^8.18.0"
+    "ws": "^8.21.3"
   },
   "devDependencies": {
-    "@types/ws": "^8.5.13"
+    "@types/ws": "^8.18.1"
   }
 }

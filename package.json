@@ -18,8 +18,8 @@
     "release": "bash scripts/release.sh"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^22.20.2",
     "prettier": "^3.9.6",
-    "typescript": "^5.7.0"
+    "typescript": "^5.9.3"
   }
 }
