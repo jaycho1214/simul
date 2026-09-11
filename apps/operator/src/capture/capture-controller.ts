@@ -1,6 +1,7 @@
 import workletUrl from "./pcm-tap.worklet.js?url";
 import { buildDeviceReport, clampChannelIndex, type DeviceReport } from "./device-report.ts";
 import { FrameAccumulator } from "./frame-accumulator.ts";
+import { clampGainDb, dbToLinear } from "./gain.ts";
 import { IngestSocket, ingestUrl } from "./ingest-socket.ts";
 import { floatTo16BitPcm } from "./pcm.ts";
 import { measureLevel, type LevelReading } from "./level.ts";
@@ -31,6 +32,8 @@ export interface StartOptions {
   requestedChannelCount: number;
   /** Splitter output index the engineer picked. */
   channelIndex: number;
+  /** Trim applied to that channel, in dB; see capture/gain.ts. */
+  inputGainDb: number;
   port: number;
   ingestToken: string;
 }
@@ -79,6 +82,8 @@ export class CaptureController {
   private context: AudioContext | undefined;
   private stream: MediaStream | undefined;
   private worklet: AudioWorkletNode | undefined;
+  private gain: GainNode | undefined;
+  private gainDb = 0;
   private analyser: AnalyserNode | undefined;
   private analyserBuffer = new Float32Array(ANALYSER_FFT_SIZE);
   private ingest: IngestSocket | undefined;
@@ -108,6 +113,17 @@ export class CaptureController {
     }
   }
 
+  /**
+   * Re-trims a running capture without reopening the device. The value is
+   * also remembered for the next start(), so a slider moved while capture is
+   * stopped is not lost. A GainNode's `value` takes effect at the next
+   * render quantum, so there is nothing to await.
+   */
+  setGainDb(db: number): void {
+    this.gainDb = clampGainDb(db);
+    if (this.gain) this.gain.gain.value = dbToLinear(this.gainDb);
+  }
+
   /** Latest RMS/peak/clipping. Called from a requestAnimationFrame loop. */
   readLevel(): LevelReading {
     if (!this.analyser) return measureLevel(new Float32Array(0));
@@ -118,6 +134,7 @@ export class CaptureController {
   async start(opts: StartOptions): Promise<void> {
     await this.stop();
     const generation = ++this.generation;
+    this.gainDb = clampGainDb(opts.inputGainDb);
     this.emit({ error: undefined });
 
     let stream: MediaStream;
@@ -206,6 +223,17 @@ export class CaptureController {
       const splitter = context.createChannelSplitter(achieved);
       source.connect(splitter);
 
+      // The engineer's trim sits right after channel selection, so both the
+      // meter and the ingest socket below see the same, trimmed signal: a
+      // boost that clips shows red here before it reaches the model.
+      const gain = context.createGain();
+      gain.channelCount = 1;
+      gain.channelCountMode = "explicit";
+      gain.channelInterpretation = "discrete";
+      gain.gain.value = dbToLinear(this.gainDb);
+      this.gain = gain;
+      splitter.connect(gain, channelIndex, 0);
+
       const worklet = new AudioWorkletNode(context, "pcm-tap", {
         numberOfInputs: 1,
         numberOfOutputs: 1,
@@ -215,14 +243,14 @@ export class CaptureController {
         channelInterpretation: "discrete",
       });
       this.worklet = worklet;
-      splitter.connect(worklet, channelIndex, 0);
+      gain.connect(worklet);
 
       const analyser = context.createAnalyser();
       analyser.fftSize = ANALYSER_FFT_SIZE;
       analyser.smoothingTimeConstant = 0;
       this.analyser = analyser;
       this.analyserBuffer = new Float32Array(analyser.fftSize);
-      splitter.connect(analyser, channelIndex, 0);
+      gain.connect(analyser);
 
       // Chromium only renders a worklet that reaches the destination. gain = 0
       // keeps the graph running without sending anything to the speakers, which
@@ -303,6 +331,9 @@ export class CaptureController {
 
     this.analyser?.disconnect();
     this.analyser = undefined;
+
+    this.gain?.disconnect();
+    this.gain = undefined;
 
     this.ingest?.stop();
     this.ingest = undefined;

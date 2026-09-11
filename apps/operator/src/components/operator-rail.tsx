@@ -161,6 +161,7 @@ export function OperatorRail({ active, onSelect, lanes }: OperatorRailProps) {
       deviceId: current.deviceId,
       requestedChannelCount: current.requestedChannelCount,
       channelIndex: current.channelIndex,
+      inputGainDb: current.inputGainDb,
       port: current.port,
       ingestToken: token,
     });

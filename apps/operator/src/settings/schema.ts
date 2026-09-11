@@ -1,4 +1,5 @@
 import { randomBytes } from "node:crypto";
+import { clampGainDb } from "../capture/gain.ts";
 import { BRAND_THEMES, maskSecret, normalizeAccent, type BrandTheme } from "./brand.ts";
 import { isUiLanguage, type UiLanguage } from "./ui-language.ts";
 
@@ -46,6 +47,12 @@ export interface OperatorSettings {
   deviceLabel: string | null;
   channelIndex: number;
   requestedChannelCount: number;
+  /**
+   * Applied to the picked channel before the level meter and the ingest
+   * socket, in decibels; 0 is unity. A trim for a send that arrives too quiet
+   * or too hot to fix at the mixer during a service — see capture/gain.ts.
+   */
+  inputGainDb: number;
   /** Which LAN address the engineer pinned, or null to auto-pick. */
   lanAddress: string | null;
   /**
@@ -105,6 +112,7 @@ export const DEFAULT_SETTINGS: OperatorSettings = Object.freeze({
   deviceLabel: null,
   channelIndex: 0,
   requestedChannelCount: 2,
+  inputGainDb: 0,
   lanAddress: null,
   uiLanguage: null,
 
@@ -183,6 +191,7 @@ export function normalizeSettings(raw: unknown): OperatorSettings {
       1,
       MAX_CHANNELS,
     ),
+    inputGainDb: clampGainDb(source.inputGainDb),
     lanAddress: nullableStr(source.lanAddress),
     uiLanguage: isUiLanguage(source.uiLanguage) ? source.uiLanguage : null,
 

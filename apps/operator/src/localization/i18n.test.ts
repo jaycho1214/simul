@@ -67,6 +67,8 @@ describe("Korean string table", () => {
       "warn.dsp_enabled", // DSP
       "warn.dsp_unreported", // DSP
       "warn.sample_rate_mismatch", // Hz
+      "level.gainHint", // dBFS
+      "level.gainReset", // dB — a unit, not copy
       "join.scan", // QR
       "join.noAddress", // LAN
       "reach.profile_pass", // (Private)

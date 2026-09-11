@@ -71,6 +71,15 @@ describe("normalizeSettings", () => {
     expect(normalizeSettings({ channelIndex: 999 }).channelIndex).toBe(31);
   });
 
+  test("starts at unity gain and clamps a stored gain into the slider's range", () => {
+    expect(DEFAULT_SETTINGS.inputGainDb).toBe(0);
+    expect(normalizeSettings({ inputGainDb: 6 }).inputGainDb).toBe(6);
+    expect(normalizeSettings({ inputGainDb: -9.5 }).inputGainDb).toBe(-9.5);
+    expect(normalizeSettings({ inputGainDb: 80 }).inputGainDb).toBe(24);
+    expect(normalizeSettings({ inputGainDb: -80 }).inputGainDb).toBe(-24);
+    expect(normalizeSettings({ inputGainDb: "6" }).inputGainDb).toBe(0);
+  });
+
   test("clamps a port outside the legal range", () => {
     expect(normalizeSettings({ port: 0 }).port).toBe(8080);
     expect(normalizeSettings({ port: 70000 }).port).toBe(8080);

@@ -120,6 +120,10 @@ export const KO_STRINGS = {
     peak: "피크",
     clipping: "클리핑",
     idle: "정지됨",
+    gain: "입력 게인",
+    gainHint:
+      "믹서에서 손댈 수 없을 때 쓰는 트림입니다. 미터와 서버로 보내는 소리에 함께 적용되며, 캡처 중에도 바로 반영됩니다. 평소 말소리가 -20 dBFS 근처에 오도록 맞추고, 클리핑이 켜지면 내리세요.",
+    gainReset: "0 dB",
   },
 
   join: {

@@ -1,8 +1,12 @@
-import { useEffect, useRef } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { Button } from "@/components/ui/button";
 import { Panel } from "@/components/ui/panel";
 import { cn } from "@/utils/tailwind";
+import { MAX_GAIN_DB, MIN_GAIN_DB, clampGainDb } from "../../capture/gain.ts";
 import { captureController, useCapture } from "../../hooks/use-capture.ts";
+import { ipc } from "../../ipc/manager.ts";
 
 /** Maps -60..0 dBFS onto 0..100 % of the bar. */
 function widthPercent(db: number): number {
@@ -19,6 +23,93 @@ const RED_FROM_DB = -6;
 
 /** Tick labels along the scale. */
 const TICKS = [-60, -40, -20, -12, -6, 0];
+
+/**
+ * How long after the slider stops moving the value is written to settings.
+ * The trim itself is applied on every movement — that is the point of a
+ * slider — but a drag fires dozens of events, and each write is a file.
+ */
+const GAIN_SAVE_DELAY_MS = 300;
+
+/**
+ * The trim under the meter. Every movement reaches the GainNode at once, so
+ * the bar above answers the slider live; the setting is saved once the hand
+ * comes to rest. The saved value is what the next start() opens with.
+ */
+function GainControl() {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const settings = useQuery({ queryKey: ["settings"], queryFn: () => ipc.client.settings.get() });
+  const saved = settings.data?.inputGainDb;
+  const [draft, setDraft] = useState<number | null>(null);
+  const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** A value applied to the graph but not yet written; flushed on unmount. */
+  const unsaved = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (saved !== undefined && draft === null) setDraft(saved);
+  }, [saved, draft]);
+
+  function save(db: number) {
+    unsaved.current = null;
+    void ipc.client.settings
+      .set({ inputGainDb: db })
+      .then(() => queryClient.invalidateQueries({ queryKey: ["settings"] }));
+  }
+
+  // Leaving the section inside the delay must not lose the last movement:
+  // the graph already has it, and a restart would otherwise open at the
+  // value before it.
+  useEffect(
+    () => () => {
+      clearTimeout(saveTimer.current);
+      if (unsaved.current !== null) save(unsaved.current);
+    },
+    [],
+  );
+
+  function apply(db: number) {
+    const next = clampGainDb(db);
+    setDraft(next);
+    captureController.setGainDb(next);
+    unsaved.current = next;
+    clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => save(next), GAIN_SAVE_DELAY_MS);
+  }
+
+  const db = draft ?? 0;
+
+  return (
+    <div className="grid gap-1.5">
+      <div className="flex items-baseline justify-between gap-3">
+        <label className="text-sm font-medium" htmlFor="input-gain">
+          {t("level.gain")}
+        </label>
+        <span className="flex items-center gap-2">
+          <span className="font-mono text-sm tabular-nums">
+            {db > 0 ? "+" : ""}
+            {db.toFixed(1)} dB
+          </span>
+          <Button variant="ghost" size="xs" disabled={db === 0} onClick={() => apply(0)}>
+            {t("level.gainReset")}
+          </Button>
+        </span>
+      </div>
+      <input
+        id="input-gain"
+        type="range"
+        min={MIN_GAIN_DB}
+        max={MAX_GAIN_DB}
+        step={0.5}
+        value={db}
+        disabled={draft === null}
+        onChange={(e) => apply(Number(e.target.value))}
+        className="w-full accent-live"
+      />
+      <p className="text-xs leading-snug text-muted-foreground">{t("level.gainHint")}</p>
+    </div>
+  );
+}
 
 export function LevelMeterPanel() {
   const { t } = useTranslation();
@@ -138,6 +229,8 @@ export function LevelMeterPanel() {
           {running ? "" : t("level.idle")}
         </span>
       </div>
+
+      <GainControl />
     </Panel>
   );
 }

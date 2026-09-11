@@ -21,6 +21,7 @@ const patchSchema = z.object({
   deviceLabel: z.string().nullable().optional(),
   channelIndex: z.number().optional(),
   requestedChannelCount: z.number().optional(),
+  inputGainDb: z.number().optional(),
   lanAddress: z.string().nullable().optional(),
   uiLanguage: z.enum(UI_LANGUAGES).nullable().optional(),
   port: z.number().optional(),

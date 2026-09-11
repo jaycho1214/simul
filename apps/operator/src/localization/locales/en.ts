@@ -119,6 +119,10 @@ export const EN_STRINGS = {
     peak: "Peak",
     clipping: "Clipping",
     idle: "Stopped",
+    gain: "Input gain",
+    gainHint:
+      "A trim for when the mixer cannot be touched. It applies to the meter and to what is sent to the server alike, and takes effect immediately while capturing. Aim for ordinary speech around -20 dBFS, and back it off if the clipping indicator lights.",
+    gainReset: "0 dB",
   },
 
   join: {
