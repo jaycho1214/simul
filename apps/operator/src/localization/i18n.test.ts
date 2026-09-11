@@ -69,6 +69,10 @@ describe("Korean string table", () => {
       "warn.sample_rate_mismatch", // Hz
       "level.gainHint", // dBFS
       "level.gainReset", // dB — a unit, not copy
+      "level.noiseMeasured", // dBFS
+      "level.noiseHint", // ms
+      "level.noiseReducing", // dB
+      "log.noiseMeasured", // dBFS
       "join.scan", // QR
       "join.noAddress", // LAN
       "reach.profile_pass", // (Private)

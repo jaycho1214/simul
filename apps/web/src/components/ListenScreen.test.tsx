@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, test, vi } from "vitest";
 import { UNBRANDED } from "../config.ts";
+import { muteLabels } from "../languages.ts";
 import { S, bilingual } from "../strings.ts";
 import { initialTranscriptState } from "../transcript/transcript-store.ts";
 import { ListenScreen } from "./ListenScreen.tsx";
@@ -66,20 +67,25 @@ describe("bannerText", () => {
 });
 
 describe("MuteButton", () => {
-  test("flips its bilingual label and aria-pressed", () => {
+  test("flips its label and aria-pressed, in the reader's language", () => {
     const onToggle = vi.fn();
-    const { rerender } = render(<MuteButton muted={false} onToggle={onToggle} />);
+    const { rerender } = render(<MuteButton lang="ja" muted={false} onToggle={onToggle} />);
 
     const button = screen.getByRole("button");
-    expect(button.textContent).toBe(S.mute);
+    expect(button.textContent).toBe("ミュート");
     expect(button.getAttribute("aria-pressed")).toBe("false");
 
     fireEvent.click(button);
     expect(onToggle).toHaveBeenCalledTimes(1);
 
-    rerender(<MuteButton muted onToggle={onToggle} />);
-    expect(screen.getByRole("button").textContent).toBe(S.unmute);
+    rerender(<MuteButton lang="ja" muted onToggle={onToggle} />);
+    expect(screen.getByRole("button").textContent).toBe("ミュート解除");
     expect(screen.getByRole("button").getAttribute("aria-pressed")).toBe("true");
+  });
+
+  test("keeps the bilingual label on the passthrough lane, which is not a language", () => {
+    render(<MuteButton lang="original" muted={false} onToggle={() => {}} />);
+    expect(screen.getByRole("button").textContent).toBe(S.mute);
   });
 });
 
@@ -231,7 +237,7 @@ describe("ListenScreen", () => {
     });
 
     expect(screen.getByText("hola")).toBeTruthy();
-    expect(screen.getByText(S.mute)).toBeTruthy();
+    expect(screen.getByText(muteLabels("es").mute)).toBeTruthy();
     expect(screen.queryByText(/mode/i)).toBeNull();
   });
 

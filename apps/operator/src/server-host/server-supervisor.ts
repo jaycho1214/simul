@@ -28,11 +28,28 @@ export type ForkFn = (
 export type ServerHostState =
   "stopped" | "starting" | "listening" | "crashed" | "giving_up" | "external";
 
+/**
+ * What the running server serves, as it reported it. Mirrors apps/server's
+ * `Offered`; kept structural here so the renderer's IPC types need no
+ * import from the server package.
+ */
+export interface OfferedLanguages {
+  languages: string[];
+  passthroughLane: boolean;
+}
+
 export interface ServerStatus {
   state: ServerHostState;
   port: number | undefined;
   restarts: number;
   detail: string | undefined;
+  /**
+   * The server's own account of its language list — set from its reports,
+   * never from what was pushed, so it is the truth the panel diffs the saved
+   * list against. Undefined until the child has said, and again once it is
+   * gone.
+   */
+  offered: OfferedLanguages | undefined;
 }
 
 export interface ServerSupervisorOptions {
@@ -52,7 +69,10 @@ export interface ServerSupervisorOptions {
 }
 
 /** Messages the forked server entry sends back. */
-type ChildMessage = { type: "listening"; port: number } | { type: "fatal"; message: string };
+type ChildMessage =
+  | { type: "listening"; port: number }
+  | { type: "fatal"; message: string }
+  | { type: "offered"; offered: OfferedLanguages };
 
 /** One line of the child's stdout or stderr, as shown in the 서버 로그 panel. */
 export interface LogLine {
@@ -81,6 +101,7 @@ export class ServerSupervisor {
     port: undefined,
     restarts: 0,
     detail: undefined,
+    offered: undefined,
   };
 
   // The log is intentionally kept across a restart — an engineer diagnosing
@@ -177,6 +198,18 @@ export class ServerSupervisor {
     this.child?.postMessage({ type: "brand", brand });
   }
 
+  /**
+   * Hands the saved language list to the running server, which offers
+   * whatever in it is new — from the next /config, so a phone on the picker
+   * gains the row within a poll — and ignores whatever is missing: removing
+   * a language stays a restart, so no listener's lane is pulled from under
+   * them. The server answers with an "offered" report, which is what
+   * `status.offered` mirrors. A no-op when nothing is running, like setBrand.
+   */
+  offer(offered: OfferedLanguages): void {
+    this.child?.postMessage({ type: "offer", offered });
+  }
+
   restart(): void {
     this.cancelRestart?.();
     this.cancelRestart = undefined;
@@ -224,11 +257,11 @@ export class ServerSupervisor {
     });
 
     this.child = undefined;
-    this.set({ state: "stopped", port: undefined });
+    this.set({ state: "stopped", port: undefined, offered: undefined });
   }
 
   private spawn(): void {
-    this.set({ state: "starting", port: undefined, detail: undefined });
+    this.set({ state: "starting", port: undefined, detail: undefined, offered: undefined });
 
     let child: ForkedProcess;
     try {
@@ -252,6 +285,8 @@ export class ServerSupervisor {
         this.set({ state: "listening", port: message.port, detail: undefined });
       } else if (message?.type === "fatal") {
         this.set({ state: "crashed", port: undefined, detail: message.message });
+      } else if (message?.type === "offered") {
+        this.set({ offered: message.offered });
       }
     });
 
@@ -336,6 +371,7 @@ export class ServerSupervisor {
       port: undefined,
       restarts: this.current.restarts + 1,
       detail,
+      offered: undefined,
     });
 
     if (shouldGiveUp(this.failures, now)) {

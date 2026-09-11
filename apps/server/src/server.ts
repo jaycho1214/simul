@@ -4,7 +4,7 @@ import { WebSocketServer } from "ws";
 import type { Brand, Config } from "./config.ts";
 import type { Clock } from "./clock.ts";
 import { AudioHub } from "./audio-hub.ts";
-import { LaneManager, PASSTHROUGH_LANG } from "./lane/lane-manager.ts";
+import { LaneManager, PASSTHROUGH_LANG, type Offered } from "./lane/lane-manager.ts";
 import { IngestGateway } from "./http/ingest-gateway.ts";
 import { BrandRoute } from "./http/brand-route.ts";
 import { StreamRoute } from "./http/stream-route.ts";
@@ -151,14 +151,16 @@ export function createServer(deps: ServerDeps) {
       });
       res.end(
         JSON.stringify({
-          offeredLanguages: config.offeredLanguages,
+          // From the manager, not `config`: the list can grow while the
+          // server runs (see `offer` below).
+          offeredLanguages: manager.offered().languages,
           // The ingest socket opens on 시작 and closes on 중지, so its state is
           // exactly "is there a speaker to listen to". The attendee app uses it
           // to keep an early arrival from tapping a language — which would open
           // a Gemini session, and bill for translating an empty room.
           live: ingest.connected,
           // The debug passthrough lane's code, or null when it is not offered.
-          passthroughLanguage: config.passthroughLane ? PASSTHROUGH_LANG : null,
+          passthroughLanguage: manager.offered().passthroughLane ? PASSTHROUGH_LANG : null,
           transcriptDelayMs: config.transcriptDelayMs,
           // How far behind live a plain-<audio> listener starts (see StreamRoute
           // and WebMSink.backlog). The phone sizes its drift threshold from it.
@@ -265,6 +267,20 @@ export function createServer(deps: ServerDeps) {
     setBrand(next: Brand): void {
       brand = next;
       brandRoute = new BrandRoute(next.logoPath);
+    },
+
+    /**
+     * Widens the language list for every subsequent acquire and /config.
+     * Add-only, by design: see `LaneManager.offer`. The phones on the picker
+     * see a new row on their next poll; a removal waits for a restart.
+     */
+    offer(next: { languages: readonly string[]; passthroughLane: boolean }): void {
+      manager.offer(next);
+    },
+
+    /** What the running server actually serves, for the operator's panel. */
+    offered(): Offered {
+      return manager.offered();
     },
 
     async listen(port: number): Promise<number> {

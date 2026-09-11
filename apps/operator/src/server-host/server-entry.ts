@@ -17,14 +17,27 @@ async function main(): Promise<void> {
     sessionFactory: createGeminiTranslateSessionFactory({ apiKey: config.geminiApiKey, clock }),
   });
 
+  // What the server serves right now, for the operator's language panel to
+  // diff its saved list against. Sent on boot and after every offer, so the
+  // supervisor's mirror is never a guess.
+  const reportOffered = () =>
+    process.parentPort.postMessage({ type: "offered", offered: server.offered() });
+
   // Registered before the listen() await settles, so a shutdown request that
   // arrives while the server is still binding is not lost.
   process.parentPort.on("message", (event) => {
-    const message = event.data as { type?: string; brand?: unknown } | undefined;
-    // Brand is the only config the running server will accept a change to.
-    // Everything else shapes a live lane and cannot be swapped underneath one.
+    const message = event.data as { type?: string; brand?: unknown; offered?: unknown } | undefined;
+    // Brand and the language list are the only config the running server
+    // accepts a change to — and the list only ever widens (see
+    // LaneManager.offer). Everything else shapes a live lane and cannot be
+    // swapped underneath one.
     if (message?.type === "brand" && message.brand) {
       server.setBrand(message.brand as Parameters<typeof server.setBrand>[0]);
+      return;
+    }
+    if (message?.type === "offer" && message.offered) {
+      server.offer(message.offered as Parameters<typeof server.offer>[0]);
+      reportOffered();
       return;
     }
 
@@ -49,6 +62,7 @@ async function main(): Promise<void> {
     `languages: ${config.offeredLanguages.join(", ")}${config.passthroughLane ? " + passthrough lane (debug)" : ""}`,
   );
   process.parentPort.postMessage({ type: "listening", port });
+  reportOffered();
 }
 
 main().catch((err: unknown) => {

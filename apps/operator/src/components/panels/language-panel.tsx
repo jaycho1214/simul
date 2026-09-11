@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Notice, Panel } from "@/components/ui/panel";
 import { cn } from "@/utils/tailwind";
-import { GEMINI_LANGUAGES, findLanguage, isLanguageCode } from "../../settings/languages.ts";
+import {
+  GEMINI_LANGUAGES,
+  findLanguage,
+  isLanguageCode,
+  languagesPendingRemoval,
+} from "../../settings/languages.ts";
 import { ipc } from "../../ipc/manager.ts";
 
 /**
@@ -21,11 +26,13 @@ import { ipc } from "../../ipc/manager.ts";
  * for checking the capture chain, which is why it is a plain checkbox and off
  * by default.
  *
- * Unlike the brand, this cannot be applied live — lanes and their encoders are
- * built from the language list when the server boots, and swapping the list
- * under a lane that phones are listening to is not something to do mid-service.
- * So the panel says plainly that it needs a restart and leaves the timing to
- * the engineer.
+ * Adding applies live: every save pushes the list to the running server,
+ * which offers whatever is new from its next /config, and a phone on the
+ * picker re-reads that every few seconds. Removing does not — pulling a lane
+ * out from under phones listening to it is not something to do mid-service —
+ * so the server keeps serving a removed language until it restarts. The
+ * panel shows exactly that state: a removed-but-still-served language stays
+ * on screen, struck through, until the restart the notice asks for.
  */
 export function LanguagePanel() {
   const { t } = useTranslation();
@@ -36,9 +43,19 @@ export function LanguagePanel() {
     queryKey: ["settings"],
     queryFn: () => ipc.client.settings.get(),
   });
+  const server = useQuery({
+    queryKey: ["serverStatus"],
+    queryFn: () => ipc.client.server.status(),
+    refetchInterval: 1000,
+  });
 
   const offered = settings.data?.offeredLanguages ?? [];
   const passthrough = settings.data?.passthroughLane ?? false;
+  // What the server itself says it serves — its report, not what was pushed.
+  const served = server.data?.offered;
+  const pendingRemoval = languagesPendingRemoval(offered, served?.languages);
+  const passthroughPendingOff = served?.passthroughLane === true && !passthrough;
+  const needsRestart = pendingRemoval.length > 0 || passthroughPendingOff;
 
   async function patch(next: Parameters<typeof ipc.client.settings.set>[0]) {
     await ipc.client.settings.set(next);
@@ -59,8 +76,9 @@ export function LanguagePanel() {
     setTyped("");
   }
 
-  // Anything the operator added by hand that the curated list does not carry.
-  const extras = offered.filter((code) => !findLanguage(code));
+  // Anything the operator added by hand that the curated list does not carry
+  // — including one they have since removed but the server still serves.
+  const extras = [...offered, ...pendingRemoval].filter((code) => !findLanguage(code));
 
   return (
     <Panel title={t("lang.title")}>
@@ -84,18 +102,21 @@ export function LanguagePanel() {
         <div className="flex max-w-3xl flex-wrap gap-1.5">
           {GEMINI_LANGUAGES.map((lang) => {
             const on = offered.includes(lang.code);
+            const leaving = pendingRemoval.includes(lang.code);
             return (
               <button
                 key={lang.code}
                 type="button"
                 aria-pressed={on}
                 onClick={() => toggle(lang.code)}
-                title={lang.ko}
+                title={leaving ? t("lang.pendingRemoval") : lang.ko}
                 className={cn(
                   "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm transition-colors",
                   on
                     ? "border-live/40 bg-live/12 text-foreground"
-                    : "border-border text-muted-foreground hover:text-foreground",
+                    : leaving
+                      ? "border-warn/50 bg-warn/10 text-muted-foreground line-through"
+                      : "border-border text-muted-foreground hover:text-foreground",
                 )}
               >
                 <span>{lang.endonym}</span>
@@ -107,22 +128,42 @@ export function LanguagePanel() {
 
         {extras.length > 0 ? (
           <div className="flex max-w-3xl flex-wrap gap-1.5">
-            {extras.map((code) => (
-              <span
-                key={code}
-                className="inline-flex h-8 items-center gap-1.5 rounded-full border border-live/40 bg-live/12 px-3 text-sm"
-              >
-                <span className="font-mono">{code}</span>
-                <button
-                  type="button"
-                  aria-label={t("lang.remove", { code })}
-                  onClick={() => toggle(code)}
-                  className="text-muted-foreground hover:text-foreground"
+            {extras.map((code) => {
+              const leaving = pendingRemoval.includes(code);
+              return (
+                <span
+                  key={code}
+                  title={leaving ? t("lang.pendingRemoval") : undefined}
+                  className={cn(
+                    "inline-flex h-8 items-center gap-1.5 rounded-full border px-3 text-sm",
+                    leaving
+                      ? "border-warn/50 bg-warn/10 text-muted-foreground line-through"
+                      : "border-live/40 bg-live/12",
+                  )}
                 >
-                  <X className="size-3.5" />
-                </button>
-              </span>
-            ))}
+                  <span className="font-mono">{code}</span>
+                  {leaving ? (
+                    <button
+                      type="button"
+                      aria-label={t("lang.restore", { code })}
+                      onClick={() => toggle(code)}
+                      className="text-muted-foreground no-underline hover:text-foreground"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      aria-label={t("lang.remove", { code })}
+                      onClick={() => toggle(code)}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="size-3.5" />
+                    </button>
+                  )}
+                </span>
+              );
+            })}
           </div>
         ) : null}
       </div>
@@ -170,14 +211,35 @@ export function LanguagePanel() {
           onChange={(e) => void patch({ passthroughLane: e.target.checked })}
         />
         <span className="grid gap-1">
-          <span className="font-medium">{t("lang.passthrough")}</span>
+          <span className="font-medium">
+            {t("lang.passthrough")}
+            {passthroughPendingOff ? (
+              <span className="ml-2 text-xs font-normal text-warn">{t("lang.pendingRemoval")}</span>
+            ) : null}
+          </span>
           <span className="text-xs leading-snug text-muted-foreground">
             {t("lang.passthroughHint")}
           </span>
         </span>
       </label>
 
-      <Notice tone="warn">{t("lang.restartNeeded")}</Notice>
+      {/*
+       * Only a removal earns the warning. An addition is on the phones within
+       * a poll and there is nothing to warn about; the muted line says so, so
+       * an engineer does not go looking for an apply button.
+       */}
+      {needsRestart ? (
+        <Notice tone="warn">
+          {t("lang.removalNeedsRestart", {
+            codes: [
+              ...pendingRemoval,
+              ...(passthroughPendingOff ? [t("lang.passthrough")] : []),
+            ].join(", "),
+          })}
+        </Notice>
+      ) : (
+        <p className="max-w-3xl text-xs leading-snug text-muted-foreground">{t("lang.liveHint")}</p>
+      )}
     </Panel>
   );
 }

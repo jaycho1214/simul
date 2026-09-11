@@ -88,7 +88,7 @@ export function ListenScreen(props: ListenScreenProps) {
           emptyLabel={<Bilingual text={S.waitingForSpeech} />}
         />
 
-        <MuteButton muted={props.muted} onToggle={props.onToggleMute} />
+        <MuteButton lang={props.lang} muted={props.muted} onToggle={props.onToggleMute} />
       </div>
     </main>
   );

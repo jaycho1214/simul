@@ -19,12 +19,12 @@ enters a Gemini API key, chooses the audio input, and shows a QR code.
                                                        + transcript per language
 ```
 
-| Package             | What it is                                                                                                                                                                                                                         |
-| ------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `apps/operator`     | The Electron app the sound engineer runs: audio capture from the mixer, device and level checks with an input gain trim, join QR code, lane status, an estimated API cost meter, event branding, server log. Korean or English UI. |
-| `apps/server`       | The Node translation server: one Gemini Live session per offered language, Opus/WebM streams and transcripts to phones, an admin feed for the operator app. Runs inside the operator app, or headless with `pnpm serve`.           |
-| `apps/web`          | The attendee page phones open: language picker, play/mute, live transcript, the event's brand.                                                                                                                                     |
-| `packages/protocol` | The wire types the three share.                                                                                                                                                                                                    |
+| Package             | What it is                                                                                                                                                                                                                                                           |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `apps/operator`     | The Electron app the sound engineer runs: audio capture from the mixer, device and level checks with an input gain trim and a measured-room noise reducer, join QR code, lane status, an estimated API cost meter, event branding, server log. Korean or English UI. |
+| `apps/server`       | The Node translation server: one Gemini Live session per offered language, Opus/WebM streams and transcripts to phones, an admin feed for the operator app. Runs inside the operator app, or headless with `pnpm serve`.                                             |
+| `apps/web`          | The attendee page phones open: language picker, play/mute, live transcript, the event's brand.                                                                                                                                                                       |
+| `packages/protocol` | The wire types the three share.                                                                                                                                                                                                                                      |
 
 ## Requirements
 
@@ -46,7 +46,10 @@ The API key, the port, the offered languages and everything else about the
 event are set inside the app (제어 / Control panel) and stored in the app's
 own settings; `.env` is not read by the app. Leave the speaker's own language
 out of the offered list: a lane in it repeats the speaker untranslated at the
-same cost as any other. 제어 also shows a running estimate of the Gemini
+same cost as any other. Adding a language applies at once — phones on the
+picker see it within seconds — while removing one waits for the next server
+restart so nobody mid-lane is cut off; the 언어 panel shows which removals
+are still pending. 제어 also shows a running estimate of the Gemini
 cost since the server started — the API cannot report a key's real spend,
 so the panel links to the AI Studio usage dashboard for that.
 

@@ -492,3 +492,48 @@ test("usage totals every lane that ever cost anything, open or already closed", 
     { lang: "en", inputAudioTokens: 125, outputAudioTokens: 75 },
   ]);
 });
+
+test("offer() adds languages and the passthrough lane without a restart", async () => {
+  const { manager } = makeManager();
+  await assert.rejects(() => manager.acquire("vi", {}, "transcript"), UnknownLanguageError);
+
+  manager.offer({ languages: ["ko", "vi"], passthroughLane: true });
+
+  assert.deepEqual(manager.offered(), {
+    languages: ["ko", "en", "es", "ja", "fr", "de", "zh", "vi"],
+    passthroughLane: true,
+  });
+  const lane = await manager.acquire("vi", {}, "transcript");
+  assert.equal(lane.constructor.name, "TranslatedLane");
+  assert.equal(
+    (await manager.acquire(PASSTHROUGH_LANG, {}, "transcript")).constructor.name,
+    "SourceLane",
+  );
+});
+
+test("offer() never removes: a language left out of the list stays served until restart", async () => {
+  const { manager } = makeManager({ passthroughLane: true });
+  manager.offer({ languages: ["en"], passthroughLane: false });
+
+  assert.deepEqual(manager.offered(), {
+    languages: ["ko", "en", "es", "ja", "fr", "de", "zh"],
+    passthroughLane: true,
+  });
+  await manager.acquire("ko", {}, "transcript");
+  await manager.acquire(PASSTHROUGH_LANG, {}, "transcript");
+});
+
+test("offer() ignores duplicates and blank codes", () => {
+  const { manager } = makeManager();
+  manager.offer({ languages: ["en", "en", "", "pt-BR", "pt-BR"], passthroughLane: false });
+  assert.deepEqual(manager.offered().languages, [
+    "ko",
+    "en",
+    "es",
+    "ja",
+    "fr",
+    "de",
+    "zh",
+    "pt-BR",
+  ]);
+});

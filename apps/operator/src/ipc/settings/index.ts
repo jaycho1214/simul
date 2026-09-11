@@ -22,6 +22,12 @@ const patchSchema = z.object({
   channelIndex: z.number().optional(),
   requestedChannelCount: z.number().optional(),
   inputGainDb: z.number().optional(),
+  noiseProfile: z
+    .object({ bins: z.array(z.number()), gainDb: z.number(), levelDb: z.number() })
+    .nullable()
+    .optional(),
+  noiseReduction: z.boolean().optional(),
+  noiseSensitivityDb: z.number().optional(),
   lanAddress: z.string().nullable().optional(),
   uiLanguage: z.enum(UI_LANGUAGES).nullable().optional(),
   port: z.number().optional(),
@@ -38,8 +44,9 @@ const patchSchema = z.object({
 
 /**
  * Hands the current brand to the running server so it applies to the next
- * /config a phone asks for, with no restart. Everything else in settings
- * shapes a live lane and can only take effect on the next spawn.
+ * /config a phone asks for, with no restart. Apart from the language list
+ * (pushOffered below), everything else in settings shapes a live lane and can
+ * only take effect on the next spawn.
  *
  * A no-op when nothing is running: the value is already saved, and
  * buildServerEnv puts it in the next spawn's environment.
@@ -56,11 +63,24 @@ function pushBrand(): void {
   });
 }
 
+/**
+ * Hands the saved language list to the running server, which starts offering
+ * whatever in it is new. The server never drops a language on this path —
+ * removal is a restart, so a phone mid-lane is never cut off — which is why
+ * the whole list is sent rather than a diff: the server works out what is
+ * new, and reports back what it serves for the panel to show the difference.
+ */
+function pushOffered(): void {
+  const s = getSettings();
+  supervisor.offer({ languages: s.offeredLanguages, passthroughLane: s.passthroughLane });
+}
+
 export const get = os.handler((): PublicSettings => redactSettings(getSettings()));
 
 export const set = os.input(patchSchema).handler(({ input }): PublicSettings => {
   const next = updateSettings(input);
   pushBrand();
+  pushOffered();
   return redactSettings(next);
 });
 

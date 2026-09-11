@@ -1,5 +1,10 @@
 import { describe, expect, test } from "vitest";
-import { GEMINI_LANGUAGES, isLanguageCode, languageLabel } from "./languages.ts";
+import {
+  GEMINI_LANGUAGES,
+  isLanguageCode,
+  languageLabel,
+  languagesPendingRemoval,
+} from "./languages.ts";
 
 describe("GEMINI_LANGUAGES", () => {
   test("covers every language Google's live-translate page names explicitly", () => {
@@ -56,5 +61,19 @@ describe("languageLabel", () => {
   // raw code is honest; inventing a name for it would not be.
   test("falls back to the bare code for one it does not know", () => {
     expect(languageLabel("xh-ZA")).toBe("xh-ZA");
+  });
+});
+
+describe("languagesPendingRemoval", () => {
+  test("is what the server serves that the saved list dropped, in the server's order", () => {
+    expect(languagesPendingRemoval(["en", "vi"], ["ko", "en", "ja", "vi"])).toEqual(["ko", "ja"]);
+  });
+
+  test("an addition is never pending: the server takes it live", () => {
+    expect(languagesPendingRemoval(["ko", "en", "vi"], ["ko", "en"])).toEqual([]);
+  });
+
+  test("nothing is pending while the server is down", () => {
+    expect(languagesPendingRemoval(["en"], undefined)).toEqual([]);
   });
 });

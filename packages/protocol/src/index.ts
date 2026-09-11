@@ -78,3 +78,5 @@ export type AdminMessage = {
   /** Absent from an older server; the operator app shows nothing then. */
   usage?: UsageReport;
 };
+
+export * from "./languages.ts";

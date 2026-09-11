@@ -574,3 +574,32 @@ test("/config is never cached", async (t) => {
   const res = await fetch(`http://127.0.0.1:${port}/config`);
   assert.match(res.headers.get("cache-control") ?? "", /no-store/);
 });
+
+/**
+ * The language list was frozen at boot for the same reason the brand once
+ * was. Adding is safe to do live — a phone on the picker re-reads /config
+ * every few seconds and simply gains a row — so the operator pushes the
+ * whole saved list and the server offers whatever is new. Removing stays a
+ * restart: the running server keeps serving a language the list no longer
+ * carries, so nobody's lane is pulled out from under them.
+ */
+test("languages offered at runtime reach /config without a restart; removals do not", async (t) => {
+  const server = createServer({
+    config,
+    clock: new SystemClock(),
+    sessionFactory: createFakeTranslateSessionFactory(),
+  });
+  const port = await server.listen(0);
+  t.after(() => server.close());
+
+  const before = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.deepEqual(before.offeredLanguages, ["ko", "en"]);
+  assert.equal(before.passthroughLanguage, null);
+
+  server.offer({ languages: ["en", "vi"], passthroughLane: true });
+  assert.deepEqual(server.offered(), { languages: ["ko", "en", "vi"], passthroughLane: true });
+
+  const after = await (await fetch(`http://127.0.0.1:${port}/config`)).json();
+  assert.deepEqual(after.offeredLanguages, ["ko", "en", "vi"]);
+  assert.equal(after.passthroughLanguage, "original");
+});

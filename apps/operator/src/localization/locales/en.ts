@@ -50,8 +50,12 @@ export const EN_STRINGS = {
     add: "Add",
     addHint:
       "The list above holds only the commonly used languages. Gemini supports about 70; enter any other as a BCP-47 code.",
-    restartNeeded:
-      "Language changes take effect after the server restarts. Restarting mid-event briefly cuts the audio for everyone listening.",
+    restore: "Add {{code}} back",
+    pendingRemoval: "removed on restart",
+    liveHint:
+      "An added language is offered at once and appears on attendee screens within seconds. A removal takes effect after the server restarts.",
+    removalNeedsRestart:
+      "Removed items ({{codes}}) stay on attendee screens until the server restarts; they are still being served until then. Restarting mid-event briefly cuts the audio for everyone listening.",
   },
 
   brand: {
@@ -138,6 +142,7 @@ export const EN_STRINGS = {
     devicePicked: "Input device chosen — {{label}}",
     startPressed: "Start — {{label}}, channel {{channel}}, {{requested}} ch requested",
     stopPressed: "Stop",
+    noiseMeasured: "Room measured — {{level}} dBFS, noise reduction on",
   },
 
   level: {
@@ -149,6 +154,19 @@ export const EN_STRINGS = {
     gainHint:
       "A trim for when the mixer cannot be touched. It applies to the meter and to what is sent to the server alike, and takes effect immediately while capturing. Aim for ordinary speech around -20 dBFS, and back it off if the clipping indicator lights.",
     gainReset: "0 dB",
+    noise: "Noise reduction",
+    noiseOn: "On",
+    noiseMeasure: "Measure the room",
+    noiseMeasuring: "Measuring…",
+    noiseMeasured: "Measured background {{level}} dBFS",
+    noiseNotMeasured:
+      "Not measured yet. Measure while capturing, at a moment the speaker is not talking.",
+    noiseNeedsCapture: "Measuring needs capture to be running.",
+    noiseMeasureFailed: "Measurement failed — {{reason}}",
+    noiseSensitivity: "Sensitivity",
+    noiseHint:
+      "Remembers two seconds of the room (audience, a voice beside the speaker) frequency by frequency, and takes sound at that level out. While the speaker talks, background in bands the voice is not using is still reduced; anything as loud as the speaker stays. Applies at once, no restart, with 24 ms of latency. Raise the sensitivity to remove more, lower it to keep a quiet speaker.",
+    noiseReducing: "Noise −{{db}} dB",
   },
 
   join: {

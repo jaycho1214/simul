@@ -129,6 +129,60 @@ describe("ServerSupervisor", () => {
     ).not.toThrow();
   });
 
+  /**
+   * The language list reaches the running server too, add-only: the server
+   * widens what it offers and reports back what it now serves, which is what
+   * the panel compares the saved list against to know whether a removal is
+   * still waiting on a restart.
+   */
+  test("pushes the offered languages to the running server and mirrors its report", () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+    spawned[0]!.emit("message", { type: "listening", port: 8080 });
+    expect(supervisor.status.offered).toBeUndefined();
+
+    spawned[0]!.emit("message", {
+      type: "offered",
+      offered: { languages: ["ko", "en"], passthroughLane: false },
+    });
+    expect(supervisor.status.offered).toEqual({ languages: ["ko", "en"], passthroughLane: false });
+
+    supervisor.offer({ languages: ["en", "vi"], passthroughLane: true });
+    expect(spawned[0]!.received.at(-1)).toEqual({
+      type: "offer",
+      offered: { languages: ["en", "vi"], passthroughLane: true },
+    });
+
+    spawned[0]!.emit("message", {
+      type: "offered",
+      offered: { languages: ["ko", "en", "vi"], passthroughLane: true },
+    });
+    expect(supervisor.status.offered).toEqual({
+      languages: ["ko", "en", "vi"],
+      passthroughLane: true,
+    });
+  });
+
+  test("forgets what the server offered once it is gone", async () => {
+    const { supervisor, spawned } = harness();
+    supervisor.start();
+    spawned[0]!.emit("message", { type: "listening", port: 8080 });
+    spawned[0]!.emit("message", {
+      type: "offered",
+      offered: { languages: ["ko"], passthroughLane: false },
+    });
+
+    const stopped = supervisor.stop();
+    spawned[0]!.emit("exit", 0);
+    await stopped;
+    expect(supervisor.status.offered).toBeUndefined();
+  });
+
+  test("drops an offer push when nothing is running", () => {
+    const { supervisor } = harness();
+    expect(() => supervisor.offer({ languages: ["ko"], passthroughLane: false })).not.toThrow();
+  });
+
   test("restarts after a crash and counts it", () => {
     const { supervisor, spawned, advance } = harness();
     supervisor.start();

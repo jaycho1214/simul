@@ -30,6 +30,18 @@ export class UnknownLanguageError extends Error {
   }
 }
 
+/**
+ * What the manager will open a lane for. Grows while the server runs (see
+ * `LaneManager.offer`) and never shrinks: this is what `/config` hands a
+ * phone, and a language withdrawn from it mid-service would be a lane
+ * pulled out from under whoever is listening to it.
+ */
+export interface Offered {
+  languages: LangCode[];
+  /** Whether PASSTHROUGH_LANG is offered alongside the languages. */
+  passthroughLane: boolean;
+}
+
 export interface LaneManagerOptions {
   clock: Clock;
   hub: AudioHub;
@@ -82,11 +94,36 @@ export class LaneManager {
   private readonly entries = new Map<LangCode, Entry>();
   private readonly opening = new Map<LangCode, Opening>();
   private readonly ledger: UsageLedger;
+  private readonly languages: LangCode[];
+  private passthroughLane: boolean;
   /** Set once by closeAll(). Permanent: this instance is done after that. */
   private closed = false;
 
   constructor(private readonly opts: LaneManagerOptions) {
     this.ledger = new UsageLedger(opts.clock.now());
+    this.languages = [];
+    this.passthroughLane = false;
+    this.offer({ languages: opts.offeredLanguages, passthroughLane: opts.passthroughLane });
+  }
+
+  /**
+   * Widens what is offered, live. The operator's panel pushes its whole
+   * saved list here after every change; anything new is offered from the
+   * next acquire() and the next /config, anything missing is deliberately
+   * ignored — removing a language is a restart, by design, so no phone
+   * loses the lane it is on. Order is first-offered first, which is the
+   * order the attendee picker shows.
+   */
+  offer(next: { languages: readonly LangCode[]; passthroughLane: boolean }): void {
+    for (const lang of next.languages) {
+      if (lang !== "" && !this.languages.includes(lang)) this.languages.push(lang);
+    }
+    if (next.passthroughLane) this.passthroughLane = true;
+  }
+
+  /** A copy: what acquire() will accept right now. */
+  offered(): Offered {
+    return { languages: [...this.languages], passthroughLane: this.passthroughLane };
   }
 
   get(lang: LangCode): Lane | undefined {
@@ -193,8 +230,8 @@ export class LaneManager {
   }
 
   private isOffered(lang: LangCode): boolean {
-    if (lang === PASSTHROUGH_LANG) return this.opts.passthroughLane;
-    return this.opts.offeredLanguages.includes(lang);
+    if (lang === PASSTHROUGH_LANG) return this.passthroughLane;
+    return this.languages.includes(lang);
   }
 
   private async openLane(lang: LangCode): Promise<Lane> {

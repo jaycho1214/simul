@@ -81,7 +81,8 @@ describe("App", () => {
     const audio = document.querySelector("audio")!;
     expect(audio.getAttribute("src")).toMatch(/\/stream\/es\.webm\?t=\d+$/);
     expect(screen.getByText(S.silentSwitchTitle)).toBeTruthy();
-    expect(screen.getByText(S.mute)).toBeTruthy();
+    // In the reader's own language, not the app's Korean/English pair.
+    expect(screen.getByText("Silenciar")).toBeTruthy();
   });
 
   test("mute pauses and unmute re-requests a fresh URL", async () => {
@@ -96,10 +97,10 @@ describe("App", () => {
     const audio = document.querySelector("audio")!;
     const first = audio.getAttribute("src");
 
-    fireEvent.click(screen.getByText(S.mute));
+    fireEvent.click(screen.getByText("Silenciar"));
     expect(pause).toHaveBeenCalledTimes(1);
 
-    fireEvent.click(await screen.findByText(S.unmute));
+    fireEvent.click(await screen.findByText("Activar sonido"));
     expect(load).toHaveBeenCalledTimes(1);
     expect(audio.getAttribute("src")).not.toBe(first);
   });

@@ -48,8 +48,12 @@ export const KO_STRINGS = {
     add: "추가",
     addHint:
       "위 목록은 자주 쓰는 언어만 추린 것입니다. Gemini가 지원하는 70여 개 언어 중 목록에 없는 것은 BCP-47 코드로 직접 넣으세요.",
-    restartNeeded:
-      "언어 변경은 서버를 다시 시작해야 적용됩니다. 진행 중에 다시 시작하면 듣고 있는 참석자의 소리가 잠시 끊깁니다.",
+    restore: "{{code}} 다시 추가",
+    pendingRemoval: "재시작 시 제거",
+    liveHint:
+      "추가한 언어는 바로 제공되어 몇 초 안에 참석자 화면에 나타납니다. 제거는 서버를 다시 시작해야 적용됩니다.",
+    removalNeedsRestart:
+      "제거한 항목({{codes}})은 서버를 다시 시작해야 참석자 화면에서 사라집니다. 그때까지는 계속 제공되며, 진행 중에 다시 시작하면 듣고 있는 참석자의 소리가 잠시 끊깁니다.",
   },
 
   brand: {
@@ -145,6 +149,7 @@ export const KO_STRINGS = {
     devicePicked: "입력 장치 선택 — {{label}}",
     startPressed: "시작 — {{label}}, 채널 {{channel}}, 요청 {{requested}}채널",
     stopPressed: "중지",
+    noiseMeasured: "방 소음 측정 — {{level}} dBFS, 소음 제거 켬",
   },
 
   level: {
@@ -156,6 +161,18 @@ export const KO_STRINGS = {
     gainHint:
       "믹서에서 손댈 수 없을 때 쓰는 트림입니다. 미터와 서버로 보내는 소리에 함께 적용되며, 캡처 중에도 바로 반영됩니다. 평소 말소리가 -20 dBFS 근처에 오도록 맞추고, 클리핑이 켜지면 내리세요.",
     gainReset: "0 dB",
+    noise: "소음 제거",
+    noiseOn: "켜기",
+    noiseMeasure: "방 소음 측정",
+    noiseMeasuring: "측정 중…",
+    noiseMeasured: "측정된 배경 소음 {{level}} dBFS",
+    noiseNotMeasured: "아직 측정하지 않았습니다. 캡처 중에 연사가 말하지 않을 때 측정하세요.",
+    noiseNeedsCapture: "캡처 중에만 측정할 수 있습니다.",
+    noiseMeasureFailed: "측정에 실패했습니다 — {{reason}}",
+    noiseSensitivity: "민감도",
+    noiseHint:
+      "2초 동안 들리는 방 소리(관객, 옆 사람 목소리)를 주파수별로 기억해 두고, 그 수준의 소리를 걷어냅니다. 연사가 말하는 동안에도 목소리와 겹치지 않는 대역의 배경 소리는 줄지만, 연사만큼 큰 소리는 남습니다. 재시작 없이 바로 적용되며 지연은 24 ms입니다. 민감도를 올리면 더 많이 걷어내고, 내리면 조용한 연사의 소리도 살립니다.",
+    noiseReducing: "소음 제거 −{{db}} dB",
   },
 
   join: {

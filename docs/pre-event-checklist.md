@@ -513,6 +513,24 @@ criteria so it can actually be executed rather than assumed passing.
       rehearsal setting survives a restart — check it is still right on the
       day, since a different mic gain on the board silently makes it wrong.
 
+- [ ] **W2b2 — the room is measured, if the mic hears more than the speaker.**
+      **UNVERIFIED in a venue.** If the feed carries the audience, an
+      interpreter beside the speaker, or hall noise, use 소음 제거 under the
+      gain: with capture running and the speaker **not talking**, press 방
+      소음 측정 and wait two seconds. It records the room's spectrum, turns
+      reduction on, and shows the measured level. Then have the speaker talk:
+      the 소음 제거 −N dB readout beside the meter should sit near 0 while
+      they speak and climb to 30–40 between sentences. It removes background
+      at the room's level frequency by frequency (24 ms of latency, nothing
+      audible); a second voice nearly as loud as the speaker is not
+      separable by level and will still come through — that is a mic
+      placement problem, not a setting. Raise 민감도 if chatter still leaks
+      between sentences, lower it if the speaker's quiet passages start
+      sounding thin. Re-measure after changing 입력 게인 by more than a few
+      dB or moving the mic; the saved profile follows the gain but not the
+      room. Verified only against a laptop mic on 2026-09-11 (measure →
+      readout → persisted across a stop).
+
 - [ ] **W2c — the port and the firewall rule agree.**
       **UNVERIFIED.** 제어 → 포트 is 8080 unless there is a reason not to
       (another program on the laptop already listening there). If it was
@@ -591,8 +609,10 @@ reconnecting → live` cycle happens roughly every 10 minutes — this is
       **UNVERIFIED on real phones.** Measured only in desktop Chromium on
       2026-09-11: 0.6 s behind the lane clock on the MediaSource path, 3.1 s on
       the plain `<audio>` path at 128 kbps. Use the 원음 (passthrough) lane for
-      this — switch it on in 언어 for the rehearsal, off again for the event —
-      since a translated lane adds the model's own delay on top. Clap once near
+      this — switch it on in 언어 for the rehearsal, off again for the event
+      (turning it on is live; turning it off, like removing a language,
+      takes effect at the next 서버 재시작 and the panel says so) — since a
+      translated lane adds the model's own delay on top. Clap once near
       the mic and count to the clap in the earpiece: an Android Chrome phone
       should be under a second behind; an iPhone (plain path) about three. **An iPhone that is
       ~16 s behind, or whose audio restarts every 5 s, means the operator app is
