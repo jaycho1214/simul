@@ -49,7 +49,9 @@ function pushBrand(): void {
     name: s.brandName ?? "",
     accent: s.brandAccent ?? "",
     logoPath: s.brandLogoPath ?? "",
-    theme: s.brandTheme ?? "dark",
+    // The same fallback as apps/server's config.ts, so the theme a phone
+    // gets from a live push matches the one a fresh spawn would give it.
+    theme: s.brandTheme ?? "auto",
   });
 }
 
