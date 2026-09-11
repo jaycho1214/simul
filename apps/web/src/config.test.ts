@@ -144,7 +144,7 @@ describe("parseConfig brand", () => {
       name: null,
       accent: DEFAULT_ACCENT,
       logoUrl: null,
-      theme: "dark",
+      theme: "auto",
     });
   });
 
@@ -152,8 +152,8 @@ describe("parseConfig brand", () => {
     expect(parseConfig({ ...core, brand: { accent: "puce" } }).brand.accent).toBe(DEFAULT_ACCENT);
   });
 
-  test("falls back to the dark theme for an unknown value", () => {
-    expect(parseConfig({ ...core, brand: { theme: "sepia" } }).brand.theme).toBe("dark");
+  test("falls back to following the device for an unknown theme", () => {
+    expect(parseConfig({ ...core, brand: { theme: "sepia" } }).brand.theme).toBe("auto");
   });
 
   test("treats an empty name as unbranded", () => {

@@ -16,7 +16,10 @@ export const UNBRANDED: Brand = Object.freeze({
   name: null,
   accent: DEFAULT_ACCENT,
   logoUrl: null,
-  theme: "dark",
+  // Matches the server's own default so the paint before /config answers is
+  // the same scheme as the one after it: a phone in light mode would
+  // otherwise flash dark for a moment on every load.
+  theme: "auto",
 });
 
 const THEMES: readonly Theme[] = ["dark", "light", "auto"];

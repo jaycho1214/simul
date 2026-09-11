@@ -3,11 +3,23 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-    <meta name="color-scheme" content="dark" />
+    <meta name="color-scheme" content="dark light" />
     <!-- Replaced at runtime by use-brand.ts once the configured theme is
-         known; this is the value for the dark default the stylesheet ships. -->
+         known; until then the page follows the device, which is also the
+         server's default, so the common case never flashes. -->
     <meta name="theme-color" content="#05070a" />
     <title>실시간 통역 / Live Translation</title>
+    <script>
+      // Before the stylesheet paints: the :root palette is dark, and the
+      // light one is keyed off data-theme, which React sets only once it has
+      // run. A phone in light mode would otherwise paint dark for the first
+      // few hundred milliseconds of every load. Mirrors resolveScheme("auto")
+      // and GROUND.light in src/brand.ts.
+      if (matchMedia("(prefers-color-scheme: light)").matches) {
+        document.documentElement.setAttribute("data-theme", "light");
+        document.querySelector('meta[name="theme-color"]').setAttribute("content", "#f7f8fa");
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

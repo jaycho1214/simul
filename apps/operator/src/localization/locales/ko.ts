@@ -66,7 +66,7 @@ export const KO_STRINGS = {
     logoClear: "로고 제거",
     logoNone: "선택된 파일 없음",
     theme: "화면 모드",
-    themeDefault: "기본값 (어두운 화면)",
+    themeDefault: "기본값 (참석자 기기 설정에 맞춤)",
     themeDark: "어두운 화면",
     themeLight: "밝은 화면",
     themeAuto: "참석자 기기 설정에 맞춤",

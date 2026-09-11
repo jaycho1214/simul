@@ -106,13 +106,16 @@ test("defaults webRoot to the built web app and honours WEB_ROOT", () => {
   assert.equal(loadConfig({ ...base, WEB_ROOT: "/srv/web" }).webRoot, "/srv/web");
 });
 
+// "auto" rather than "dark": an unset theme follows each phone's own
+// light/dark setting, so a daytime event is not dark on every screen unless the
+// operator chose that.
 test("leaves the brand unset by default", () => {
   const c = loadConfig(base);
   assert.deepEqual(c.brand, {
     name: "",
     accent: "#3e8fd0",
     logoPath: "",
-    theme: "dark",
+    theme: "auto",
   });
 });
 
@@ -167,7 +170,7 @@ test("treats blank brand vars as unset", () => {
     name: "",
     accent: "#3e8fd0",
     logoPath: "",
-    theme: "dark",
+    theme: "auto",
   });
 });
 

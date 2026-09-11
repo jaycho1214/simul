@@ -68,7 +68,7 @@ export const EN_STRINGS = {
     logoClear: "Remove logo",
     logoNone: "No file selected",
     theme: "Screen mode",
-    themeDefault: "Default (dark)",
+    themeDefault: "Default (match the attendee's device)",
     themeDark: "Dark",
     themeLight: "Light",
     themeAuto: "Match the attendee's device",

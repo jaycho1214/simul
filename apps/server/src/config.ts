@@ -216,7 +216,11 @@ function brand(env: Env): Brand {
     name: env.BRAND_NAME?.trim() ?? "",
     accent: accent(env, "BRAND_ACCENT"),
     logoPath,
-    theme: (theme === "" ? "dark" : theme) as BrandTheme,
+    // Unset follows each phone's own light/dark setting. Forcing dark was
+    // the earlier default, and it made a daytime event dark on every screen
+    // unless the operator knew to change it; "auto" is what a phone would do
+    // anyway, and the operator can still pin either scheme for the room.
+    theme: (theme === "" ? "auto" : theme) as BrandTheme,
   });
 }
 

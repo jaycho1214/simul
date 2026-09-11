@@ -13,7 +13,7 @@ const root = () => document.documentElement;
 
 describe("applyBrand", () => {
   test("writes every accent token onto the document root", () => {
-    applyBrand(document, { ...UNBRANDED, accent: "#7a3e9d" }, false);
+    applyBrand(document, { ...UNBRANDED, accent: "#7a3e9d", theme: "dark" }, false);
 
     for (const [name, value] of Object.entries(accentTokens("#7a3e9d", "dark"))) {
       expect(root().style.getPropertyValue(name), name).toBe(value);
